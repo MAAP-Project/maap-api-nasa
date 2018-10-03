@@ -1,2 +1,2 @@
 # maap-api
-MAAP API specification
+MAAP API specification.
