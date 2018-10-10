@@ -1,0 +1,767 @@
+swagger: "2.0"
+info:
+  version: "0.1.0"
+  title: MAAP API
+
+basePath: /api/v1
+schemes:
+  - http
+consumes:
+  - application/json
+produces:
+  - application/json
+  
+paths:
+
+  /info:
+    get:
+      tags:
+        - Info
+      description: Get information about the MAAP service !
+      operationId: get_service_info
+       
+      responses:
+        200:
+          description: Service info
+          schema:
+            $ref: "#/definitions/ServiceInfo"          
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+            
+  /workspace:
+    get:
+      tags:
+        - Workspace
+      description: Get the workspace for the current user
+      operationId: get_workspace
+      responses:
+        200:
+          description: Workspace info
+          schema:
+            $ref: "#/definitions/Workspace"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse" 
+    post:
+      tags:
+        - Workspace
+      description: Create a workspace
+      operationId: create_workspace
+      parameters:
+        - name: workspace_input
+          in: body
+          required: true
+          schema:
+            $ref: "#/definitions/WorkspaceInput"             
+      responses:
+        200:
+          description: New workspace
+          schema:
+            $ref: "#/definitions/WorkspaceInput"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"   
+ 
+  /jobs:
+    get:
+      tags:
+        - Job
+      description: Get list of jobs
+      operationId: get_jobs
+       
+      responses:
+        200:
+          description: List of jobs
+          schema:
+            type: array
+            items: 
+              $ref: "#/definitions/Job"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+    post:
+      tags:
+        - Job
+      description: Create a job
+      operationId: create_job
+      parameters:
+        - name: job_input
+          in: body
+          required: true
+          schema:
+            $ref: "#/definitions/JobInput"             
+      responses:
+        200:
+          description: New job
+          schema:
+            $ref: "#/definitions/Job"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"            
+  /jobs/{job_id}:
+    get:
+      tags:
+        - Job
+      description: Get a job
+      operationId: get_job
+      parameters:
+        - name: job_id
+          in: path
+          description: unique id of job
+          type: string
+          required: true      
+      responses:
+        200:
+          description: Job info
+          schema:
+            $ref: "#/definitions/Job"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"            
+            
+  /jobs/{job_id}/submit:
+    post:
+      tags:
+        - Job
+      description: Create a job session based on the job definition. Note that this creates a session but does not start it. The session needs to be executed using sessions end point.
+      operationId: submit_job
+      parameters:
+        - name: job_id
+          in: path
+          description: unique id of job
+          type: string
+          required: true        
+      responses:
+        200:
+          description: Successful submission
+          schema:
+            $ref: "#/definitions/SubmitJobResponse"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+           
+  /sessions:
+    get:
+      tags:
+        - Session
+      description: Get list of job sessions
+      operationId: get_sessions
+       
+      responses:
+        200:
+          description: List of job sessions
+          schema:
+            type: array
+            items: 
+              $ref: "#/definitions/JobSession"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+            
+  /sessions/{session_id}:
+    get:
+      tags:
+        - Session
+      description: Get a job session
+      operationId: get_session
+      parameters:
+        - name: session_id
+          in: path
+          description: unique id of job session
+          type: string
+          required: true      
+      responses:
+        200:
+          description: Job session
+          schema:
+            $ref: "#/definitions/JobSession"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"            
+            
+  /sessions/{session_id}/run:
+    post:
+      tags:
+        - Session
+      description: Run job session
+      operationId: run_session
+      parameters:
+        - name: session_id
+          in: path
+          description: unique id of job session
+          type: string
+          required: true 
+        - name: run_input
+          in: body
+          required: true
+          schema:
+            $ref: "#/definitions/SessionRunInput"
+      responses:
+        204:
+          description: Session started
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"    
+            
+  /sessions/{session_id}/steps/{step_index}/run:
+    post:
+      tags:
+        - Session
+      description: Run a step of a job session
+      operationId: run_session_step
+      parameters:
+        - name: session_id
+          in: path
+          description: unique id of job session
+          type: string
+          required: true        
+        - name: step_index
+          in: path
+          description: index of the step
+          type: string
+          required: true             
+        - name: run_input
+          in: body
+          required: true
+          schema:
+            $ref: "#/definitions/SessionRunInput"          
+      responses:
+        204:
+          description: Step started
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse" 
+            
+  /sessions/{session_id}/steps/{step_index}:
+    get:
+      tags:
+        - Session
+      description: Get results of a job step
+      operationId: get_session_step
+      parameters:
+        - name: session_id
+          in: path
+          description: unique id of job session
+          type: string
+          required: true        
+        - name: step_index
+          in: path
+          description: index of the step
+          type: string
+          required: true             
+      responses:
+        200:
+          description: Step results
+          schema:
+            $ref: "#/definitions/JobStepResults"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"             
+            
+  /session/{session_id}/cancel:
+    post:
+      tags:
+        - Session
+      description: Cancel a job session
+      operationId: cancel_session
+      parameters:
+        - name: session_id
+          in: path
+          description: unique id of job session
+          type: string
+          required: true        
+      responses:
+        204:
+          description: Session canceled
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"    
+
+  /algorithms:
+    get:
+      tags:
+        - Algorithm
+      description: Get list of algorithms
+      operationId: get_algorithms
+       
+      responses:
+        200:
+          description: List of algorithms
+          schema:
+            type: array
+            items: 
+              $ref: "#/definitions/Algorithm"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+    post:
+      tags:
+        - Algorithm
+      description: Create an algorithm
+      operationId: create_algorithm
+      parameters:
+        - name: job_input
+          in: body
+          required: true
+          schema:
+            $ref: "#/definitions/AlgorithmInput"             
+      responses:
+        200:
+          description: New algorithm
+          schema:
+            $ref: "#/definitions/Algorithm"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"            
+  /algorithms/{algorithm_id}:
+    get:
+      tags:
+        - Algorithm
+      description: Get an algorithm
+      operationId: get_algorithm
+      parameters:
+        - name: algorithm_id
+          in: path
+          description: unique id of algorithm
+          type: string
+          required: true      
+      responses:
+        200:
+          description: Algorithm info
+          schema:
+            $ref: "#/definitions/Algorithm"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"            
+     
+  /collections:
+    post:
+      tags:
+        - Collection
+      description: Create a collection
+      operationId: create_collection
+      parameters:
+        - name: collection_input
+          in: body
+          required: true
+          schema:
+            $ref: "#/definitions/CollectionInput"             
+      responses:
+        200:
+          description: New collection
+          schema:
+            $ref: "#/definitions/Collection"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"            
+  /collections/{collection_id}:
+    get:
+      tags:
+        - Collection
+      description: Get a collection
+      operationId: get_collection
+      parameters:
+        - name: collection_id
+          in: path
+          description: unique id of collection
+          type: string
+          required: true      
+      responses:
+        200:
+          description: Collection info
+          schema:
+            $ref: "#/definitions/Collection"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"  
+    delete:
+      tags:
+        - Collection
+      description: Delete a collection
+      operationId: delete_collection
+      parameters:
+        - name: collection_id
+          in: path
+          description: unique id of collection
+          type: string
+          required: true      
+      responses:
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"             
+     
+  /granules:
+    post:
+      tags:
+        - Granule
+      description: Create a granule
+      operationId: create_granule
+      parameters:
+        - name: granule_input
+          in: body
+          required: true
+          schema:
+            $ref: "#/definitions/GranuleInput"             
+      responses:
+        200:
+          description: New granule
+          schema:
+            $ref: "#/definitions/Granule"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"            
+  /granules/{granule_id}:
+    get:
+      tags:
+        - Granule
+      description: Get a granule
+      operationId: get_granule
+      parameters:
+        - name: granule_id
+          in: path
+          description: unique id of granule
+          type: string
+          required: true      
+      responses:
+        200:
+          description: Granule info
+          schema:
+            $ref: "#/definitions/Granule"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"  
+    delete:
+      tags:
+        - Granule
+      description: Delete a granule
+      operationId: delete_granule
+      parameters:
+        - name: granule_id
+          in: path
+          description: unique id of granule
+          type: string
+          required: true      
+      responses:
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"       
+  
+definitions:
+  ServiceInfo:
+    description: Information about the MAAP service  
+    properties:
+      name:
+        type: string
+        description: name of the service
+      description:
+        type: string
+        description: Description of the service        
+      version:
+        type: string
+        description: version of the service
+      subsytems:
+        type: array      
+        items:
+          $ref: "#/definitions/SubsytemInfo"          
+
+  SubsytemInfo:
+    description: Information about the subsystem api
+    properties:
+      name:
+        type: string
+        description: name of the subsytem
+      description:
+        type: string
+        description: Description of the subsytem        
+      version:
+        type: string
+        description: version of the subsytem
+      uri:
+        type: string
+        description: uri location of the subsytem
+        
+  WorkspaceInput:
+    description: Input to create a new workspace
+    properties:
+      workspace_name:
+        type: string
+        description: name of the workspace
+        
+  Workspace:
+    description: Jobs, algorithms, and user-specific work
+    allOf:
+    - $ref: "#/definitions/WorkspaceInput"
+    - type: object
+    properties:
+      workspace_id:
+          type: string
+          description: unique id of the algorithm
+      jobs:
+        type: array      
+        items:
+          $ref: "#/definitions/Job" 
+      algorithms:
+        type: array      
+        items:
+          $ref: "#/definitions/Algorithm" 
+      collections:
+        type: array      
+        items:
+          $ref: "#/definitions/Collection" 
+      granules:
+        type: array      
+        items:
+          $ref: "#/definitions/Granule" 
+        
+  AlgorithmInput:
+    description: input to create a new algorithm
+    properties:
+      algorithm_name:
+        type: string
+        description: name of the algorithm
+      algorithm_uri:
+        type: string
+        description: Unique uri of the algorithm 
+      algorithm_branch:
+        type: string
+        description: Branch name of the algorithm
+      algorithm_version:
+        type: string
+        description: Version of the algorithm 
+        
+  Algorithm:
+    allOf:
+    - $ref: "#/definitions/AlgorithmInput"
+    - type: object
+    properties:
+      algorithm_id:
+          type: string
+          description: unique id of the algorithm
+        
+  JobInput:
+    description: input to create a new job
+    properties:
+      job_name:
+        type: string
+        description: name of the job
+      algorithm_id:
+        type: string
+        description: id of the algorithm
+      data_collection:
+        type: array      
+        items:
+          $ref: "#/definitions/Granule" 
+      status:
+        type: string
+        description: status of the job
+        enum:
+          - ACTIVE
+          - DEPRECATED
+      description:
+        type: string      
+        description: description of the job
+        
+  Job:      
+    allOf:
+    - $ref: "#/definitions/JobInput"
+    - type: object
+      properties:
+        job_id:
+          type: string
+          description: unique id of the job
+              
+  JobSession:
+    properties:
+      session_id:
+        type: string
+        description: unique id of the job session
+      job_id:
+        type: string
+        description: job id used for the session
+      job_name:
+        type: string
+        description: Name of the job        
+      user_id:
+        type: string
+        description: user id who is running the session
+      steps:
+        type: array
+        items:
+          $ref: "#/definitions/JobStepResults"    
+      status:
+        type: string
+        description: Status of the job session
+        enum:
+          - SUCCESS
+          - ERROR
+          - PENDING
+          - RUNNING
+          - CANCELED
+          - TIMEOUT            
+      callback_uri:
+        type: string
+        description: Web hook callback uri. This will be empty when a session is created and can be set when the session of a step is started.          
+
+  SubmitJobResponse:
+    description: Response when a job is run
+    properties:
+      session_id:
+        type: string
+        description: Unique id of the job session
+        
+  JobStep:
+    description: Step that is a part of a job process
+    properties:
+      index:
+        type: integer
+        description: index of the step (zero based)
+      description:
+        type: string
+        description: description of the step
+        
+  JobStepResults:
+    description: data model for the results of a job step
+    allOf:
+    - $ref: '#/definitions/JobStep'
+    - type: object
+      properties:
+        status:
+          type: string
+          description: Status of the job step
+          enum:
+            - SUCCESS
+            - ERROR
+            - PENDING
+            - RUNNING
+            - CANCELED
+            - TIMEOUT  
+        messages: 
+          type: array
+          description: error or warning messages
+          items:
+            $ref: "#/definitions/StepMessage" 
+        time_started:
+          type: string
+          description: time when the step started
+        time_ended:
+          type: string
+          description: time when the step ended        
+        files:
+          type: array
+          description: Result files
+          items:
+            $ref: "#/definitions/FileInfo" 
+
+  StepMessage:
+    properties:
+      level:
+        type: string
+        description: Message level
+        enum:
+          - WARN
+          - ERROR
+      text:
+        type: string
+        description: message text
+        
+  SessionRunInput:
+    properties:
+      callback_uri:
+        type: string
+        description: |
+           Webhook callback uri.  
+           MAAP service will make POST call to this uri to report progress or completion of session. 
+           The POST call will send JobStepResults in HTTP body.
+           Use an empty string for no callback.
+        
+  FileInfo:
+    properties:
+      file_uri:
+        type: string
+        description: Download uri of the file
+      description:
+        type: string
+        description: descripton of the file
+        
+  CollectionInput:
+    properties:
+      description:
+        type: string
+        description: descripton of the collection
+        
+        
+  Collection:
+    allOf:
+    - $ref: '#/definitions/CollectionInput'
+    - type: object
+    properties:
+      collection_id:
+        type: string
+        description: Id of the granule
+        
+  GranuleInput:
+    properties:
+      description:
+        type: string
+        description: descripton of the granule
+        
+  Granule:
+    allOf:
+    - $ref: '#/definitions/GranuleInput'
+    - type: object
+    properties:
+      granule_id:
+        type: string
+        description: Id of the granule
+        
+  ErrorResponse:
+    required:
+    - message
+    properties:
+      message:
+        type: string
+
+
+parameters:
+    
+  offset:
+    name: offset    
+    in: query
+    description: Start index for pagination. zero based.
+    required: false
+    type: integer
+    default: 0
+    
+  limit:
+    name: limit
+    in: query
+    description: Max number of elements to return.
+    required: false
+    type: integer
+    default: 50
+  
