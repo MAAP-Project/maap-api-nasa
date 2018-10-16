@@ -1,0 +1,516 @@
+swagger: "2.0"
+info:
+  version: "0.1.0"
+  title: MAAP API - DPS Job Submission
+
+basePath: /api/v1
+schemes:
+  - http
+consumes:
+  - application/json
+produces:
+  - application/json
+
+paths:
+
+  /jobs:
+    get:
+      tags:
+        - Job
+      description: Get list of jobs
+      operationId: get_jobs
+
+      responses:
+        200:
+          description: List of jobs
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Job"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+    post:
+      tags:
+        - Job
+      description: Create a job
+      operationId: create_job
+      parameters:
+        - name: job_input
+          in: body
+          required: true
+          schema:
+            $ref: "#/definitions/JobInput"
+      responses:
+        200:
+          description: New job
+          schema:
+            $ref: "#/definitions/Job"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+  /jobs/{job_id}:
+    get:
+      tags:
+        - Job
+      description: Get a job
+      operationId: get_job
+      parameters:
+        - name: job_id
+          in: path
+          description: unique id of job
+          type: string
+          required: true
+      responses:
+        200:
+          description: Job info
+          schema:
+            $ref: "#/definitions/Job"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+  /jobs/{job_id}/submit:
+    post:
+      tags:
+        - Job
+      description: Create a job entry based on the job definition. Note that this creates a entry but does not start it. The entry needs to be executed using jobentries end point.
+      operationId: submit_job
+      parameters:
+        - name: job_id
+          in: path
+          description: unique id of job
+          type: string
+          required: true
+      responses:
+        200:
+          description: Successful submission
+          schema:
+            $ref: "#/definitions/SubmitJobResponse"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+  /jobentries:
+    get:
+      tags:
+        - JobEntry
+      description: Get list of job entries
+      operationId: get_jobentries
+
+      responses:
+        200:
+          description: List of job entries
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/JobEntry"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+  /jobentries/{entry_id}:
+    get:
+      tags:
+        - JobEntry
+      description: Get a job entry
+      operationId: get_jobentry
+      parameters:
+        - name: entry_id
+          in: path
+          description: unique id of job entry
+          type: string
+          required: true
+      responses:
+        200:
+          description: Job entry
+          schema:
+            $ref: "#/definitions/JobEntry"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+  /jobentries/{entry_id}/run:
+    post:
+      tags:
+        - JobEntry
+      description: Run job entry
+      operationId: run_jobentry
+      parameters:
+        - name: entry_id
+          in: path
+          description: unique id of job entry
+          type: string
+          required: true
+        - name: run_input
+          in: body
+          required: true
+          schema:
+            $ref: "#/definitions/JobEntryRunInput"
+      responses:
+        204:
+          description: Job entry started
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+  /jobentries/{entry_id}/steps/{step_index}/run:
+    post:
+      tags:
+        - JobEntry
+      description: Run a step of a job entry
+      operationId: run_job_entry_step
+      parameters:
+        - name: entry_id
+          in: path
+          description: unique id of job entry
+          type: string
+          required: true
+        - name: step_index
+          in: path
+          description: index of the step
+          type: string
+          required: true
+        - name: run_input
+          in: body
+          required: true
+          schema:
+            $ref: "#/definitions/JobEntryRunInput"
+      responses:
+        204:
+          description: Step started
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+  /jobentries/{entry_id}/steps/{step_index}:
+    get:
+      tags:
+        - JobEntry
+      description: Get results of a job step
+      operationId: get_job_entry_step
+      parameters:
+        - name: entry_id
+          in: path
+          description: unique id of job entry
+          type: string
+          required: true
+        - name: step_index
+          in: path
+          description: index of the step
+          type: string
+          required: true
+      responses:
+        200:
+          description: Step results
+          schema:
+            $ref: "#/definitions/JobStepResults"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+  /jobentry/{entry_id}/cancel:
+    post:
+      tags:
+        - JobEntry
+      description: Cancel a job entry
+      operationId: cancel_job_entry
+      parameters:
+        - name: entry_id
+          in: path
+          description: unique id of job entry
+          type: string
+          required: true
+      responses:
+        204:
+          description: JobEntry canceled
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+  /algorithms:
+    get:
+      tags:
+        - Algorithm
+      description: Get list of algorithms
+      operationId: get_algorithms
+
+      responses:
+        200:
+          description: List of algorithms
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Algorithm"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+    post:
+      tags:
+        - Algorithm
+      description: Create an algorithm
+      operationId: create_algorithm
+      parameters:
+        - name: job_input
+          in: body
+          required: true
+          schema:
+            $ref: "#/definitions/AlgorithmInput"
+      responses:
+        200:
+          description: New algorithm
+          schema:
+            $ref: "#/definitions/Algorithm"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+  /algorithms/{algorithm_id}:
+    get:
+      tags:
+        - Algorithm
+      description: Get an algorithm
+      operationId: get_algorithm
+      parameters:
+        - name: algorithm_id
+          in: path
+          description: unique id of algorithm
+          type: string
+          required: true
+      responses:
+        200:
+          description: Algorithm info
+          schema:
+            $ref: "#/definitions/Algorithm"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+
+definitions:
+
+  AlgorithmInput:
+    description: input to create a new algorithm
+    properties:
+      algorithm_name:
+        type: string
+        description: name of the algorithm
+      algorithm_uri:
+        type: string
+        description: Unique uri of the algorithm
+      algorithm_branch:
+        type: string
+        description: Branch name of the algorithm
+      algorithm_version:
+        type: string
+        description: Version of the algorithm
+
+  Algorithm:
+    allOf:
+    - $ref: "#/definitions/AlgorithmInput"
+    - type: object
+    properties:
+      algorithm_id:
+          type: string
+          description: unique id of the algorithm
+
+  JobInput:
+    description: input to create a new job
+    properties:
+      job_name:
+        type: string
+        description: name of the job
+      algorithm_id:
+        type: string
+        description: id of the algorithm
+      data_collection:
+        type: array
+        items:
+          $ref: "#/definitions/Granule"
+      status:
+        type: string
+        description: status of the job
+        enum:
+          - ACTIVE
+          - DEPRECATED
+      description:
+        type: string
+        description: description of the job
+
+  Job:
+    allOf:
+    - $ref: "#/definitions/JobInput"
+    - type: object
+      properties:
+        job_id:
+          type: string
+          description: unique id of the job
+
+  JobEntry:
+    properties:
+      entry_id:
+        type: string
+        description: unique id of the job entry
+      job_id:
+        type: string
+        description: job id used for the entry
+      job_name:
+        type: string
+        description: Name of the job
+      user_id:
+        type: string
+        description: user id who is running the job entry
+      steps:
+        type: array
+        items:
+          $ref: "#/definitions/JobStepResults"
+      status:
+        type: string
+        description: Status of the job entry
+        enum:
+          - SUCCESS
+          - ERROR
+          - PENDING
+          - RUNNING
+          - CANCELED
+          - TIMEOUT
+      callback_uri:
+        type: string
+        description: Web hook callback uri. This will be empty when a job entry is created and can be set when the job entry of a step is started.
+
+  SubmitJobResponse:
+    description: Response when a job is run
+    properties:
+      entry_id:
+        type: string
+        description: Unique id of the job entry
+
+  JobStep:
+    description: Step that is a part of a job process
+    properties:
+      index:
+        type: integer
+        description: index of the step (zero based)
+      description:
+        type: string
+        description: description of the step
+
+  JobStepResults:
+    description: data model for the results of a job step
+    allOf:
+    - $ref: '#/definitions/JobStep'
+    - type: object
+      properties:
+        status:
+          type: string
+          description: Status of the job step
+          enum:
+            - SUCCESS
+            - ERROR
+            - PENDING
+            - RUNNING
+            - CANCELED
+            - TIMEOUT
+        messages:
+          type: array
+          description: error or warning messages
+          items:
+            $ref: "#/definitions/StepMessage"
+        time_started:
+          type: string
+          description: time when the step started
+        time_ended:
+          type: string
+          description: time when the step ended
+        files:
+          type: array
+          description: Result files
+          items:
+            $ref: "#/definitions/FileInfo"
+
+  StepMessage:
+    properties:
+      level:
+        type: string
+        description: Message level
+        enum:
+          - WARN
+          - ERROR
+      text:
+        type: string
+        description: message text
+
+  JobEntryRunInput:
+    properties:
+      callback_uri:
+        type: string
+        description: |
+           Webhook callback uri.
+           MAAP service will make POST call to this uri to report progress or completion of job entry.
+           The POST call will send JobStepResults in HTTP body.
+           Use an empty string for no callback.
+
+  FileInfo:
+    properties:
+      file_uri:
+        type: string
+        description: Download uri of the file
+      description:
+        type: string
+        description: description of the file
+
+  GranuleInput:
+    properties:
+      description:
+        type: string
+        description: description of the granule
+        
+  Granule:
+    allOf:
+    - $ref: '#/definitions/GranuleInput'
+    - type: object
+    properties:
+      granule_id:
+        type: string
+        description: Id of the granule
+        
+  ErrorResponse:
+    required:
+    - message
+    properties:
+      message:
+        type: string
+
+
+parameters:
+    
+  offset:
+    name: offset    
+    in: query
+    description: Start index for pagination. zero based.
+    required: false
+    type: integer
+    default: 0
+    
+  limit:
+    name: limit
+    in: query
+    description: Max number of elements to return.
+    required: false
+    type: integer
+    default: 50
+  
