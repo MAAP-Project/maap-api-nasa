@@ -4,5 +4,5 @@ The MAAP API is a REST API for querying multi-mission data and collaborating on 
 ## API Specifications
 
 - [Skeleton API](maap-skeleton.yaml): a proposal for the initial release.
-- [Job Submission API](maap-job-submission.yaml): a subset of the MAAP API that provides services that submits and queries HySDS jobs.
+- [Job Submission API](maap-job-submission.yaml): a subset of the MAAP API that provides services that submit and fetch HySDS jobs.
 
