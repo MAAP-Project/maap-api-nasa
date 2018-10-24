@@ -1,0 +1,2 @@
+flask-restplus~=0.12.1
+requests~=2.19.1
