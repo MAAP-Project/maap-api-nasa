@@ -3,7 +3,7 @@ import logging.config
 import os
 from flask import Flask, Blueprint
 from api import settings
-from api.endpoints.collections import ns as cmr_collections_namespace
+from api.endpoints.cmr import ns as cmr_collections_namespace
 from api.restplus import api
 
 app = Flask(__name__)
