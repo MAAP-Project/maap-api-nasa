@@ -1,6 +1,8 @@
 # MAAP API
 The MAAP API is a REST API for querying multi-mission data and collaborating on an open library of science algorithms to analyze these data. 
 
+Development server: https://api.maap.xyz/api/
+
 ## API Specifications
 
 - [Skeleton API](maap-skeleton.yaml): a proposal for the initial release.
