@@ -11,6 +11,16 @@ logging_conf_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '..
 logging.config.fileConfig(logging_conf_path)
 log = logging.getLogger(__name__)
 
+blueprint = Blueprint('api', __name__, url_prefix='/api')
+api.init_app(blueprint)
+api.add_namespace(cmr_collections_namespace)
+app.register_blueprint(blueprint)
+
+
+@app.route('/')
+def index():
+    return '<a href=/api/>MAAP API</a>'
+
 
 def configure_app(flask_app):
     flask_app.config['SERVER_NAME'] = settings.FLASK_SERVER_NAME
@@ -39,3 +49,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
