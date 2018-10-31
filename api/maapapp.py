@@ -11,7 +11,7 @@ logging_conf_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '..
 logging.config.fileConfig(logging_conf_path)
 log = logging.getLogger(__name__)
 
-blueprint = Blueprint('api', __name__, url_prefix='/api')
+blueprint = Blueprint('baseapi', __name__, url_prefix='/api')
 api.init_app(blueprint)
 api.add_namespace(cmr_collections_namespace)
 app.register_blueprint(blueprint)
