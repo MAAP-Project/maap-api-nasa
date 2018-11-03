@@ -131,7 +131,7 @@ paths:
     post:
       tags:
         - Job
-      description: Create a job session based on the job definition. Note that this creates a session but does not start it. The session needs to be executed using sessions end point.
+      description: Create a job entry based on the job definition. Note that this creates a entry but does not start it. The entry needs to be executed using jobentries end point.
       operationId: submit_job
       parameters:
         - name: job_id
@@ -148,149 +148,72 @@ paths:
           description: Error
           schema:
             $ref: "#/definitions/ErrorResponse"
-           
-  /sessions:
+
+  /jobentries:
     get:
       tags:
-        - Session
-      description: Get list of job sessions
-      operationId: get_sessions
-       
+        - JobEntry
+      description: Get list of job entries
+      operationId: get_jobentries
+
       responses:
         200:
-          description: List of job sessions
+          description: List of job entries
           schema:
             type: array
-            items: 
-              $ref: "#/definitions/JobSession"
+            items:
+              $ref: "#/definitions/JobEntry"
         default:
           description: Error
           schema:
             $ref: "#/definitions/ErrorResponse"
-            
-  /sessions/{session_id}:
+
+  /jobentries/{entry_id}:
     get:
       tags:
-        - Session
-      description: Get a job session
-      operationId: get_session
+        - JobEntry
+      description: Get a job entry
+      operationId: get_jobentry
       parameters:
-        - name: session_id
+        - name: entry_id
           in: path
-          description: unique id of job session
+          description: unique id of job entry
           type: string
-          required: true      
+          required: true
       responses:
         200:
-          description: Job session
+          description: Job entry
           schema:
-            $ref: "#/definitions/JobSession"
+            $ref: "#/definitions/JobEntry"
         default:
           description: Error
           schema:
-            $ref: "#/definitions/ErrorResponse"            
-            
-  /sessions/{session_id}/run:
+            $ref: "#/definitions/ErrorResponse"
+
+  /jobentries/{entry_id}/run:
     post:
       tags:
-        - Session
-      description: Run job session
-      operationId: run_session
+        - JobEntry
+      description: Run job entry
+      operationId: run_jobentry
       parameters:
-        - name: session_id
+        - name: entry_id
           in: path
-          description: unique id of job session
+          description: unique id of job entry
           type: string
-          required: true 
+          required: true
         - name: run_input
           in: body
           required: true
           schema:
-            $ref: "#/definitions/SessionRunInput"
+            $ref: "#/definitions/JobEntryRunInput"
       responses:
         204:
-          description: Session started
+          description: Job entry started
         default:
           description: Error
           schema:
-            $ref: "#/definitions/ErrorResponse"    
-            
-  /sessions/{session_id}/steps/{step_index}/run:
-    post:
-      tags:
-        - Session
-      description: Run a step of a job session
-      operationId: run_session_step
-      parameters:
-        - name: session_id
-          in: path
-          description: unique id of job session
-          type: string
-          required: true        
-        - name: step_index
-          in: path
-          description: index of the step
-          type: string
-          required: true             
-        - name: run_input
-          in: body
-          required: true
-          schema:
-            $ref: "#/definitions/SessionRunInput"          
-      responses:
-        204:
-          description: Step started
-        default:
-          description: Error
-          schema:
-            $ref: "#/definitions/ErrorResponse" 
-            
-  /sessions/{session_id}/steps/{step_index}:
-    get:
-      tags:
-        - Session
-      description: Get results of a job step
-      operationId: get_session_step
-      parameters:
-        - name: session_id
-          in: path
-          description: unique id of job session
-          type: string
-          required: true        
-        - name: step_index
-          in: path
-          description: index of the step
-          type: string
-          required: true             
-      responses:
-        200:
-          description: Step results
-          schema:
-            $ref: "#/definitions/JobStepResults"
-        default:
-          description: Error
-          schema:
-            $ref: "#/definitions/ErrorResponse"             
-            
-  /session/{session_id}/cancel:
-    post:
-      tags:
-        - Session
-      description: Cancel a job session
-      operationId: cancel_session
-      parameters:
-        - name: session_id
-          in: path
-          description: unique id of job session
-          type: string
-          required: true        
-      responses:
-        204:
-          description: Session canceled
-        default:
-          description: Error
-          schema:
-            $ref: "#/definitions/ErrorResponse"    
+            $ref: "#/definitions/ErrorResponse"  
 
   /algorithms:
     get:
@@ -594,46 +517,46 @@ definitions:
         job_id:
           type: string
           description: unique id of the job
-              
-  JobSession:
+
+  JobEntry:
     properties:
-      session_id:
+      entry_id:
         type: string
-        description: unique id of the job session
+        description: unique id of the job entry
       job_id:
         type: string
-        description: job id used for the session
+        description: job id used for the entry
       job_name:
         type: string
-        description: Name of the job        
+        description: Name of the job
       user_id:
         type: string
-        description: user id who is running the session
+        description: user id who is running the job entry
       steps:
         type: array
         items:
-          $ref: "#/definitions/JobStepResults"    
+          $ref: "#/definitions/JobStepResults"
       status:
         type: string
-        description: Status of the job session
+        description: Status of the job entry
         enum:
           - SUCCESS
           - ERROR
           - PENDING
           - RUNNING
           - CANCELED
-          - TIMEOUT            
+          - TIMEOUT
       callback_uri:
         type: string
-        description: Web hook callback uri. This will be empty when a session is created and can be set when the session of a step is started.          
+        description: Web hook callback uri. This will be empty when a job entry is created and can be set when the job entry of a step is started.
 
   SubmitJobResponse:
     description: Response when a job is run
     properties:
-      session_id:
+      entry_id:
         type: string
-        description: Unique id of the job session
-        
+        description: Unique id of the job entry
+
   JobStep:
     description: Step that is a part of a job process
     properties:
@@ -643,7 +566,7 @@ definitions:
       description:
         type: string
         description: description of the step
-        
+
   JobStepResults:
     description: data model for the results of a job step
     allOf:
@@ -659,23 +582,23 @@ definitions:
             - PENDING
             - RUNNING
             - CANCELED
-            - TIMEOUT  
-        messages: 
+            - TIMEOUT
+        messages:
           type: array
           description: error or warning messages
           items:
-            $ref: "#/definitions/StepMessage" 
+            $ref: "#/definitions/StepMessage"
         time_started:
           type: string
           description: time when the step started
         time_ended:
           type: string
-          description: time when the step ended        
+          description: time when the step ended
         files:
           type: array
           description: Result files
           items:
-            $ref: "#/definitions/FileInfo" 
+            $ref: "#/definitions/FileInfo"
 
   StepMessage:
     properties:
@@ -688,17 +611,17 @@ definitions:
       text:
         type: string
         description: message text
-        
-  SessionRunInput:
+
+  JobEntryRunInput:
     properties:
       callback_uri:
         type: string
         description: |
-           Webhook callback uri.  
-           MAAP service will make POST call to this uri to report progress or completion of session. 
+           Webhook callback uri.
+           MAAP service will make POST call to this uri to report progress or completion of job entry.
            The POST call will send JobStepResults in HTTP body.
            Use an empty string for no callback.
-        
+
   FileInfo:
     properties:
       file_uri:
