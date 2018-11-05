@@ -3,7 +3,8 @@ import os
 import requests
 import shapefile
 from api import settings
-
+from zipfile import ZipFile
+import tempfile
 from flask import request, jsonify
 from flask_restplus import Resource, reqparse
 from api.restplus import api
@@ -22,30 +23,45 @@ class CmrCollection(Resource):
         """
 
         url = os.path.join(settings.CMR_URL, 'search', 'collections')
-
         resp = requests.get(url, headers=get_search_headers(), params=request.args)
-        return jsonify(resp.text)
+
+        return respond(resp)
+
+
+@ns.route('/collections/shapefile')
+class ShapefileUpload(Resource):
 
     def post(self):
-        parse = reqparse.RequestParser()
-        parse.add_argument('shapefile')
 
-        working_directory = os.getcwd()
+        if 'file' not in request.files:
+            log.error('Upload attempt with no file')
+            raise Exception('No file uploaded')
 
-        sf = shapefile.Reader(working_directory + "/../../antarctica/gis_osm_landuse_a_free_1.shp")
-        bbox = sf.bbox
-        test = sf.measure
+        f = request.files['file']
 
-        #args = parse.parse_args()
+        dst = tempfile.NamedTemporaryFile()
+        f.save(dst)
+        dst.flush()
+        zipfile = ZipFile(dst.name)
 
-        # stream = args['shapefile'].stream
-        #
-        # wav_file = wave.open(stream, 'rb')
-        # signal = wav_file.readframes(-1)
-        # signal = np.fromstring(signal, 'Int16')
-        # fs = wav_file.getframerate()
-        # wav_file.close()
+        filenames = [y for y in sorted(zipfile.namelist()) for ending in ['dbf', 'prj', 'shp', 'shx'] if
+                     y.endswith(ending)][:4]
 
+        dbf, prj, shp, shx = [filename for filename in filenames]
+
+        r = shapefile.Reader(
+            shp=zipfile.open(shp),
+            hx=zipfile.open(shx),
+            dbf=zipfile.open(dbf))
+
+        dst.close()
+
+        bbox = ','.join(map(str, r.bbox))
+
+        url = os.path.join(settings.CMR_URL, 'search', 'collections')
+        resp = requests.get(url, headers=get_search_headers(), params={'bounding_box': bbox})
+
+        return respond(resp)
 
 
 @ns.route('/granules')
@@ -57,9 +73,9 @@ class CmrGranules(Resource):
         """
 
         url = os.path.join(settings.CMR_URL, 'search', 'granules')
-
         resp = requests.get(url, headers=get_search_headers(), params=request.args)
-        return jsonify(resp.text)
+
+        return respond(resp)
 
 
 def get_search_headers():
@@ -68,4 +84,12 @@ def get_search_headers():
             'Echo-Token': settings.CMR_API_TOKEN,
             'Client-Id': settings.CMR_CLIENT_ID
         }
+
+def respond(response):
+    if response.status_code != 200:
+        raise Exception('CMR Error %s' % response.text)
+    if response.text == '':
+        return {}
+    else:
+        return jsonify(response.text)
 
