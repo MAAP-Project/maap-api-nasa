@@ -13,3 +13,12 @@ CMR_URL = 'https://cmr.uat.earthdata.nasa.gov'
 CMR_API_TOKEN = '4C40153D-6CC6-D01A-58E2-D8F3CAFB5472'
 CMR_CLIENT_ID = 'maap-api-cmr'
 
+# GIT settings
+GIT_REPO_URL = "https://github.com/NamrataM/maap-test.git"
+REPO_NAME = "maap-test"
+REPO_PATH = "/Users/malarout/PycharmProjects"
+VERSION = "master"
+
+# Docker container URL
+CONTAINER_URL = "http://docker.io/user/test_slc_extractor"
+

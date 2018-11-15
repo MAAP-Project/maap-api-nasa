@@ -4,6 +4,7 @@ import os
 from flask import Flask, Blueprint
 from api import settings
 from api.endpoints.cmr import ns as cmr_collections_namespace
+from api.endpoints.algorithm import ns as algorithm_namespace
 from api.restplus import api
 
 app = Flask(__name__)
@@ -38,6 +39,7 @@ def initialize_app(flask_app):
     blueprint = Blueprint('api', __name__, url_prefix='/api')
     api.init_app(blueprint)
     api.add_namespace(cmr_collections_namespace)
+    api.add_namespace(algorithm_namespace)
     flask_app.register_blueprint(blueprint)
 
 
