@@ -18,7 +18,7 @@ def update_git_repo(repo, repo_name, algorithm_name):
         '{}/{}/config.txt'.format(settings.REPO_PATH, repo_name),
         '{}/{}/job-types.txt'.format(settings.REPO_PATH, repo_name)
     ]
-    commit_message = 'malarout: testing programmatic commit'
+    commit_message = 'Registering algorithm: {}'.format(algorithm_name)
     repo.index.add(file_list)
     repo.index.commit(commit_message)
     origin = repo.remote('origin')

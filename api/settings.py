@@ -16,7 +16,7 @@ CMR_CLIENT_ID = 'maap-api-cmr'
 # GIT settings
 GIT_REPO_URL = "https://github.com/NamrataM/maap-test.git"
 REPO_NAME = "maap-test"
-REPO_PATH = "/Users/malarout/PycharmProjects"
+REPO_PATH = "/Path/to/clone/git_repo"
 VERSION = "master"
 
 # Docker container URL

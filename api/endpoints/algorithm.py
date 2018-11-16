@@ -73,7 +73,7 @@ class Register(Resource):
             response_body["error"] = ex.message
             return response_body
 
-        git.update_git_repo(repo, repo_name=settings.REPO_NAME, algorithm_name=algorithm_name)
+        git.update_git_repo(repo, repo_name=settings.REPO_NAME, algorithm_name=hysds.get_algorithm_file_name(algorithm_name))
         log.debug("Updated Git Repo")
 
         response_body["status"] = 200
