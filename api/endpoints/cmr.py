@@ -5,7 +5,7 @@ import shapefile
 from api import settings
 from zipfile import ZipFile
 import tempfile
-from flask import request, jsonify
+from flask import request, json
 from flask_restplus import Resource, reqparse
 from api.restplus import api
 
@@ -79,11 +79,14 @@ class CmrGranules(Resource):
 
 
 def get_search_headers():
+    accept = next(iter(request.headers.getlist('accept') or ['application/json']), ['application/json'])
+
     return {
-            'Accept': 'application/json',
+            'Accept': accept,
             'Echo-Token': settings.CMR_API_TOKEN,
             'Client-Id': settings.CMR_CLIENT_ID
         }
+
 
 def respond(response):
     if response.status_code != 200:
@@ -91,5 +94,8 @@ def respond(response):
     if response.text == '':
         return {}
     else:
-        return jsonify(response.text)
+        if "xml" in response.headers['content-type']:
+            return response.text, 200, {'Content-Type': 'text/css; charset=utf-8'}
+        else:
+            return json.loads(response.text)
 
