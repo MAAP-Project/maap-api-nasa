@@ -1,12 +1,10 @@
 import logging
-import json
-import os
-import requests
-from flask import request, jsonify
-from flask_restplus import Resource, reqparse
+from flask import request
+from flask_restplus import Resource
 from api.restplus import api
-import utils.github_util as git
-import utils.hysds_util as hysds
+
+import api.utils.github_util as git
+import api.utils.hysds_util as hysds
 import api.settings as settings
 
 log = logging.getLogger(__name__)
