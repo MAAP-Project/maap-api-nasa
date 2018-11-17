@@ -10,7 +10,7 @@ def get_algorithm_file_name (algorithm_name):
 
 def write_file(path, file_name, body):
     if not os.path.exists(path):
-        print "Creating docker dir"
+        print("Creating docker dir")
         os.makedirs(path)
     file = open(os.path.join(path, file_name), 'wb')
     file.write(body)
