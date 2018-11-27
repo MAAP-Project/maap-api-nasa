@@ -22,3 +22,6 @@ VERSION = "master"
 # Docker container URL
 CONTAINER_URL = "http://docker.io/user/test_slc_extractor"
 
+# HySDS Mozart
+MOZART_URL = "https://[MOZART_IP]/mozart/api/v0.1"
+DEFAULT_QUEUE = "factotum-job_worker-small"
