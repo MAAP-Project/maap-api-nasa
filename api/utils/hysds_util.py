@@ -78,7 +78,7 @@ def get_job_types(algorithm):
         return "job-{}:{}".format(algorithm, settings.VERSION)
 
 
-def mozart_submit_job(job_type):
+def mozart_submit_job(job_type, params = {}):
     """
     Submit a job to Mozart
     :param job_type:
@@ -88,17 +88,20 @@ def mozart_submit_job(job_type):
     job_payload["type"] = job_type
     job_payload["queue"] = settings.DEFAULT_QUEUE
     job_payload["priority"] = 0
-    job_payload["params"] = {}
+    job_payload["params"] = params
 
     headers = {'content-type': 'application/json'}
 
+    session = requests.Session()
+    session.verify = False
+
     try:
-        mozart_response = requests.post("{}/job/submit".format(settings.MOZART_URL),
-                                        params=job_payload, headers=headers)
+        mozart_response = session.post("{}/job/submit".format(settings.MOZART_URL),
+                                        params=job_payload, headers=headers, verify=False)
     except Exception as ex:
         raise ex
 
-    return mozart_response
+    return mozart_response.json()
 
 
 def mozart_job_status(job_id):
@@ -110,9 +113,13 @@ def mozart_job_status(job_id):
     params = dict()
     params["id"] = job_id
 
+    session = requests.Session()
+    session.verify = False
+
     try:
-        mozart_response = requests.get("{}/job/status".format(settings.MOZART_URL), params=params)
+        mozart_response = session.get("{}/job/status".format(settings.MOZART_URL), params=params)
+
     except Exception as ex:
         raise ex
 
-    return mozart_response
+    return mozart_response.json()

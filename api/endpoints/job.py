@@ -19,10 +19,11 @@ class Submit(Resource):
         """
         req_data = request.get_json()
         job_type = req_data["job_type"]
+        params = req_data["params"]
         response_body = dict()
 
         try:
-            response_body = hysds.mozart_submit_job(job_type=job_type)
+            response_body = hysds.mozart_submit_job(job_type=job_type, params=params)
         except Exception as ex:
             response_body["code"] = 500
             response_body["message"] = "Failed to submit job of type {}".format(job_type)
@@ -33,14 +34,12 @@ class Submit(Resource):
 
 @ns.route('/status')
 class Status(Resource):
-
     def get(self):
         """This will return run status of a job given a job id
         :return:
         """
         response_body = dict()
-        req_data = request.get_json()
-        job_id = req_data["job_id"]
+        job_id = request.args.get("job_id")
 
         try:
             response_body = hysds.mozart_job_status(job_id=job_id)
