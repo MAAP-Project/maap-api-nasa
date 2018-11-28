@@ -65,7 +65,7 @@ def write_spec_file(spec_type, algorithm, body, repo_name=settings.REPO_NAME):
 
 
 def create_config_file(docker_container_url):
-    return "docker_container_url = {}".format(docker_container_url)
+    return docker_container_url
 
 
 def get_job_types(algorithm):
