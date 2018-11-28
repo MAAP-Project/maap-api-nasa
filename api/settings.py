@@ -21,11 +21,15 @@ CMR_API_TOKEN = ''
 CMR_CLIENT_ID = ''
 
 # GIT settings
-GIT_REPO_URL = "https://github.com/NamrataM/maap-test.git"
-REPO_NAME = "maap-test"
+GIT_REPO_URL = "https://gitlab-ci-token:$TOKEN@repo.nasa.maap.xyz/root/register-job.git"
+
+REPO_NAME = "register-job"
 REPO_PATH = "/Path/to/clone/git_repo"
 VERSION = "master"
 
 # Docker container URL
-CONTAINER_URL = "http://docker.io/user/test_slc_extractor"
+CONTAINER_URL = "registry.nasa.maap.xyz/root/hello-world-hysds:master"
 
+# HySDS Mozart
+MOZART_URL = "https://[MOZART_IP]/mozart/api/v0.1"
+DEFAULT_QUEUE = "factotum-job_worker-small"

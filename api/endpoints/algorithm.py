@@ -57,9 +57,9 @@ class Register(Resource):
 
         try:
             hysds_io = hysds.create_hysds_io(algorithm_description=algorithm_description, algorithm_params=algorithm_params)
-            hysds.write_spec_file(type="hysds-io", algorithm=algorithm_name, body=hysds_io)
+            hysds.write_spec_file(spec_type="hysds-io", algorithm=algorithm_name, body=hysds_io)
             job_spec = hysds.create_job_spec(script_command=script_command, algorithm_params=algorithm_params)
-            hysds.write_spec_file(type="job-spec", algorithm=algorithm_name, body=job_spec)
+            hysds.write_spec_file(spec_type="job-spec", algorithm=algorithm_name, body=job_spec)
             config = hysds.create_config_file(docker_container_url=docker_container_url)
             hysds.write_file("{}/{}".format(settings.REPO_PATH, settings.REPO_NAME),"config.txt", config)
             job_types = hysds.get_job_types(algorithm_name)

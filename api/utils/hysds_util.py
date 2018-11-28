@@ -1,26 +1,30 @@
 import json
 import os
 import re
+import requests
 import api.settings as settings
 
-def get_algorithm_file_name (algorithm_name):
+
+def get_algorithm_file_name(algorithm_name):
     pattern = re.compile(r"\s+")
     string_without_whitespace = pattern.sub("", algorithm_name)
     return string_without_whitespace
+
 
 def write_file(path, file_name, body):
     if not os.path.exists(path):
         print("Creating docker dir")
         os.makedirs(path)
-    file = open(os.path.join(path, file_name), 'wb')
-    file.write(body)
-    file.close()
+    new_file = open(os.path.join(path, file_name), 'wb')
+    new_file.write(body)
+    new_file.close()
 
-def create_hysds_io(algorithm_description, algorithm_params, submission_type = "individual"):
+
+def create_hysds_io(algorithm_description, algorithm_params, submission_type="individual"):
 
     hysds_io = dict()
     hysds_io["label"] = algorithm_description
-    hysds_io["submission_type"] =submission_type
+    hysds_io["submission_type"] = submission_type
     params = list()
 
     for param in algorithm_params:
@@ -32,16 +36,17 @@ def create_hysds_io(algorithm_description, algorithm_params, submission_type = "
     hysds_io["params"] = params
     return hysds_io
 
+
 def create_job_spec(script_command, algorithm_params):
     job_spec = dict()
-    job_spec["command"] =  script_command
+    job_spec["command"] = script_command
     job_spec["disk_usage"] = "10GB"
     job_spec["imported_worker_files"] = {
         "$HOME/.netrc": "/home/ops/.netrc",
         "$HOME/.aws": "/home/ops/.aws",
         "/tmp": ["/tmp", "rw"]
     }
-    job_spec["recommended-queues"] = [ "factotum-job_worker-small" ]
+    job_spec["recommended-queues"] = ["factotum-job_worker-small"]
     params = list()
     for param in algorithm_params:
         param_spec = dict()
@@ -52,13 +57,16 @@ def create_job_spec(script_command, algorithm_params):
 
     return job_spec
 
-def write_spec_file(type, algorithm, body, repo_name =  settings.REPO_NAME):
+
+def write_spec_file(spec_type, algorithm, body, repo_name=settings.REPO_NAME):
     path = "{}/{}/docker/".format(settings.REPO_PATH, repo_name)
-    file_name = "{}.json.{}".format(type, get_algorithm_file_name(algorithm))
+    file_name = "{}.json.{}".format(spec_type, get_algorithm_file_name(algorithm))
     write_file(path, file_name, json.dumps(body))
 
+
 def create_config_file(docker_container_url):
-    return "docker_container_url = {}".format(docker_container_url)
+    return docker_container_url
+
 
 def get_job_types(algorithm):
     if type(algorithm)is list:
@@ -69,3 +77,42 @@ def get_job_types(algorithm):
     else:
         return "job-{}:{}".format(algorithm, settings.VERSION)
 
+
+def mozart_submit_job(job_type):
+    """
+    Submit a job to Mozart
+    :param job_type:
+    :return:
+    """
+    job_payload = dict()
+    job_payload["type"] = job_type
+    job_payload["queue"] = settings.DEFAULT_QUEUE
+    job_payload["priority"] = 0
+    job_payload["params"] = {}
+
+    headers = {'content-type': 'application/json'}
+
+    try:
+        mozart_response = requests.post("{}/job/submit".format(settings.MOZART_URL),
+                                        params=job_payload, headers=headers)
+    except Exception as ex:
+        raise ex
+
+    return mozart_response
+
+
+def mozart_job_status(job_id):
+    """
+    Returns mozart's job status
+    :param job_id:
+    :return:
+    """
+    params = dict()
+    params["id"] = job_id
+
+    try:
+        mozart_response = requests.get("{}/job/status".format(settings.MOZART_URL), params=params)
+    except Exception as ex:
+        raise ex
+
+    return mozart_response
