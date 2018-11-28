@@ -68,20 +68,28 @@ def create_config_file(docker_container_url):
     return docker_container_url
 
 
-def get_job_types(algorithm):
-    if type(algorithm)is list:
-        job_list = list()
-        for algo in algorithm:
-            job_list.append("job-{}:{}".format(get_algorithm_file_name(algo), settings.VERSION))
-        return ",".join(job_list)
-    else:
-        return "job-{}:{}".format(algorithm, settings.VERSION)
+def get_job_submission_json(algorithm, algorithm_params):
+    # if type(algorithm)is list:
+    #     job_list = list()
+    #     for algo in algorithm:
+    #         job_list.append("job-{}:{}".format(get_algorithm_file_name(algo), settings.VERSION))
+    #     return ",".join(job_list)
+    # else:
+    #     return "job-{}:{}".format(algorithm, settings.VERSION)
+
+    submission_paload = dict()
+    submission_paload["job_type"] = "job-{}:{}".format(algorithm, settings.VERSION)
+    submission_paload["params"] = algorithm_params
+
+    return json.dumps(submission_paload)
+
 
 
 def mozart_submit_job(job_type, params = {}):
     """
     Submit a job to Mozart
     :param job_type:
+    :param params:
     :return:
     """
     job_payload = dict()
@@ -98,7 +106,8 @@ def mozart_submit_job(job_type, params = {}):
 
     try:
         mozart_response = session.post("{}/job/submit".format(settings.MOZART_URL),
-                                        params=job_payload, headers=headers, verify=False)
+                                        params=job_payload, headers=headers,
+                                       verify=False)
     except Exception as ex:
         raise ex
 
