@@ -88,7 +88,8 @@ def mozart_submit_job(job_type, params = {}):
     job_payload["type"] = job_type
     job_payload["queue"] = settings.DEFAULT_QUEUE
     job_payload["priority"] = 0
-    job_payload["params"] = params
+    job_payload["tags"] = json.dumps(["maap-api_submit"])
+    job_payload["params"] = json.dumps(params)
 
     headers = {'content-type': 'application/json'}
 
