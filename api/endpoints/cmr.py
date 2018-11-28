@@ -95,7 +95,7 @@ def respond(response):
         return {}
     else:
         if "xml" in response.headers['content-type']:
-            return response.text, 200, {'Content-Type': 'text/css; charset=utf-8'}
+            return response.text, 200, {'Content-Type': 'application/xml'}
         else:
             return json.loads(response.text)
 

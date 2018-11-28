@@ -9,9 +9,16 @@ RESTPLUS_MASK_SWAGGER = False
 RESTPLUS_ERROR_404_HELP = False
 
 # CMR settings
-CMR_URL = 'https://cmr.uat.earthdata.nasa.gov'
-CMR_API_TOKEN = '4C40153D-6CC6-D01A-58E2-D8F3CAFB5472'
-CMR_CLIENT_ID = 'maap-api-cmr'
+
+# # NASA UAT
+# CMR_URL = 'https://cmr.uat.earthdata.nasa.gov'
+# CMR_API_TOKEN = '4C40153D-6CC6-D01A-58E2-D8F3CAFB5472'
+# CMR_CLIENT_ID = 'maap-api-cmr'
+
+# MAAP DEV
+CMR_URL = 'https://maap-project.org'
+CMR_API_TOKEN = ''
+CMR_CLIENT_ID = ''
 
 # GIT settings
 GIT_REPO_URL = "https://github.com/NamrataM/maap-test.git"
