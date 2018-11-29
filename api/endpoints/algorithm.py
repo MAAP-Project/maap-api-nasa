@@ -3,9 +3,10 @@ from flask import request
 from flask_restplus import Resource
 from api.restplus import api
 import traceback
-
+import uuid
 import api.utils.github_util as git
 import api.utils.hysds_util as hysds
+import api.utils.job_id_store as db
 import api.settings as settings
 import api.endpoints.job as job
 
@@ -64,9 +65,9 @@ class Register(Resource):
         except Exception as ex:
             tb = traceback.format_exc()
             log.debug(ex.message)
-            response_body["status"] = 500
+            response_body["code"] = 500
             response_body["message"] = "Error during git clone"
-            response_body["error"] = ex.message + tb
+            response_body["error"] = "{} Traceback: {}".format(ex.message, tb)
             return response_body
 
 
@@ -84,10 +85,11 @@ class Register(Resource):
             log.debug("algorithm_description: {}".format(algorithm_description))
             log.debug("algorithm_params: {}".format(algorithm_params))
         except Exception as ex:
+            tb = traceback.format_exc()
             log.debug(ex.message)
-            response_body["status"] = 500
+            response_body["code"] = 500
             response_body["message"] = "Failed to parse parameters"
-            response_body["error"] = ex.message
+            response_body["error"] = "{} Traceback: {}".format(ex.message, tb)
             return response_body
 
         try:
@@ -102,20 +104,30 @@ class Register(Resource):
             # creating config file
             config = hysds.create_config_file(docker_container_url=docker_container_url)
             hysds.write_file("{}/{}".format(settings.REPO_PATH, settings.REPO_NAME), "config.txt", config)
-            # creating file whose contents are returned on ci job success
-            job_submission_json = hysds.get_job_submission_json(algorithm_name, algorithm_params)
+            # creating file whose contents are returned on ci build success
+            job_submission_json, id = hysds.get_job_submission_json(algorithm_name, algorithm_params)
             hysds.write_file("{}/{}".format(settings.REPO_PATH, settings.REPO_NAME),"job-submission.json", job_submission_json)
             log.debug("Created spec files")
         except Exception as ex:
-            response_body["status"] = 500
+            tb = traceback.format_exc()
+            response_body["code"] = 500
             response_body["message"] = "Failed to create spec files"
-            response_body["error"] = ex.message
+            response_body["error"] = "{} Traceback: {}".format(ex.message, tb)
             return response_body
 
-        git.update_git_repo(repo, repo_name=settings.REPO_NAME,
-                            algorithm_name=hysds.get_algorithm_file_name(algorithm_name))
-        log.debug("Updated Git Repo")
-        response_body["status"] = 200
+        try:
+            git.update_git_repo(repo, repo_name=settings.REPO_NAME,
+                                algorithm_name=hysds.get_algorithm_file_name(algorithm_name))
+            log.debug("Updated Git Repo")
+        except Exception as ex:
+            tb = traceback.format_exc()
+            response_body["code"] = 500
+            response_body["message"] = "Failed to register {}".format(algorithm_name)
+            response_body["error"] = "{} Traceback: {}".format(ex.message, tb)
+            return response_body
+
+        response_body["code"] = 200
+        response_body["id"] = id
         response_body["message"] = "Successfully registered {}".format(algorithm_name)
 
         return response_body
@@ -129,7 +141,26 @@ class Build(Resource):
         :return:
         """
         req_data = request.get_json()
-        return job.Submit.post(req_data)
+        job_payload = req_data["job_payload"]
+        local_id = req_data["id"]
+        submit_response = job.Submit.post(job_payload)
+
+        if "job_id" in submit_response:
+            mozart_job_id = submit_response["job_id"]
+            #store this somewhere
+            db.add_record(local_id, mozart_job_id)
+            response_body["code"] = submit_response["code"]
+            response_body["job_id"] = local_id
+            response_body["message"] = submit_response["message"]
+            response_body["success"] = submit_response["success"]
+        else:
+            response_body["code"] = submit_response["code"]
+            response_body["message"] = submit_response["message"]
+            response_body["error"] = submit_response["error"]
+            response_body["success"] = submit_response["success"]
+
+        return response_body
+
 
 
 

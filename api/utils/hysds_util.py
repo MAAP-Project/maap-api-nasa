@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import uuid
 import requests
 import api.settings as settings
 
@@ -116,11 +117,20 @@ def get_job_submission_json(algorithm, algorithm_params):
     :param algorithm_params:
     :return:
     """
-    submission_paload = dict()
-    submission_paload["job_type"] = "job-{}:{}".format(algorithm, settings.VERSION)
-    submission_paload["params"] = algorithm_params
+    submission_payload = dict()
+    submission_payload["id"] = str(uuid.uuid4())
+    job_payload = dict()
+    job_payload["job_type"] = "job-{}:{}".format(algorithm, settings.VERSION)
 
-    return json.dumps(submission_paload)
+    job_params = dict()
+    for param in algorithm_params:
+        for key in param:
+            job_params[key] = param[key]
+
+    job_payload["params"] = job_params
+    submission_payload["job_payload"] = job_payload
+
+    return json.dumps(submission_payload), submission_payload["id"]
 
 
 

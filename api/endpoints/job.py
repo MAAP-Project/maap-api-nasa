@@ -2,6 +2,7 @@ import logging
 from flask import request
 from flask_restplus import Resource
 from api.restplus import api
+import api.utils.job_id_store as db
 import api.utils.hysds_util as hysds
 
 log = logging.getLogger(__name__)
@@ -47,7 +48,8 @@ class Status(Resource):
         job_id = request.args.get("job_id")
 
         try:
-            response = hysds.mozart_job_status(job_id=job_id)
+            mozart_job_id = db.get_mozart_id(job_id)
+            response = hysds.mozart_job_status(job_id=mozart_job_id)
             response_body["message"] = "Successfully got status of job with id {}".format(job_id)
             response_body["job_status"] = response.get("status")
             response_body["code"] = 200
