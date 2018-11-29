@@ -6,7 +6,7 @@ import api.utils.hysds_util as hysds
 
 log = logging.getLogger(__name__)
 
-ns = api.namespace('job', description='Operations to ')
+ns = api.namespace('job', description='Operations to interface with HySDS Mozart')
 
 
 @ns.route('/submit')
@@ -23,11 +23,16 @@ class Submit(Resource):
         response_body = dict()
 
         try:
-            response_body = hysds.mozart_submit_job(job_type=job_type, params=params)
+            response = hysds.mozart_submit_job(job_type=job_type, params=params)
+            response_body["message"] = "Successfully submitted job of type {}".format(job_type)
+            response_body["job_id"] = response.get("result")
+            response_body["code"] = 200
+            response_body["success"] = True
         except Exception as ex:
             response_body["code"] = 500
             response_body["message"] = "Failed to submit job of type {}".format(job_type)
             response_body["error"] = ex.message
+            response_body["success"] = False
 
         return response_body
 
@@ -42,10 +47,15 @@ class Status(Resource):
         job_id = request.args.get("job_id")
 
         try:
-            response_body = hysds.mozart_job_status(job_id=job_id)
+            response = hysds.mozart_job_status(job_id=job_id)
+            response_body["message"] = "Successfully got status of job with id {}".format(job_id)
+            response_body["job_status"] = response.get("status")
+            response_body["code"] = 200
+            response_body["success"] = True
         except Exception as ex:
             response_body["code"] = 500
             response_body["message"] = "Failed to get job status of job with id: {}".format(job_id)
             response_body["error"] = ex.message
+            response_body["success"] = False
 
         return response_body
