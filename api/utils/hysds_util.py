@@ -6,12 +6,24 @@ import api.settings as settings
 
 
 def get_algorithm_file_name(algorithm_name):
+    """
+    This strips any whitespaces from the algorithm name
+    :param algorithm_name:
+    :return:
+    """
     pattern = re.compile(r"\s+")
     string_without_whitespace = pattern.sub("", algorithm_name)
     return string_without_whitespace
 
 
 def write_file(path, file_name, body):
+    """
+    Writes contents to a file in the cloned git repo
+    :param path:
+    :param file_name:
+    :param body:
+    :return:
+    """
     if not os.path.exists(path):
         print("Creating docker dir")
         os.makedirs(path)
@@ -21,23 +33,36 @@ def write_file(path, file_name, body):
 
 
 def create_hysds_io(algorithm_description, algorithm_params, submission_type="individual"):
-
+    """
+    Creates the contents of HySDS IO file
+    :param algorithm_description:
+    :param algorithm_params:
+    :param submission_type:
+    :return:
+    """
     hysds_io = dict()
     hysds_io["label"] = algorithm_description
     hysds_io["submission_type"] = submission_type
     params = list()
 
     for param in algorithm_params:
-        param_spec = dict()
-        param_spec["name"] = param
-        param_spec["from"] = "value"
-        param_spec["value"] = algorithm_params[param]
-        params.append(param_spec)
-    hysds_io["params"] = params
+        for key in param:
+            param_spec = dict()
+            param_spec["name"] = key
+            param_spec["from"] = "value"
+            param_spec["value"] = param[key]
+            params.append(param_spec)
+        hysds_io["params"] = params
     return hysds_io
 
 
 def create_job_spec(script_command, algorithm_params):
+    """
+    Creates the contents of the job spec file
+    :param script_command:
+    :param algorithm_params:
+    :return:
+    """
     job_spec = dict()
     job_spec["command"] = script_command
     job_spec["disk_usage"] = "10GB"
@@ -46,37 +71,51 @@ def create_job_spec(script_command, algorithm_params):
         "$HOME/.aws": "/home/ops/.aws",
         "/tmp": ["/tmp", "rw"]
     }
-    job_spec["recommended-queues"] = ["factotum-job_worker-small"]
+    job_spec["recommended-queues"] = [settings.DEFAULT_QUEUE]
     params = list()
     for param in algorithm_params:
-        param_spec = dict()
-        param_spec["name"] = param
-        param_spec["destination"] = "positional"
-        params.append(param_spec)
-    job_spec["params"] = params
+        for key in param:
+            param_spec = dict()
+            param_spec["name"] = key
+            param_spec["destination"] = "positional"
+            params.append(param_spec)
+        job_spec["params"] = params
 
     return job_spec
 
 
 def write_spec_file(spec_type, algorithm, body, repo_name=settings.REPO_NAME):
+    """
+    Writes the spec files to file in docker directory
+    :param spec_type:
+    :param algorithm:
+    :param body:
+    :param repo_name:
+    :return:
+    """
     path = "{}/{}/docker/".format(settings.REPO_PATH, repo_name)
     file_name = "{}.json.{}".format(spec_type, get_algorithm_file_name(algorithm))
     write_file(path, file_name, json.dumps(body))
 
 
 def create_config_file(docker_container_url):
+    """
+    Creates the contents of config.txt file
+    Contains the base docker image URL for the job container
+    :param docker_container_url:
+    :return:
+    """
     return docker_container_url
 
 
 def get_job_submission_json(algorithm, algorithm_params):
-    # if type(algorithm)is list:
-    #     job_list = list()
-    #     for algo in algorithm:
-    #         job_list.append("job-{}:{}".format(get_algorithm_file_name(algo), settings.VERSION))
-    #     return ",".join(job_list)
-    # else:
-    #     return "job-{}:{}".format(algorithm, settings.VERSION)
-
+    """
+    Creates the parameters for the job submission payload
+    This JSON is sent back by the CI, on successful container build
+    :param algorithm:
+    :param algorithm_params:
+    :return:
+    """
     submission_paload = dict()
     submission_paload["job_type"] = "job-{}:{}".format(algorithm, settings.VERSION)
     submission_paload["params"] = algorithm_params
