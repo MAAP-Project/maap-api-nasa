@@ -135,7 +135,7 @@ class Build(Resource):
         :return:
         """
         req_data = request.get_json()
-        return job.Submit(req_data)
+        return job.Submit.post(req_data)
 
 
 
