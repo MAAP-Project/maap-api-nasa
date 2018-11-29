@@ -96,11 +96,6 @@ class Register(Resource):
                                              algorithm_params=algorithm_params)
 
             hysds.write_spec_file(spec_type="hysds-io", algorithm=algorithm_name, body=hysds_io)
-
-            # path = "{}/{}/docker/".format(settings.REPO_PATH, "repo_name")
-            # file_name = "{}.json.{}".format("hysds-io", algorithm_name)
-            # write_file(path, file_name, json.dumps(hysds_io))
-
             # creating job spec file
             job_spec = hysds.create_job_spec(script_command=script_command, algorithm_params=algorithm_params)
             hysds.write_spec_file(spec_type="job-spec", algorithm=algorithm_name, body=job_spec)
@@ -120,7 +115,6 @@ class Register(Resource):
         git.update_git_repo(repo, repo_name=settings.REPO_NAME,
                             algorithm_name=hysds.get_algorithm_file_name(algorithm_name))
         log.debug("Updated Git Repo")
-
         response_body["status"] = 200
         response_body["message"] = "Successfully registered {}".format(algorithm_name)
 
