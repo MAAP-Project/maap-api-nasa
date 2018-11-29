@@ -15,7 +15,7 @@ def write_file(path, file_name, body):
     if not os.path.exists(path):
         print("Creating docker dir")
         os.makedirs(path)
-    new_file = open(os.path.join(path, file_name), 'wb')
+    new_file = open(os.path.join(path, file_name), 'w')
     new_file.write(body)
     new_file.close()
 
