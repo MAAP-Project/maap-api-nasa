@@ -8,7 +8,11 @@ import tempfile
 from flask import request, json
 from flask_restplus import Resource, reqparse
 from api.restplus import api
-import urllib.parse as urlparse
+
+try:
+    import urllib.parse as urlparse
+except ImportError:
+    import urlparse as urlparse
 
 log = logging.getLogger(__name__)
 
