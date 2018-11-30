@@ -13,7 +13,6 @@ import api.endpoints.job as job
 log = logging.getLogger(__name__)
 
 ns = api.namespace('algorithm', description='Operations to register an algorithm')
-response_body = {"code": None, "message": None}
 
 
 @ns.route('/register')
@@ -59,6 +58,8 @@ class Register(Resource):
         ]
         }
         """
+
+        response_body = {"code": None, "message": None}
 
         try:
             repo = git.git_clone()
@@ -143,21 +144,32 @@ class Build(Resource):
         req_data = request.get_json()
         job_payload = req_data["job_payload"]
         local_id = req_data["id"]
-        submit_response = job.Submit.post(job_payload)
+        job_type = job_payload["job_type"]
+        params = job_payload["params"]
+        response_body = dict()
 
-        if "job_id" in submit_response:
-            mozart_job_id = submit_response["job_id"]
-            #store this somewhere
-            db.add_record(local_id, mozart_job_id)
-            response_body["code"] = submit_response["code"]
-            response_body["job_id"] = local_id
-            response_body["message"] = submit_response["message"]
-            response_body["success"] = submit_response["success"]
-        else:
-            response_body["code"] = submit_response["code"]
-            response_body["message"] = submit_response["message"]
-            response_body["error"] = submit_response["error"]
-            response_body["success"] = submit_response["success"]
+        try:
+            submit_response = hysds.mozart_submit_job(job_type=job_type, params=params)
+
+            if "result" in submit_response:
+                mozart_job_id = submit_response["result"]
+                # store this somewhere
+                db.add_record(local_id, mozart_job_id)
+                response_body["job_id"] = local_id
+                response_body["message"] = "Successfully submitted job of type {}".format(job_type)
+                response_body["code"] = 200
+                response_body["success"] = True
+
+            else:
+                response_body["code"] = submit_response["code"]
+                response_body["message"] = submit_response["message"]
+                response_body["error"] = submit_response["error"]
+                response_body["success"] = submit_response["success"]
+
+        except Exception as ex:
+            response_body["code"] = 500
+            response_body["message"] = "Failed to submit job of type {}".format(job_type)
+            response_body["error"] = ex.message
 
         return response_body
 

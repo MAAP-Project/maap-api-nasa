@@ -13,7 +13,7 @@ def add_record(local_id, mozart_id):
     :return:
     """
     job_id_store[local_id] = mozart_id
-    print "Added record {}:{}".format(local_id, mozart_id)
+    print("Added record {}:{}".format(local_id, mozart_id))
     log.info("Added record {}:{}".format(local_id, mozart_id))
     return
 
