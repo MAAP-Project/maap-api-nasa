@@ -8,6 +8,7 @@ import tempfile
 from flask import request, json
 from flask_restplus import Resource, reqparse
 from api.restplus import api
+import urllib.parse as urlparse
 
 log = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ class CmrCollection(Resource):
         """
 
         url = os.path.join(settings.CMR_URL, 'search', 'collections')
-        resp = requests.get(url, headers=get_search_headers(), params=request.args)
+        resp = requests.get(url, headers=get_search_headers(), params=parse_query_string(request.query_string))
 
         return respond(resp)
 
@@ -73,7 +74,7 @@ class CmrGranules(Resource):
         """
 
         url = os.path.join(settings.CMR_URL, 'search', 'granules')
-        resp = requests.get(url, headers=get_search_headers(), params=request.args)
+        resp = requests.get(url, headers=get_search_headers(), params=parse_query_string(request.query_string))
 
         return respond(resp)
 
@@ -86,6 +87,11 @@ def get_search_headers():
             'Echo-Token': settings.CMR_API_TOKEN,
             'Client-Id': settings.CMR_CLIENT_ID
         }
+
+
+#Preserves keys that occur more than once, as allowed for in CMR
+def parse_query_string(qs):
+    return urlparse.parse_qs(qs)
 
 
 def respond(response):
