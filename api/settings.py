@@ -28,8 +28,9 @@ REPO_PATH = "/Path/to/clone/git_repo"
 VERSION = "master"
 
 # Docker container URL
-CONTAINER_URL = "registry.nasa.maap.xyz/root/hello-world-hysds:master"
+CONTAINER_URL = "registry.nasa.maap.xyz/root/plant-analysis:master"
 
 # HySDS Mozart
 MOZART_URL = "https://[MOZART_IP]/mozart/api/v0.1"
 DEFAULT_QUEUE = "factotum-job_worker-small"
+
