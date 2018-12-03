@@ -67,7 +67,7 @@ def create_job_spec(script_command, algorithm_params):
     """
     job_spec = dict()
     job_spec["command"] = script_command
-    job_spec["disk_usage"] = "10GB"
+    job_spec["disk_usage"] = "65GB"
     job_spec["imported_worker_files"] = {
         "$HOME/.netrc": "/home/ops/.netrc",
         "$HOME/.aws": "/home/ops/.aws",
