@@ -48,11 +48,12 @@ def create_hysds_io(algorithm_description, algorithm_params, submission_type="in
 
     for param in algorithm_params:
         for key in param:
-            param_spec = dict()
-            param_spec["name"] = key
-            param_spec["from"] = "value"
-            param_spec["value"] = param[key]
-            params.append(param_spec)
+            if key != "download":
+                param_spec = dict()
+                param_spec["name"] = key
+                param_spec["from"] = "value"
+                param_spec["value"] = param[key]
+                params.append(param_spec)
         hysds_io["params"] = params
     return hysds_io
 
@@ -75,11 +76,16 @@ def create_job_spec(script_command, algorithm_params):
     job_spec["recommended-queues"] = [settings.DEFAULT_QUEUE]
     params = list()
     for param in algorithm_params:
+        destination = "positional"
+        if "download" in param:
+            if param["download"]:
+                destination = "localize"
         for key in param:
-            param_spec = dict()
-            param_spec["name"] = key
-            param_spec["destination"] = "positional"
-            params.append(param_spec)
+            if key != "download":
+                param_spec = dict()
+                param_spec["name"] = key
+                param_spec["destination"] = destination
+                params.append(param_spec)
         job_spec["params"] = params
 
     return job_spec
@@ -125,7 +131,8 @@ def get_job_submission_json(algorithm, algorithm_params):
     job_params = dict()
     for param in algorithm_params:
         for key in param:
-            job_params[key] = param[key]
+            if key != "download":
+                job_params[key] = param[key]
 
     job_payload["params"] = job_params
     submission_payload["job_payload"] = job_payload

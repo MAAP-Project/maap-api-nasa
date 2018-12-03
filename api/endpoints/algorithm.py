@@ -3,6 +3,7 @@ from flask import request
 from flask_restplus import Resource
 from api.restplus import api
 import traceback
+import json
 import uuid
 import api.utils.github_util as git
 import api.utils.hysds_util as hysds
@@ -42,7 +43,8 @@ class Register(Resource):
          "algorithm_description" : "Test SLC",
          "algorithm_params" : [
               {
-              "localize_url":"https://gsfc-ngap-p-d72c09e1-2d17-5303-b611-b9600db83e8b.s3.amazonaws.com/S1A_IW_SLC__1SDV_20180419T141553_20180419T141620_021537_0251C7_48FB.zip?Expires=1531290148&Signature=CwbE%2BnzG41PN"
+              "localize_url":"https://gsfc-ngap-p-d72c09e1-2d17-5303-b611-b9600db83e8b.s3.amazonaws.com/S1A_IW_SLC__1SDV_20180419T141553_20180419T141620_021537_0251C7_48FB.zip?Expires=1531290148&Signature=CwbE%2BnzG41PN",
+              "download": true
               },
               {
               "file":"S1A_IW_SLC__1SDV_20180419T141553_20180419T141620_021537_0251C7_48FB.zip"
