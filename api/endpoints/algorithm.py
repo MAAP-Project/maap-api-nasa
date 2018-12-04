@@ -152,8 +152,14 @@ class Build(Resource):
 
         try:
             submit_response = hysds.mozart_submit_job(job_type=job_type, params=params)
-
             if "result" in submit_response:
+                if submit_response["result"] is None:
+                    response_body["message"] = "Failed to submit job of type {}".format(job_type)
+                    response_body["error"] = submit_response["message"]
+                    response_body["code"] = 500
+                    response_body["success"] = submit_response["success"]
+                    return response_body
+
                 mozart_job_id = submit_response["result"]
                 # store this somewhere
                 db.add_record(local_id, mozart_job_id)

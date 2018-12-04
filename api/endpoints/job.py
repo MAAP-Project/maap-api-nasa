@@ -55,8 +55,13 @@ class Status(Resource):
             response_body["code"] = 200
             response_body["success"] = True
         except Exception as ex:
-            response_body["code"] = 500
-            response_body["message"] = "Failed to get job status of job with id: {}".format(job_id)
+            response_body["code"] = 404
+            response_body["message"] = "Failed to get job status of job with id: {}. " \
+                                       "Algorithm registration is in progress. " \
+                                       "Please check back a little later for " \
+                                       "job execution status. If still not found," \
+                                       " please check CI for " \
+                                       "a successful job".format(job_id)
             response_body["error"] = ex.message
             response_body["success"] = False
 
