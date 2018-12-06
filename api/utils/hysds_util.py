@@ -4,6 +4,7 @@ import re
 import uuid
 import requests
 import api.settings as settings
+import datetime
 
 
 def get_algorithm_file_name(algorithm_name):
@@ -148,12 +149,17 @@ def mozart_submit_job(job_type, params = {}):
     :param params:
     :return:
     """
+    params.update({ "timestamp": str(datetime.datetime.now().isoformat())})
+
     job_payload = dict()
     job_payload["type"] = job_type
     job_payload["queue"] = settings.DEFAULT_QUEUE
     job_payload["priority"] = 0
-    job_payload["tags"] = json.dumps(["maap-api_submit"])
+    job_payload["tags"] = json.dumps(["maap-api_submit", str(datetime.datetime.now().isoformat())])
     job_payload["params"] = json.dumps(params)
+    job_payload["enable_dedup"] = False
+
+    print(json.dumps(job_payload))
 
     headers = {'content-type': 'application/json'}
 
