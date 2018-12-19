@@ -1,12 +1,14 @@
 import logging.config
 
 import os
-from flask import Flask, Blueprint
+from flask import Flask, Blueprint, jsonify, request, make_response
 from api import settings
 from api.endpoints.cmr import ns as cmr_collections_namespace
 from api.endpoints.algorithm import ns as algorithm_namespace
 from api.endpoints.job import ns as job_namespace
 from api.restplus import api
+import jwt
+import datetime
 
 app = Flask(__name__)
 logging_conf_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '../logging.conf'))
@@ -17,6 +19,28 @@ blueprint = Blueprint('baseapi', __name__, url_prefix='/api')
 api.init_app(blueprint)
 api.add_namespace(cmr_collections_namespace)
 app.register_blueprint(blueprint)
+
+
+@app.route('/login')
+def login():
+    auth = request.authorization
+    return issue_token(auth.username, auth.password)
+
+
+@app.route('/token', methods=['POST'])
+def token():
+    req_data = request.get_json()
+    return issue_token(req_data["username"], req_data["password"])
+
+
+def issue_token(username, password):
+    #TODO: replace with MAAP ldap credential validation
+    if password == 'secret':
+        token = jwt.encode({'user' : username, 'exp' : datetime.datetime.utcnow() + datetime.timedelta(weeks=24)}, settings.APP_AUTH_KEY)
+
+        return jsonify({'token' : token.decode('UTF-8')})
+
+    return make_response('Could not verify!', 401, {'WWW-Authenticate' : 'Basic realm="Login Required"'})
 
 
 @app.route('/')

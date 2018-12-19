@@ -10,6 +10,7 @@ import api.utils.hysds_util as hysds
 import api.utils.job_id_store as db
 import api.settings as settings
 import api.endpoints.job as job
+import api.utils.auth_util as auth
 
 log = logging.getLogger(__name__)
 
@@ -19,6 +20,7 @@ ns = api.namespace('algorithm', description='Operations to register an algorithm
 @ns.route('/register')
 class Register(Resource):
 
+    @auth.token_required
     def post(self):
         """
         This will create the hysds spec files and commit to git
@@ -138,6 +140,7 @@ class Register(Resource):
 @ns.route('/build')
 class Build(Resource):
 
+    @auth.token_required
     def post(self):
         """
         This will submit jobs to the Job Execution System (HySDS)

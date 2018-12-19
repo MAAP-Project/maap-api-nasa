@@ -6,8 +6,9 @@ from api import settings
 from zipfile import ZipFile
 import tempfile
 from flask import request, json
-from flask_restplus import Resource, reqparse
+from flask_restplus import Resource
 from api.restplus import api
+import api.utils.auth_util as auth
 
 try:
     import urllib.parse as urlparse
@@ -22,6 +23,7 @@ ns = api.namespace('cmr', description='Operations related to CMR')
 @ns.route('/collections')
 class CmrCollection(Resource):
 
+    @auth.token_required
     def get(self):
         """
         CMR collections
@@ -36,6 +38,7 @@ class CmrCollection(Resource):
 @ns.route('/collections/shapefile')
 class ShapefileUpload(Resource):
 
+    @auth.token_required
     def post(self):
 
         if 'file' not in request.files:
@@ -72,6 +75,7 @@ class ShapefileUpload(Resource):
 @ns.route('/granules')
 class CmrGranules(Resource):
 
+    @auth.token_required
     def get(self):
         """
         CMR granules

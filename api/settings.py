@@ -1,3 +1,6 @@
+# Auth
+APP_AUTH_KEY = "thisisthesecretkey"
+
 # Flask settings
 FLASK_SERVER_NAME = 'localhost:5000'
 FLASK_DEBUG = True  # Do not use debug mode in production
@@ -24,7 +27,7 @@ CMR_CLIENT_ID = ''
 GIT_REPO_URL = "https://gitlab-ci-token:$TOKEN@repo.nasa.maap.xyz/root/register-job.git"
 
 REPO_NAME = "register-job"
-REPO_PATH = "/Path/to/clone/git_repo"
+REPO_PATH = "/home/ubuntu/repo"
 VERSION = "master"
 
 # Docker container URL
