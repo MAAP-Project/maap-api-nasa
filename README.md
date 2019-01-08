@@ -24,6 +24,7 @@ A valid MAAP API token must be included in the header for any API request. To ob
 ```bash
 curl -X POST --header "Content-Type: application/json" -d "{ \"username\": \"urs_username\", \"password\": \"urs_password\" }" https://api.maap.xyz/token
 ```
+```
 
 ## Deployment
 
