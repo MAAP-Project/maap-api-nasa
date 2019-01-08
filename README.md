@@ -17,6 +17,14 @@ To run the MAAP API locally in PyCharm, create a Python Configuration with the f
 - Python interpreter: `Python 3.7`
 - Working directory: `./api`
 
+## User Accounts
+
+A valid MAAP API token must be included in the header for any API request. To obtain a token, URS credentials must be provided as shown below:
+
+```bash
+curl -X POST --header "Content-Type: application/json" -d "{ \"username\": \"urs_username\", \"password\": \"urs_password\" }" https://api.maap.xyz/token
+```
+
 ## Deployment
 
 The MAAP API is written using [Flask](http://flask.pocoo.org/), and is commonly deployed using [WSGI Middlewares](http://flask.pocoo.org/docs/1.0/quickstart/#hooking-in-wsgi-middlewares). This deployment guide targets Ubuntu 18.04 running Apache2 in AWS with [Let's Encrypt](https://letsencrypt.org/).
