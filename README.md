@@ -1,11 +1,11 @@
-# MAAP API
-The MAAP API is a REST API for querying multi-mission data and collaborating on an open library of science algorithms to analyze these data. 
+# NASA MAAP API
+The NASA MAAP API is an implementation of the [MAAP API specification](https://github.com/MAAP-Project/maap-api) for querying multi-mission data and collaborating on an open library of science algorithms to analyze these data. 
 
-Development server: https://api.maap.xyz/api/
+Development server: https://api.maap.xyz/api
 
 ## API Specifications
 
-- [Skeleton API](maap-skeleton.yaml): a proposal for the initial release.
+- [Skeleton API](https://github.com/MAAP-Project/maap-api/blob/master/maap-skeleton.yaml): the proposed API specification for initial release.
 - [Job Submission API](maap-job-submission.yaml): a subset of the MAAP API that provides services that submit and fetch HySDS jobs.
 
 ## Getting Started
