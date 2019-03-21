@@ -37,3 +37,5 @@ CONTAINER_URL = "registry.nasa.maap.xyz/root/plant-analysis:master"
 MOZART_URL = "https://[MOZART_IP]/mozart/api/v0.1"
 DEFAULT_QUEUE = "factotum-job_worker-small"
 
+# FASTBROWSE API
+BROWSE_URL = 'ADD ME'
