@@ -7,6 +7,7 @@ from api import settings
 from api.endpoints.cmr import ns as cmr_collections_namespace
 from api.endpoints.algorithm import ns as algorithm_namespace
 from api.endpoints.job import ns as job_namespace
+from api.endpoints.wmts import ns as wmts_namespace
 from api.restplus import api
 import jwt
 import datetime
@@ -78,6 +79,7 @@ def initialize_app(flask_app):
     api.add_namespace(cmr_collections_namespace)
     api.add_namespace(algorithm_namespace)
     api.add_namespace(job_namespace)
+    api.add_namespace(wmts_namespace)
     flask_app.register_blueprint(blueprint)
 
 
