@@ -3,4 +3,3 @@ requests~=2.19.1
 pyshp~=2.0.0.dev0
 gitpython~=2.1.11
 PyJWT~=1.7.1
-maap-py
