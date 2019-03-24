@@ -3,7 +3,7 @@ from flask import request
 from flask_restplus import Resource
 from api.restplus import api
 import api.utils.auth_util as auth
-import cmr
+import api.endpoints.cmr as cmr
 from maap.Result import Granule
 
 log = logging.getLogger(__name__)
