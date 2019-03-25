@@ -40,10 +40,10 @@ def parse_execute_request(request_xml):
     root = fromstring(request_xml)
     params = dict()
     for input in root.findall('wps:Input', ns):
-        print input.attrib.get("id")
+        print(input.attrib.get("id"))
         for data in input.findall('wps:Data', ns):
             for value in data.findall('wps:LiteralValue', ns):
-                print value.text
+                print(value.text)
                 if input.attrib.get("id") != "job_type":
                     params[input.attrib.get("id")] = value
                 else:
