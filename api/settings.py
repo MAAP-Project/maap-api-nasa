@@ -37,5 +37,5 @@ CONTAINER_URL = "registry.nasa.maap.xyz/root/plant-analysis:master"
 
 # HySDS Mozart
 MOZART_URL = "https://[MOZART_IP]/mozart/api/v0.1"
-DEFAULT_QUEUE = "factotum-job_worker-small"
+DEFAULT_QUEUE = "test-job_worker-large"
 

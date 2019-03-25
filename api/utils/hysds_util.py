@@ -51,9 +51,8 @@ def create_hysds_io(algorithm_description, algorithm_params, submission_type="in
         for key in param:
             if key != "download":
                 param_spec = dict()
-                param_spec["name"] = key
-                param_spec["from"] = "value"
-                param_spec["value"] = param[key]
+                param_spec["name"] = param[key]
+                param_spec["from"] = "submitter"
                 params.append(param_spec)
         hysds_io["params"] = params
     return hysds_io
@@ -84,7 +83,7 @@ def create_job_spec(script_command, algorithm_params):
         for key in param:
             if key != "download":
                 param_spec = dict()
-                param_spec["name"] = key
+                param_spec["name"] = param[key]
                 param_spec["destination"] = destination
                 params.append(param_spec)
         job_spec["params"] = params
@@ -118,27 +117,14 @@ def create_config_file(docker_container_url):
 
 def get_job_submission_json(algorithm, algorithm_params):
     """
-    Creates the parameters for the job submission payload
     This JSON is sent back by the CI, on successful container build
     :param algorithm:
     :param algorithm_params:
     :return:
     """
-    submission_payload = dict()
-    submission_payload["id"] = str(uuid.uuid4())
-    job_payload = dict()
-    job_payload["job_type"] = "job-{}:{}".format(algorithm, settings.VERSION)
-
-    job_params = dict()
-    for param in algorithm_params:
-        for key in param:
-            if key != "download":
-                job_params[key] = param[key]
-
-    job_payload["params"] = job_params
-    submission_payload["job_payload"] = job_payload
-
-    return json.dumps(submission_payload), submission_payload["id"]
+    job_json = dict()
+    job_json["job_type"] = "job-{}:{}".format(algorithm, settings.VERSION)
+    return json.dumps(job_json)
 
 
 def get_algorithms():

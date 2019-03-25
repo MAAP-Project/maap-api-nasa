@@ -8,6 +8,7 @@ import api.utils.hysds_util as hysds
 import api.utils.job_id_store as db
 import api.settings as settings
 import api.utils.ogc_translate as ogc
+import json
 
 log = logging.getLogger(__name__)
 
@@ -28,35 +29,28 @@ class Register(Resource):
             "algorithm_name" : "name_without_spaces",
             "algorithm_params": [
                 {
-                "param_name1": "value"
+                "field": "param_name1",
+                "download":  true/false
                 },
                 {
-                "param_name2": "value"
+                "field": "param_name2"
                 }
             ]
         }
 
         Sample JSON to post:
-        { "script_command" : "python /home/ops/path/to/script.py",
-        "algorithm_name" : "slc_test",
-         "algorithm_description" : "Test SLC",
+        { "script_command" : "python /app/plant.py",
+        "algorithm_name" : "plant_test",
+         "algorithm_description" : "Test Plant",
          "algorithm_params" : [
               {
-              "localize_url":"https://gsfc-ngap-p-d72c09e1-2d17-5303-b611-b9600db83e8b.s3.amazonaws.com/S1A_IW_SLC__1SDV_20180419T141553_20180419T141620_021537_0251C7_48FB.zip?Expires=1531290148&Signature=CwbE%2BnzG41PN",
+              "field": "localize_urls",
               "download": true
               },
               {
-              "file":"S1A_IW_SLC__1SDV_20180419T141553_20180419T141620_021537_0251C7_48FB.zip"
-              },
-              {
-              "prod_name" : "S1A_IW_SLC__1SDV_20180419T141553_20180419T141620_021537_0251C7_48FB"
-              },
-              {
-              "prod_date": "2018-07-10"
-              },
-               {"start_time":"2018-10-09T00:00:00:00Z"
+              "field": "timestamp"
               }
-        ]
+            ]
         }
         """
 
@@ -107,8 +101,9 @@ class Register(Resource):
             config = hysds.create_config_file(docker_container_url=docker_container_url)
             hysds.write_file("{}/{}".format(settings.REPO_PATH, settings.REPO_NAME), "config.txt", config)
             # creating file whose contents are returned on ci build success
-            job_submission_json, id = hysds.get_job_submission_json(algorithm_name, algorithm_params)
-            hysds.write_file("{}/{}".format(settings.REPO_PATH, settings.REPO_NAME),"job-submission.json", job_submission_json)
+            job_submission_json = hysds.get_job_submission_json(algorithm_name, algorithm_params)
+            hysds.write_file("{}/{}".format(settings.REPO_PATH, settings.REPO_NAME),"job-submission.json",
+                             job_submission_json)
             log.debug("Created spec files")
         except Exception as ex:
             tb = traceback.format_exc()
@@ -129,9 +124,9 @@ class Register(Resource):
             return response_body
 
         response_body["code"] = 200
-        response_body["id"] = id
         response_body["message"] = "Successfully registered {}".format(algorithm_name)
 
+        print(response_body)
         return response_body
 
     def get(self):
@@ -185,44 +180,18 @@ class Build(Resource):
 
     def post(self):
         """
-        This will submit jobs to the Job Execution System (HySDS)
+        This endpoint is called by CI to acknowledge successful build.
         :return:
         """
         req_data = request.get_json()
-        job_payload = req_data["job_payload"]
-        local_id = req_data["id"]
-        job_type = job_payload["job_type"]
-        params = job_payload["params"]
+        job_type = req_data["job_type"]
+
         response_body = dict()
+        response_body["message"] = "Successfully completed registration of  job type {}".format(job_type)
+        response_body["code"] = 200
+        response_body["success"] = True
 
-        try:
-            submit_response = hysds.mozart_submit_job(job_type=job_type, params=params)
-            if "result" in submit_response:
-                if submit_response["result"] is None:
-                    response_body["message"] = "Failed to submit job of type {}".format(job_type)
-                    response_body["error"] = submit_response["message"]
-                    response_body["code"] = 500
-                    response_body["success"] = submit_response["success"]
-                    return response_body
-
-                mozart_job_id = submit_response["result"]
-                # store this somewhere
-                db.add_record(local_id, mozart_job_id)
-                response_body["job_id"] = local_id
-                response_body["message"] = "Successfully submitted job of type {}".format(job_type)
-                response_body["code"] = 200
-                response_body["success"] = True
-
-            else:
-                response_body["code"] = submit_response["code"]
-                response_body["message"] = submit_response["message"]
-                response_body["error"] = submit_response["error"]
-                response_body["success"] = submit_response["success"]
-
-        except Exception as ex:
-            response_body["code"] = 500
-            response_body["message"] = "Failed to submit job of type {}".format(job_type)
-            response_body["error"] = ex.message
+        # add endpoint call to front end
 
         return response_body
 

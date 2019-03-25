@@ -6,6 +6,7 @@ import api.utils.job_id_store as db
 import api.utils.hysds_util as hysds
 import api.utils.ogc_translate as ogc
 import traceback
+import uuid
 
 log = logging.getLogger(__name__)
 
@@ -28,7 +29,9 @@ class Submit(Resource):
         try:
             response = hysds.mozart_submit_job(job_type=job_type, params=params)
             job_id = response.get("result")
-            return Response(ogc.execute_response(job_id=job_id, output=output), mimetype='text/xml')
+            local_id = str(uuid.uuid4())
+            db.add_record(local_id, job_id)
+            return Response(ogc.execute_response(job_id=local_id, output=output), mimetype='text/xml')
         except Exception as ex:
             response_body["code"] = 500
             response_body["message"] = "Failed to submit job of type {}".format(job_type)
