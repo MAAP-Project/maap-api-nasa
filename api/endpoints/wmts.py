@@ -42,9 +42,11 @@ class GetTile(Resource):
             response_body["code"] = 200
             response_body["success"] = True
         except Exception as ex:
+            log.error(str(ex))
+            log.error(json.dumps(ex, indent=2))
             response_body["code"] = 500
             response_body["message"] = "Failed to fetch tiles for {}".format(granule_ur)
-            response_body["error"] = ex.message
+            response_body["error"] = str(ex)
             response_body["success"] = False
 
         return response_body
