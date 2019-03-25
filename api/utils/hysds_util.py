@@ -141,15 +141,32 @@ def get_job_submission_json(algorithm, algorithm_params):
     return json.dumps(submission_payload), submission_payload["id"]
 
 
+def get_algorithms():
+    """
+    Get the list of job specs
+    :return:
+    """
+    headers = {'content-type': 'application/json'}
 
-def mozart_submit_job(job_type, params = {}):
+    session = requests.Session()
+    session.verify = False
+
+    try:
+        mozart_response = session.get("{}/job_spec/list".format(settings.MOZART_URL), headers=headers, verify=False)
+    except Exception as ex:
+        raise ex
+
+    return mozart_response.json()
+
+
+def mozart_submit_job(job_type, params={}):
     """
     Submit a job to Mozart
     :param job_type:
     :param params:
     :return:
     """
-    params.update({ "timestamp": str(datetime.datetime.now().isoformat())})
+    params.update({"timestamp": str(datetime.datetime.now().isoformat())})
 
     job_payload = dict()
     job_payload["type"] = job_type
@@ -191,6 +208,26 @@ def mozart_job_status(job_id):
     try:
         mozart_response = session.get("{}/job/status".format(settings.MOZART_URL), params=params)
 
+    except Exception as ex:
+        raise ex
+
+    return mozart_response.json()
+
+
+def get_job_spec(job_type):
+    """
+    Get the job spec of a registered algorigthm
+    :param job_type:
+    :return:
+    """
+    headers = {'content-type': 'application/json'}
+
+    session = requests.Session()
+    session.verify = False
+
+    try:
+        mozart_response = session.get("{}/job_spec/type?id={}".format(settings.MOZART_URL, job_type), headers=headers,
+                                      verify=False)
     except Exception as ex:
         raise ex
 
