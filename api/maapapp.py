@@ -12,7 +12,6 @@ from api.endpoints.job import ns as job_namespace
 from api.restplus import api
 import jwt
 import datetime
-import configparser
 
 app = Flask(__name__)
 logging_conf_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '../logging.conf'))
@@ -40,8 +39,13 @@ def token():
 def issue_token(username, password):
 
     # TODO: replace with MAAP ldap credential validation
-    token_body = f'<token><username>{username}</username><password>{password}</password><client_id>maap_api</client_id><user_ip_address>127.0.0.0</user_ip_address></token>'
-    response = requests.post(settings.CMR_TOKEN_SERVICE_URL, data=token_body, headers={ 'Content-Type': 'application/xml' })
+    token_body = '<token><username>' + username + \
+                 '</username><password>' + password + \
+                 '</password><client_id>maap_api</client_id><user_ip_address>127.0.0.0</user_ip_address></token>'
+    response = requests.post(
+        settings.CMR_TOKEN_SERVICE_URL,
+        data=token_body,
+        headers={'Content-Type': 'application/xml'})
 
     # Until MAAP account integration is in place, just verify user's URS authorization
     if response.status_code == 200 or response.status_code == 201:

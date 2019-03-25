@@ -3,14 +3,10 @@ from flask import request, Response
 from flask_restplus import Resource
 from api.restplus import api
 import traceback
-import json
-import uuid
 import api.utils.github_util as git
 import api.utils.hysds_util as hysds
 import api.utils.job_id_store as db
 import api.settings as settings
-import api.endpoints.job as job
-import api.utils.auth_util as auth
 import api.utils.ogc_translate as ogc
 
 log = logging.getLogger(__name__)

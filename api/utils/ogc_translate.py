@@ -100,12 +100,13 @@ def status_response(job_id, job_status):
     xmlns:wps="http://www.opengis.net/wps/2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
     <wps:JobID>336d5fa5-3bd6-4ee9-81ea-c6bccd2d443e</wps:JobID>
     <wps:Status>Succeeded</wps:Status>
-    </wps:StatusInfo>​
+    </wps:StatusInfo>
 
     :param job_id:
     :param job_status:
     :return:
     """
+
     response = ET.Element("wps:StatusInfo")
     response = set_namespaces(response)
     ET.SubElement(response, "wps:JobID").text = job_id

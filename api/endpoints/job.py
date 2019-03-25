@@ -4,7 +4,6 @@ from flask_restplus import Resource
 from api.restplus import api
 import api.utils.job_id_store as db
 import api.utils.hysds_util as hysds
-import api.utils.auth_util as auth
 import api.utils.ogc_translate as ogc
 import traceback
 
@@ -41,7 +40,7 @@ class Submit(Resource):
 
     def get(self):
         """
-        This will request information about the server’s capabilities and processes offered
+        This will request information about the server's capabilities and processes offered
         :return:
         """
 
