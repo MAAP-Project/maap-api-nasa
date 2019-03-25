@@ -5,6 +5,7 @@ log = logging.getLogger(__name__)
 
 job_id_store = dict()
 
+
 def add_record(local_id, mozart_id):
     """
     Add an item to the store
@@ -16,6 +17,7 @@ def add_record(local_id, mozart_id):
     print("Added record {}:{}".format(local_id, mozart_id))
     log.info("Added record {}:{}".format(local_id, mozart_id))
     return
+
 
 def get_mozart_id(local_id):
     """

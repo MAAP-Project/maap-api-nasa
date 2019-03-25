@@ -262,7 +262,7 @@ def describe_process_response(params):
         process = get_input(process, param.get("name"))
 
     ET.SubElement(process, "wps:Output")
-    return  tostring(response)
+    return tostring(response)
 
 
 def get_exception(type, origin_process, ex_message):

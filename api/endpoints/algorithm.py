@@ -1,5 +1,5 @@
 import logging
-from flask import request
+from flask import request, Response
 from flask_restplus import Resource
 from api.restplus import api
 import traceback
@@ -138,7 +138,6 @@ class Register(Resource):
 
         return response_body
 
-    @auth.token_required
     def get(self):
         """
         search algorithms
@@ -160,30 +159,29 @@ class Register(Resource):
             return response_body
         except Exception as ex:
             tb = traceback.format_exc()
-            return ogc.get_exception(type="FailedSearch", origin_process="GetAlgorithms",
-                                     ex_message="Failed to get list of jobs. {}. {}".format(ex.message, tb))
+            return Response(ogc.get_exception(type="FailedSearch", origin_process="GetAlgorithms",
+                            ex_message="Failed to get list of jobs. {}. {}".format(ex.message, tb)),
+                            mimetype='text/xml')
 
 
 @ns.route('/algorithm/<string:algo_id>')
 class Describe(Resource):
-    @auth.token_required
-    def get(self):
+    def get(self, algo_id):
         """
         request detailed metadata on selected processes offered by a server
         :return:
         """
         try:
-            request_xml = request.data
-            job_type = "job-{}".format(ogc.parse_describe_process(request_xml))
+            job_type = "job-{}".format(algo_id)
             response = hysds.get_job_spec(job_type)
             params = response.get("result").get("params")
             response_body = ogc.describe_process_response(params)
-            return response_body
+            return Response(response_body, mimetype='text/xml')
         except Exception as ex:
             tb = traceback.format_exc()
-            return ogc.get_exception(type="FailedDescribeAlgo", origin_process="DescribeProcess",
-                                     ex_message="Failed to get parameters for algorithm. {} Traceback: {}"
-                                     .format(ex.message, tb))
+            return Response(ogc.get_exception(type="FailedDescribeAlgo", origin_process="DescribeProcess",
+                                              ex_message="Failed to get parameters for algorithm. {} Traceback: {}"
+                                              .format(ex.message, tb)), mimetype='text/xml')
 
 
 @ns.route('/build')
