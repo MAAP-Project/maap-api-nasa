@@ -8,6 +8,7 @@ import tempfile
 from flask import request, json
 from flask_restplus import Resource
 from api.restplus import api
+from api.restplus import CmrError
 import api.utils.auth_util as auth
 
 try:
@@ -23,7 +24,6 @@ ns = api.namespace('cmr', description='Operations related to CMR')
 @ns.route('/collections')
 class CmrCollection(Resource):
 
-    @auth.token_required
     def get(self):
         """
         CMR collections
@@ -38,7 +38,6 @@ class CmrCollection(Resource):
 @ns.route('/collections/shapefile')
 class ShapefileUpload(Resource):
 
-    @auth.token_required
     def post(self):
 
         if 'file' not in request.files:
@@ -75,7 +74,6 @@ class ShapefileUpload(Resource):
 @ns.route('/granules')
 class CmrGranules(Resource):
 
-    @auth.token_required
     def get(self):
         """
         CMR granules
@@ -97,19 +95,19 @@ def get_search_headers():
         }
 
 
-#Preserves keys that occur more than once, as allowed for in CMR
+# Preserves keys that occur more than once, as allowed for in CMR
 def parse_query_string(qs):
     return urlparse.parse_qs(qs)
 
 
 def respond(response):
-    if response.status_code != 200:
-        raise Exception('CMR Error %s' % response.text)
+    response_text = response.text if response.status_code == 200 else 'CMR Error %s' % response.text
+
     if response.text == '':
         return {}
     else:
         if "xml" in response.headers['content-type']:
-            return response.text, 200, {'Content-Type': 'application/xml'}
+            return response_text, response.status_code, {'Content-Type': 'application/xml'}
         else:
             return json.loads(response.text)
 

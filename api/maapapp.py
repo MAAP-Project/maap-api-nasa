@@ -37,11 +37,11 @@ def token():
 
 def issue_token(username, password):
 
-    #TODO: replace with MAAP ldap credential validation
+    # TODO: replace with MAAP ldap credential validation
     token_body = f'<token><username>{username}</username><password>{password}</password><client_id>maap_api</client_id><user_ip_address>127.0.0.0</user_ip_address></token>'
     response = requests.post(settings.CMR_TOKEN_SERVICE_URL, data=token_body, headers={ 'Content-Type': 'application/xml' })
 
-    #Until MAAP account integration is in place, just verify user's URS authorization
+    # Until MAAP account integration is in place, just verify user's URS authorization
     if response.status_code == 200 or response.status_code == 201:
         token = jwt.encode({'user' : username, 'exp' : datetime.datetime.utcnow() + datetime.timedelta(weeks=24)}, settings.APP_AUTH_KEY)
 
@@ -56,12 +56,7 @@ def index():
 
 
 def configure_app(flask_app):
-    config = configparser.ConfigParser()
-    config.read(os.path.join("..", "maapapi.cfg"))
-
-    testVal = config['git']['git_repo_url']
-
-   # flask_app.config['SERVER_NAME'] = settings.FLASK_SERVER_NAME
+    flask_app.config['SERVER_NAME'] = settings.FLASK_SERVER_NAME
     flask_app.config['CMR_API_TOKEN'] = settings.CMR_API_TOKEN
     flask_app.config['CMR_CLIENT_ID'] = settings.CMR_CLIENT_ID
     flask_app.config['SWAGGER_UI_DOC_EXPANSION'] = settings.RESTPLUS_SWAGGER_UI_DOC_EXPANSION

@@ -20,7 +20,6 @@ ns = api.namespace('algorithm', description='Operations to register an algorithm
 @ns.route('/register')
 class Register(Resource):
 
-    @auth.token_required
     def post(self):
         """
         This will create the hysds spec files and commit to git
@@ -140,7 +139,6 @@ class Register(Resource):
 @ns.route('/build')
 class Build(Resource):
 
-    @auth.token_required
     def post(self):
         """
         This will submit jobs to the Job Execution System (HySDS)

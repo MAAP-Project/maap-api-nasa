@@ -14,7 +14,6 @@ ns = api.namespace('job', description='Operations to interface with HySDS Mozart
 @ns.route('/submit')
 class Submit(Resource):
 
-    @auth.token_required
     def post(self):
         """
         This will submit jobs to the Job Execution System (HySDS)
@@ -43,7 +42,6 @@ class Submit(Resource):
 @ns.route('/status')
 class Status(Resource):
 
-    @auth.token_required
     def get(self):
         """This will return run status of a job given a job id
         :return:
