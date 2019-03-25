@@ -22,6 +22,7 @@ class GetTile(Resource):
         :return:
         """
         granule_ur = request.args.get("granule_ur")
+        log.info('request.args {}'.format(request.args))
         response_body = dict()
 
         if not granule_ur:
