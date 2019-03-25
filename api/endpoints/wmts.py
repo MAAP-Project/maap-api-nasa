@@ -21,8 +21,7 @@ class GetTile(Resource):
         This will submit jobs to the Job Execution System (HySDS)
         :return:
         """
-        req_data = request.get_json()
-        granule_ur = req_data["granule_ur"]
+        granule_ur = request.args.get("granule_ur")
         response_body = dict()
 
         if not granule_ur:
