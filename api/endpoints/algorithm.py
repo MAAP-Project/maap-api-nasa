@@ -11,19 +11,21 @@ import api.utils.job_id_store as db
 import api.settings as settings
 import api.endpoints.job as job
 import api.utils.auth_util as auth
+import api.utils.ogc_translate as ogc
 
 log = logging.getLogger(__name__)
 
-ns = api.namespace('algorithm', description='Operations to register an algorithm')
+ns = api.namespace('mas', description='Operations to register an algorithm')
 
 
-@ns.route('/register')
+@ns.route('/algorithm')
 class Register(Resource):
 
     @auth.token_required
     def post(self):
         """
         This will create the hysds spec files and commit to git
+        and registers algorithm container
         Format of JSON to post:
         {
             "script_command" : "python /home/ops/path/to/script.py",
@@ -136,6 +138,54 @@ class Register(Resource):
         response_body["message"] = "Successfully registered {}".format(algorithm_name)
 
         return response_body
+
+    @auth.token_required
+    def get(self):
+        """
+        search algorithms
+        :return:
+        """
+        response_body = {"code": None, "message": None}
+
+        try:
+            job_list = hysds.get_algorithms().get("result")
+            algo_list = list()
+            for job_type in job_list:
+                algo = dict()
+                algo["type"] = job_type.strip("job-").split(":")[0]
+                algo["version"] = job_type.strip("job-").split(":")[1]
+                algo_list.append(algo)
+            response_body["code"] = 200
+            response_body["algorithms"] = algo_list
+            response_body["message"] = "success"
+            return response_body
+        except Exception as ex:
+            tb = traceback.format_exc()
+            return ogc.get_exception(type="FailedSearch", origin_process="GetAlgorithms",
+                                     ex_message="Failed to get list of jobs. {}. {}".format(ex.message, tb))
+
+
+@ns.route('/algorithm/<string:algo_id>')
+class Describe(Resource):
+    @auth.token_required
+    def get(self):
+        """
+        request detailed metadata on selected processes offered by a server
+        :return:
+        """
+        try:
+            request_xml = request.data
+            job_type = "job-{}".format(ogc.parse_describe_process(request_xml))
+            response = hysds.get_job_spec(job_type)
+            params = response.get("result").get("params")
+            response_body = ogc.describe_process_response(params)
+            return response_body
+        except Exception as ex:
+            tb = traceback.format_exc()
+            return ogc.get_exception(type="FailedDescribeAlgo", origin_process="DescribeProcess",
+                                     ex_message="Failed to get parameters for algorithm. {} Traceback: {}"
+                                     .format(ex.message, tb))
+
 
 @ns.route('/build')
 class Build(Resource):
