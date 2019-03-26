@@ -11,6 +11,7 @@ def set_namespaces(xml_element):
     xml_element.set("xmlns:wps", "http://www.opengis.net/wps/2.0")
     xml_element.set("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance")
     xml_element.set("xmlns:schemaLocation", "http://schemas.opengis.net/wps/2.0/wps.xsd")
+    xml_element.set("xmlns:ows", "http://www.opengis.net/ows/2.0")
 
     return xml_element
 
