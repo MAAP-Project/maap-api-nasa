@@ -17,6 +17,6 @@ RUN cd /maap-api-nasa/maap-py && python setup.py install
 RUN python3 -m venv maap-api-nasa && . maap-api-nasa/bin/activate
 WORKDIR /maap-api-nasa
 RUN pip3 install -r requirements.txt
-COPY settings.py api/settings.py
+COPY api/settings.py api/settings.py
 
 CMD FLASK_APP=api/maapapp.py flask run --host=0.0.0.0
