@@ -5,6 +5,7 @@ from api.restplus import api
 import api.utils.job_id_store as db
 import api.utils.hysds_util as hysds
 import api.utils.ogc_translate as ogc
+import json
 import traceback
 import uuid
 
@@ -24,21 +25,21 @@ class Submit(Resource):
         """
         request_xml = request.data
         job_type, params, output = ogc.parse_execute_request(request_xml)
-        response_body = dict()
 
         try:
             response = hysds.mozart_submit_job(job_type=job_type, params=params)
+            logging.info("Mozart Response: {}".format(json.dumps(response)))
             job_id = response.get("result")
-            local_id = str(uuid.uuid4())
-            db.add_record(local_id, job_id)
-            return Response(ogc.execute_response(job_id=local_id, output=output), mimetype='text/xml')
+            if job_id is not None:
+                logging.info("Submitted Job with HySDS ID: {}".format(job_id))
+                local_id = str(uuid.uuid4())
+                db.add_record(local_id, job_id)
+                return Response(ogc.execute_response(job_id=local_id, output=output), mimetype='text/xml')
+            else:
+                raise Exception(response.get("message"))
         except Exception as ex:
-            response_body["code"] = 500
-            response_body["message"] = "Failed to submit job of type {}".format(job_type)
-            response_body["error"] = ex.message
-            response_body["success"] = False
             return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",
-                                              ex_message="Failed to submit job of type {}".format(job_type)),
+                                              ex_message="Failed to submit job of type {}. Exception Message: {}".format(job_type, ex)),
                             mimetype='text/xml')
 
     def get(self):
@@ -53,7 +54,8 @@ class Submit(Resource):
         except Exception as ex:
             tb = traceback.format_exc()
             return Response(ogc.get_exception(type="FailedGetCapabilities", origin_process="GetCapabilities",
-                                     ex_message="Failed to get server capabilities. {}. {}".format(ex.message, tb)),
+                                              ex_message="Failed to get server capabilities. {}. {}"
+                                              .format(ex.message, tb)),
                             mimetype='text/xml')
 
 
@@ -67,18 +69,19 @@ class Status(Resource):
         # request_xml = request.data
         # job_id = ogc.parse_status_request(request_xml)
         try:
-            print(job_id)
+            logging.info("Finding status of job with id {}".format(job_id))
             mozart_job_id = db.get_mozart_id(job_id)
+            logging.info("Retrieved Mozart job id: {}".format(mozart_job_id))
             response = hysds.mozart_job_status(job_id=mozart_job_id)
             job_status = response.get("status")
+            logging.info("Found Job Status: {}".format(job_status))
             response_body = ogc.status_response(job_id=job_id, job_status=job_status)
             return Response(response_body, mimetype='text/xml')
         except Exception as ex:
             return Response(ogc.get_exception(type="FailedGetStatus", origin_process="GetStatus",
                                               ex_message="Failed to get job status of job with id: {}. " \
-                                              "Algorithm registration is in progress. " \
                                               "Please check back a little later for " \
                                               "job execution status. If still not found," \
-                                              " please check CI for " \
-                                              "a successful job".format(job_id)), mimetype='text/xml')
+                                              " please contact administrator " \
+                                              "of DPS".format(job_id)), mimetype='text/xml')
 
