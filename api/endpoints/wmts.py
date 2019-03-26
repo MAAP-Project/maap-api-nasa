@@ -26,9 +26,10 @@ class GetTile(Resource):
         response_body = dict()
 
         if not granule_ur:
+            message = "required param granule_ur not provided in request"
             response_body["code"] = 422
-            response_body["message"] = "required param granule_ur not provided in request"
-            response_body["error"] = ex.message
+            response_body["message"] = message
+            response_body["error"] = message
             response_body["success"] = False            
 
         try:
