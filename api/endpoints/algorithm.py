@@ -15,6 +15,20 @@ log = logging.getLogger(__name__)
 ns = api.namespace('mas', description='Operations to register an algorithm')
 
 
+def is_empty(item):
+    if item is None or len(item) == 0:
+        return True
+    else:
+        return False
+
+
+def validate_register_inputs(script_command, algorithm_name):
+    if is_empty(script_command):
+        raise Exception("Command to run script is required")
+    if is_empty(algorithm_name):
+        raise Exception("Algorithm Name is required")
+
+
 @ns.route('/algorithm')
 class Register(Resource):
 
@@ -74,6 +88,7 @@ class Register(Resource):
             algorithm_name = req_data["algorithm_name"]
             algorithm_description = req_data["algorithm_description"]
             algorithm_params = req_data["algorithm_params"]
+            validate_register_inputs(script_command, algorithm_name)
 
             log.debug("docker_container_url: {}".format(docker_container_url))
             log.debug("script_command: {}".format(script_command))
@@ -82,10 +97,14 @@ class Register(Resource):
             log.debug("algorithm_params: {}".format(algorithm_params))
         except Exception as ex:
             tb = traceback.format_exc()
-            log.debug(ex.message)
             response_body["code"] = 500
             response_body["message"] = "Failed to parse parameters"
-            response_body["error"] = "{} Traceback: {}".format(ex.message, tb)
+            try:
+                log.debug(ex.message)
+                response_body["error"] = "{} Traceback: {}".format(ex.message, tb)
+            except AttributeError:
+                log.debug(ex)
+                response_body["error"] = "{} Traceback: {}".format(ex, tb)
             return response_body
 
         try:
