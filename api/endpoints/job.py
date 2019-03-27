@@ -99,9 +99,7 @@ class Status(Resource):
             logging.info("Retrieved Mozart job id: {}".format(mozart_job_id))
             response = hysds.get_mozart_job_info(mozart_job_id)
             job_info = response.get("job").get("job_info").get("products_staged")
-            if job_info is None:
-                prod_list = None
-            else:
+            if job_info is not None:
                 for product in job_info:
                     prod = dict()
                     prod["urls"] = product.get("urls")
@@ -111,9 +109,9 @@ class Status(Resource):
         except Exception as ex:
             return Response(ogc.get_exception(type="FailedGetResult", origin_process="GetResult",
                                               ex_message="Failed to get job result of job with id: {}. " \
-                                                         "If you don't see expected results," \
+                                                         "{}. If you don't see expected results," \
                                                          " please contact administrator " \
-                                                         "of DPS".format(job_id)), mimetype='text/xml')
+                                                         "of DPS".format(job_id, ex)), mimetype='text/xml')
 
 
 

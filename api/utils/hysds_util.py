@@ -234,3 +234,5 @@ def get_mozart_job_info(job_id):
             return result
         except Exception as ex:
             raise ex
+    else:
+        raise Exception("Aborting retrieving information of job because status is {}".format(job_status))
