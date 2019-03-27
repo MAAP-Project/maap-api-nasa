@@ -171,7 +171,7 @@ def mozart_submit_job(job_type, params={}):
 
     try:
         mozart_response = session.post("{}/job/submit".format(settings.MOZART_URL),
-                                        params=job_payload, headers=headers,
+                                       params=job_payload, headers=headers,
                                        verify=False)
     except Exception as ex:
         raise ex
@@ -218,3 +218,19 @@ def get_job_spec(job_type):
         raise ex
 
     return mozart_response.json()
+
+
+def get_mozart_job_info(job_id):
+    params = dict()
+    params["id"] = job_id
+    session = requests.Session()
+    session.verify = False
+
+    job_status = mozart_job_status(job_id).get("status")
+    if job_status == "job-completed":
+        try:
+            mozart_response = session.get("{}/job/info".format(settings.MOZART_URL), params=params).json()
+            result = mozart_response.get("result")
+            return result
+        except Exception as ex:
+            raise ex

@@ -1,5 +1,6 @@
 from xml.etree.ElementTree import fromstring, tostring
 import xml.etree.ElementTree as ET
+import json
 
 ns = {
     "wps": "http://www.opengis.net/wps/2.0",
@@ -21,19 +22,19 @@ def parse_execute_request(request_xml):
     OGC EXECUTE REQUEST
 
     <wps:Execute xmlns:wps="http://www.opengis.net/wps/2.0"
- xmlns:ows="http://www.opengis.net/ows/2.0" xmlns:xlink="http://www.w3.org/1999/xlink"
-       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-       xsi:schemaLocation="http://www.opengis.net/wps/2.0 ../wps.xsd" service="WPS"
-       version="2.0.0" response="document" mode="sync">
-       <ows:Identifier>org.n52.wps.server.algorithm.SimpleBufferAlgorithm</ows:Identifier>
-             <wps:Input id="data">
-                      <wps:Reference schema="http://schemas.opengis.net/gml/3.1.1/base/feature.xsd" xlink:href="http://geoprocessing.demo.52north.org:8080/geoserver/wfs?SERVICE=WFS&amp;VERSION=1.0.0&amp;REQUEST=GetFeature&amp;TYPENAME=topp:tasmania_roads&amp;SRS=EPSG:4326&amp;OUTPUTFORMAT=GML3"/>
-             </wps:Input>
- <wps:Input id="width">
-    <wps:Data><wps:LiteralValue>0.05</wps:LiteralValue></wps:Data>
- </wps:Input>
-      <wps:Output id="result" transmission="value"/>
-</wps:Execute>
+     xmlns:ows="http://www.opengis.net/ows/2.0" xmlns:xlink="http://www.w3.org/1999/xlink"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:schemaLocation="http://www.opengis.net/wps/2.0 ../wps.xsd" service="WPS"
+           version="2.0.0" response="document" mode="sync">
+           <ows:Identifier>org.n52.wps.server.algorithm.SimpleBufferAlgorithm</ows:Identifier>
+                 <wps:Input id="data">
+                          <wps:Reference schema="http://schemas.opengis.net/gml/3.1.1/base/feature.xsd" xlink:href="http://geoprocessing.demo.52north.org:8080/geoserver/wfs?SERVICE=WFS&amp;VERSION=1.0.0&amp;REQUEST=GetFeature&amp;TYPENAME=topp:tasmania_roads&amp;SRS=EPSG:4326&amp;OUTPUTFORMAT=GML3"/>
+                 </wps:Input>
+     <wps:Input id="width">
+        <wps:Data><wps:LiteralValue>0.05</wps:LiteralValue></wps:Data>
+     </wps:Input>
+          <wps:Output id="result" transmission="value"/>
+    </wps:Execute>
 
     :return:
     """
@@ -44,7 +45,10 @@ def parse_execute_request(request_xml):
         for data in input.findall('wps:Data', ns):
             for value in data.findall('wps:LiteralValue', ns):
                 if input.attrib.get("id") != "job_type":
-                    params[input.attrib.get("id")] = value.text
+                    try:
+                        params[input.attrib.get("id")] = json.loads(value.text)
+                    except ValueError:
+                        params[input.attrib.get("id")] = value.text
                 else:
                     job_type = value.text.strip()
     output = root.find('wps:Output', ns).attrib.get("id")
@@ -88,6 +92,64 @@ def parse_status_request(request_xml):
     root = fromstring(request_xml)
     job_id = root.find('wps:JobID', ns).text
     return job_id
+
+
+def parse_result_request(request_xml):
+    """
+    OCG GetResult REQUEST EXAMPLE
+
+    <wps:GetResult service="WPS" version="2.0.0"
+      xmlns:wps="http://www.opengis.net/wps/2.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.opengis.net/wps/2.0 ../wps.xsd ">
+      <wps:JobID>336d5fa5-3bd6-4ee9-81ea-c6bccd2d443e</wps:JobID>
+    </wps:GetResult>​​​​​​​​​​​​​
+
+    :param request_xml:
+    :return:
+    """
+    root = fromstring(request_xml)
+    job_id = root.find('wps:JobID', ns).text
+    return job_id
+
+
+def construct_product(xml_element, product):
+    product_ele = ET.SubElement(xml_element, "wps:Product")
+    ET.SubElement(product_ele, "wps:ProductName").text = product.get("id")
+    locations = ET.SubElement(product_ele, "wps:Locations")
+    for url in product.get("urls"):
+        ET.SubElement(locations, "wps:Location").text = url
+    return xml_element
+
+
+def result_response(job_id, job_result):
+    """
+    OCG GetResult Response
+    <wps:Result xsi:schemaLocation="http://www.opengis.net/wps/2.0 http://schemas.opengis.net/wps/2.0/wps.xsd" xmlns:wps="http://www.opengis.net/wps/2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <wps:JobID>336d5fa5-3bd6-4ee9-81ea-c6bccd2d443e</wps:JobID>
+    <wps:Output id="result">
+        <wps:Products>
+        <wps:Product>
+        <wps:ProductName></wps:ProductName>
+        <wps:Locations>
+        <wps:Location><wps:Location>
+        </wps:Locations>
+        </wps:Product>
+        </wps:Products>
+    </wps:Output>
+    </wps:Result>​
+    :param job_result:
+    :return:
+    """
+    response = ET.Element("wps:Result")
+    response = set_namespaces(response)
+    ET.SubElement(response, "wps:JobID").text = job_id
+    output = ET.SubElement(response, "wps:Output")
+    output.set("id","result")
+    products = ET.SubElement(output, "wps:Products")
+    for product in job_result:
+        products = construct_product(products, product)
+    return tostring(response)
 
 
 def status_response(job_id, job_status):
