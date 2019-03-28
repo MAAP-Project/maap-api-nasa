@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from xml.etree.ElementTree import fromstring, tostring
 import xml.etree.ElementTree as ET
 import json
@@ -22,19 +24,19 @@ def parse_execute_request(request_xml):
     OGC EXECUTE REQUEST
 
     <wps:Execute xmlns:wps="http://www.opengis.net/wps/2.0"
-     xmlns:ows="http://www.opengis.net/ows/2.0" xmlns:xlink="http://www.w3.org/1999/xlink"
-           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-           xsi:schemaLocation="http://www.opengis.net/wps/2.0 ../wps.xsd" service="WPS"
-           version="2.0.0" response="document" mode="sync">
-           <ows:Identifier>org.n52.wps.server.algorithm.SimpleBufferAlgorithm</ows:Identifier>
-                 <wps:Input id="data">
-                          <wps:Reference schema="http://schemas.opengis.net/gml/3.1.1/base/feature.xsd" xlink:href="http://geoprocessing.demo.52north.org:8080/geoserver/wfs?SERVICE=WFS&amp;VERSION=1.0.0&amp;REQUEST=GetFeature&amp;TYPENAME=topp:tasmania_roads&amp;SRS=EPSG:4326&amp;OUTPUTFORMAT=GML3"/>
-                 </wps:Input>
-     <wps:Input id="width">
-        <wps:Data><wps:LiteralValue>0.05</wps:LiteralValue></wps:Data>
-     </wps:Input>
-          <wps:Output id="result" transmission="value"/>
-    </wps:Execute>
+ xmlns:ows="http://www.opengis.net/ows/2.0" xmlns:xlink="http://www.w3.org/1999/xlink"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.opengis.net/wps/2.0 ../wps.xsd" service="WPS"
+       version="2.0.0" response="document" mode="sync">
+       <ows:Identifier>org.n52.wps.server.algorithm.SimpleBufferAlgorithm</ows:Identifier>
+             <wps:Input id="data">
+                      <wps:Reference schema="http://schemas.opengis.net/gml/3.1.1/base/feature.xsd" xlink:href="http://geoprocessing.demo.52north.org:8080/geoserver/wfs?SERVICE=WFS&amp;VERSION=1.0.0&amp;REQUEST=GetFeature&amp;TYPENAME=topp:tasmania_roads&amp;SRS=EPSG:4326&amp;OUTPUTFORMAT=GML3"/>
+             </wps:Input>
+ <wps:Input id="width">
+    <wps:Data><wps:LiteralValue>0.05</wps:LiteralValue></wps:Data>
+ </wps:Input>
+      <wps:Output id="result" transmission="value"/>
+</wps:Execute>
 
     :return:
     """
