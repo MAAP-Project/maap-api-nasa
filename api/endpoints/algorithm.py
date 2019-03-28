@@ -88,6 +88,8 @@ class Register(Resource):
             algorithm_name = req_data["algorithm_name"]
             algorithm_description = req_data["algorithm_description"]
             algorithm_params = req_data["algorithm_params"]
+            # adding a mandatory field - username to every spec
+            algorithm_params.append({"field": "username"})
             validate_register_inputs(script_command, algorithm_name)
 
             log.debug("docker_container_url: {}".format(docker_container_url))
