@@ -60,6 +60,37 @@ class Submit(Resource):
 
 
 @ns.route('/job/<string:job_id>')
+class Result(Resource):
+    def get(self, job_id):
+        """
+        This will return the result of the job that successfully completed
+        :return:
+        """
+        try:
+            #request_xml = request.data
+            #job_id = ogc.parse_result_request(request_xml)
+            prod_list = list()
+            logging.info("Finding result of job with id {}".format(job_id))
+            mozart_job_id = db.get_mozart_id(job_id)
+            logging.info("Retrieved Mozart job id: {}".format(mozart_job_id))
+            response = hysds.get_mozart_job_info(mozart_job_id)
+            job_info = response.get("job").get("job_info").get("products_staged")
+            if job_info is not None:
+                for product in job_info:
+                    prod = dict()
+                    prod["urls"] = product.get("urls")
+                    prod["id"] = product.get("id")
+                    prod_list.append(prod)
+            return Response(ogc.result_response(job_id=job_id, job_result=prod_list), mimetype='text/xml')
+        except Exception as ex:
+            return Response(ogc.get_exception(type="FailedGetResult", origin_process="GetResult",
+                                              ex_message="Failed to get job result of job with id: {}. " \
+                                                         "{}. If you don't see expected results," \
+                                                         " please contact administrator " \
+                                                         "of DPS".format(job_id, ex)), mimetype='text/xml')
+
+
+@ns.route('/job/<string:job_id>/status')
 class Status(Resource):
 
     def get(self, job_id):
@@ -84,34 +115,6 @@ class Status(Resource):
                                               "job execution status. If still not found," \
                                               " please contact administrator " \
                                               "of DPS".format(job_id)), mimetype='text/xml')
-
-    def post(self, job_id):
-        """
-        This will return the result of the job that successfully completed
-        :return:
-        """
-        try:
-            request_xml = request.data
-            job_id = ogc.parse_result_request(request_xml)
-            prod_list = list()
-            logging.info("Finding result of job with id {}".format(job_id))
-            mozart_job_id = db.get_mozart_id(job_id)
-            logging.info("Retrieved Mozart job id: {}".format(mozart_job_id))
-            response = hysds.get_mozart_job_info(mozart_job_id)
-            job_info = response.get("job").get("job_info").get("products_staged")
-            if job_info is not None:
-                for product in job_info:
-                    prod = dict()
-                    prod["urls"] = product.get("urls")
-                    prod["id"] = product.get("id")
-                    prod_list.append(prod)
-            return Response(ogc.result_response(job_id=job_id, job_result=prod_list), mimetype='text/xml')
-        except Exception as ex:
-            return Response(ogc.get_exception(type="FailedGetResult", origin_process="GetResult",
-                                              ex_message="Failed to get job result of job with id: {}. " \
-                                                         "{}. If you don't see expected results," \
-                                                         " please contact administrator " \
-                                                         "of DPS".format(job_id, ex)), mimetype='text/xml')
 
 
 
