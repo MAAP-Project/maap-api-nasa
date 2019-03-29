@@ -41,6 +41,7 @@ class Register(Resource):
             "script_command" : "python /home/ops/path/to/script.py",
             "algorithm_description" : "Description",
             "algorithm_name" : "name_without_spaces",
+            "repo_url": "http://url/to/repo"
             "algorithm_params": [
                 {
                 "field": "param_name1",
@@ -56,6 +57,7 @@ class Register(Resource):
         { "script_command" : "python /app/plant.py",
         "algorithm_name" : "plant_test",
          "algorithm_description" : "Test Plant",
+         "repo_url": "http://url/to/repo"
          "algorithm_params" : [
               {
               "field": "localize_urls",
@@ -71,7 +73,16 @@ class Register(Resource):
         response_body = {"code": None, "message": None}
 
         try:
-            repo = git.git_clone()
+            req_data = request.get_json()
+            if "repo_url" in req_data:
+                repo_url = req_data["repo_url"]
+                split = repo_url.split("://")
+                repo_url = split[0] + "://" + "gitlab-ci-token:$TOKEN@" + split[1]
+                repo_name = split[1].split(".git")
+                repo_name = repo_name[0][repo_name[0].rfind("/") + 1:]
+                repo = git.git_clone(repo_url=repo_url, repo_name=repo_name)
+            else:
+                repo = git.git_clone()
         except Exception as ex:
             tb = traceback.format_exc()
             log.debug(ex.message)
