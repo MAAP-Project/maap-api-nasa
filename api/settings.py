@@ -40,4 +40,4 @@ MOZART_URL = "https://[MOZART_IP]/mozart/api/v0.1"
 DEFAULT_QUEUE = "factotum-job_worker-small"
 
 # FASTBROWSE API
-BROWSE_URL = 'ADD ME'
+TILER_ENDPOINT = 'https://8e9mu91qr6.execute-api.us-east-1.amazonaws.com/production'

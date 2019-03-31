@@ -69,7 +69,7 @@ def configure_app(flask_app):
     flask_app.config['RESTPLUS_VALIDATE'] = settings.RESTPLUS_VALIDATE
     flask_app.config['RESTPLUS_MASK_SWAGGER'] = settings.RESTPLUS_MASK_SWAGGER
     flask_app.config['ERROR_404_HELP'] = settings.RESTPLUS_ERROR_404_HELP
-
+    flask_app.config['TILER_ENDPOINT'] = settings.TILER_ENDPOINT
 
 def initialize_app(flask_app):
     configure_app(flask_app)

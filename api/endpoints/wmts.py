@@ -44,7 +44,6 @@ class GetTile(Resource):
         try:
             cmr_url = os.path.join(settings.CMR_URL, 'search', 'granules')
             cmr_resp = requests.get(cmr_url, headers=cmr.get_search_headers(), params=cmr.parse_query_string(request.query_string))
-            print('cmr response {}'.format(cmr_resp.text))
             granule = Granule(json.loads(cmr_resp.text)['feed']['entry'][0], 'aws_access_key_id', 'aws_secret_access_key')
             urls = granule['links']
             browse_image_url = list(filter(lambda x: x["title"] == "(BROWSE)", urls))[0]['href']
@@ -65,12 +64,12 @@ class GetTile(Resource):
 @ns.route('/GetCapabilities')
 class GetCapabilities(Resource):
 
-    def generate_capabilities(granule):
+    def generate_capabilities(self, granule):
         if 'LVIS' in granule['dataset_id']:
             layer_title = 'LVIS'
-        else if 'UAVSAR' in granule['dataset_id']:
+        elif 'UAVSAR' in granule['dataset_id']:
             layer_title = 'UAVSAR'
-        r = requests.get(f"{self._BROWSE_ENDPOINT}/metadata?url={browse_file}")
+        r = requests.get(f"{settings.TILER_ENDPOINT}/metadata?url={browse_file}")
         bbox = meta["bounds"]["value"]
         with open('capabilities_template.xml', 'r') as file:
             template = file.read()
@@ -110,7 +109,8 @@ class GetCapabilities(Resource):
         try:
             cmr_url = os.path.join(settings.CMR_URL, 'search', 'granules')
             cmr_resp = requests.get(cmr_url, headers=cmr.get_search_headers(), params=cmr.parse_query_string(request.query_string))
-            get_capabilities_object = generate_capabilities(granule_ur)
+            granule = Granule(json.loads(cmr_resp.text)['feed']['entry'][0], 'aws_access_key_id', 'aws_secret_access_key')
+            get_capabilities_object = self.generate_capabilities(granule)
             # Return get capbilities
             response_body["message"] = "Successfully generated capabilities for {}".format(granule_ur)
             response_body["body"] = get_capabilities_object
