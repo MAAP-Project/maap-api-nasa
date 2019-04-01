@@ -11,7 +11,7 @@ from api import settings
 import api.endpoints.cmr as cmr
 from maap.Result import Granule
 from collections import OrderedDict
-from xmltodict
+import xmltodict
 
 log = logging.getLogger(__name__)
 
