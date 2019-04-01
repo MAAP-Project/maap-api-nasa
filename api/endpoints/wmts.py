@@ -19,7 +19,6 @@ log = logging.getLogger(__name__)
 
 ns = api.namespace('wmts', description='Retrieve tiles')
 
-
 @ns.route('/GetTile')
 class GetTile(Resource):
 
@@ -46,9 +45,9 @@ class GetTile(Resource):
             cmr_resp = requests.get(cmr_url, headers=cmr.get_search_headers(), params=cmr.parse_query_string(request.query_string))
             granule = Granule(json.loads(cmr_resp.text)['feed']['entry'][0], 'aws_access_key_id', 'aws_secret_access_key')
             urls = granule['links']
-            browse_image_url = list(filter(lambda x: x["title"] == "(BROWSE)", urls))[0]['href']
+            browse_file = list(filter(lambda x: "(BROWSE)" in x['title'], urls))[0]['href']
             response_body["message"] = "Successfully fetched browse image for {}".format(granule_ur)
-            response_body["browse"] = browse_image_url
+            response_body["browse"] = browse_file
             response_body["code"] = 200
             response_body["success"] = True
         except Exception as ex:
@@ -65,13 +64,17 @@ class GetTile(Resource):
 class GetCapabilities(Resource):
 
     def generate_capabilities(self, granule):
+        urls = granule['links']
+        browse_file = list(filter(lambda x: "(BROWSE)" in x['title'], urls))[0]['href']
         if 'LVIS' in granule['dataset_id']:
             layer_title = 'LVIS'
         elif 'UAVSAR' in granule['dataset_id']:
             layer_title = 'UAVSAR'
         r = requests.get(f"{settings.TILER_ENDPOINT}/metadata?url={browse_file}")
+        meta = r.json()
         bbox = meta["bounds"]["value"]
-        with open('capabilities_template.xml', 'r') as file:
+        ROOT = os.path.dirname(os.path.abspath(__file__))
+        with open(os.path.join(ROOT, 'capabilities_template.xml'), 'r') as file:
             template = file.read()
         context = {
           'service_title': 'MAAP WMTS',
@@ -111,7 +114,7 @@ class GetCapabilities(Resource):
             cmr_resp = requests.get(cmr_url, headers=cmr.get_search_headers(), params=cmr.parse_query_string(request.query_string))
             granule = Granule(json.loads(cmr_resp.text)['feed']['entry'][0], 'aws_access_key_id', 'aws_secret_access_key')
             get_capabilities_object = self.generate_capabilities(granule)
-            # Return get capbilities
+            # Return get capabilities
             response_body["message"] = "Successfully generated capabilities for {}".format(granule_ur)
             response_body["body"] = get_capabilities_object
             response_body["code"] = 200
