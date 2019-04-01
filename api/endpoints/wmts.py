@@ -2,7 +2,7 @@ import logging
 import json
 import os
 import requests
-from flask import request, render_template
+from flask import request, render_template_string
 from flask_restplus import Resource
 from api.restplus import api
 import api.utils.auth_util as auth
@@ -84,7 +84,7 @@ class GetCapabilities(Resource):
           'ext': 'tif',
           'zoom': 10
         }
-        xml_string = render_template(template, **context)
+        xml_string = render_template_string(template, **context)
         return json.loads(json.dumps(xmltodict.parse(xml_string)))
 
 
