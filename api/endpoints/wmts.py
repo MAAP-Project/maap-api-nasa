@@ -11,8 +11,7 @@ from api import settings
 import api.endpoints.cmr as cmr
 from maap.Result import Granule
 from collections import OrderedDict
-from xmljson import abdera
-from xml.etree.ElementTree import fromstring
+from xmltodict
 
 log = logging.getLogger(__name__)
 
@@ -87,7 +86,7 @@ class GetCapabilities(Resource):
           'zoom': 10
         }
         xml_string = pystache.render(template, context)
-        return abdera.data(fromstring(xml_string))
+        return json.loads(json.dumps(xmltodict.parse(xml_string)))
 
 
     # TODO(aimee): Revert this comment of @auth.token_required
