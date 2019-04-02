@@ -63,16 +63,10 @@ class GetCapabilities(Resource):
     def generate_capabilities(self, granule):
         urls = granule['links']
         browse_file = list(filter(lambda x: "(BROWSE)" in x['title'], urls))[0]['href']
-        if 'LVIS' in granule['dataset_id']:
-            layer_title = 'LVIS'
-        elif 'UAVSAR' in granule['dataset_id']:
-            layer_title = 'UAVSAR'
+        layer_title = granule['dataset_id']
         r = requests.get(f"{settings.TILER_ENDPOINT}/metadata?url={browse_file}")
         meta = r.json()
-        bbox = meta["bounds"]["value"]
-        ROOT = os.path.dirname(os.path.abspath(__file__))
-        with open(os.path.join(ROOT, 'capabilities_template.xml'), 'r') as file:
-            template = file.read()
+        bbox = meta['bounds']['value']
         context = {
           'service_title': 'MAAP WMTS',
           'provider': 'MAAP API',
@@ -82,8 +76,12 @@ class GetCapabilities(Resource):
           'bounds': [ bbox[0], bbox[1], bbox[2], bbox[3] ],
           'content_type': 'tif',
           'ext': 'tif',
-          'zoom': 10
+          'zoom': 10,
+          'minzoom': 8,
+          'maxzoom': 15
         }
+        ROOT = os.path.dirname(os.path.abspath(__file__))
+        template = open(os.path.join(ROOT, 'capabilities_template.xml'), 'r').read()
         xml_string = render_template_string(template, **context)
         return json.loads(json.dumps(xmltodict.parse(xml_string)))
 
