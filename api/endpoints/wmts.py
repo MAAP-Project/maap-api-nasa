@@ -19,8 +19,7 @@ ns = api.namespace('wmts', description='Retrieve tiles')
 @ns.route('/GetTile')
 class GetTile(Resource):
 
-    # TODO(aimee): Revert this comment of @auth.token_required
-    # @auth.token_required
+    @auth.token_required
     def get(self):
         """
         This will submit jobs to the Job Execution System (HySDS)
@@ -86,8 +85,7 @@ class GetCapabilities(Resource):
         return json.loads(json.dumps(xmltodict.parse(xml_string)))
 
 
-    # TODO(aimee): Revert this comment of @auth.token_required
-    # @auth.token_required
+    @auth.token_required
     def get(self):
         """
         This will submit jobs to the Job Execution System (HySDS)
