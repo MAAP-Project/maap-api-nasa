@@ -1,0 +1,87 @@
+<Capabilities
+    xmlns="http://www.opengis.net/wmts/1.0"
+    xmlns:ows="http://www.opengis.net/ows/1.1"
+    xmlns:xlink="http://www.w3.org/1999/xlink"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:gml="http://www.opengis.net/gml"
+    xsi:schemaLocation="http://www.opengis.net/wmts/1.0 http://schemas.opengis.net/wmts/1.0/wmtsGetCapabilities_response.xsd"
+    version="1.0.0">
+    <ows:ServiceIdentification>
+        <ows:Title>{{ service_title }}</ows:Title>
+        <ows:ServiceType>OGC WMTS</ows:ServiceType>
+        <ows:ServiceTypeVersion>1.0.0</ows:ServiceTypeVersion>
+        <ows:ServiceProvider>
+           <ows:ProviderName>{{ provider }}</ows:ProviderName>
+           <ows:ProviderSite xlink:href="{{ provider_url }}" />
+           <ows:ServiceContact />
+        </ows:ServiceProvider>
+    </ows:ServiceIdentification>
+
+    <ows:OperationsMetadata>
+        <ows:Operation name="GetCapabilities">
+            <ows:DCP>
+                <ows:HTTP>
+                    <ows:Get xlink:href="{{ base_url }}wmts">
+                        <ows:Constraint name="GetEncoding">
+                            <ows:AllowedValues>
+                                <ows:Value>RESTful</ows:Value>
+                            </ows:AllowedValues>
+                        </ows:Constraint>
+                    </ows:Get>
+                </ows:HTTP>
+            </ows:DCP>
+        </ows:Operation>
+        <ows:Operation name="GetTile">
+            <ows:DCP>
+                <ows:HTTP>
+                    <ows:Get xlink:href="{{ base_url }}wmts">
+                        <ows:Constraint name="GetEncoding">
+                            <ows:AllowedValues>
+                                <ows:Value>RESTful</ows:Value>
+                            </ows:AllowedValues>
+                        </ows:Constraint>
+                    </ows:Get>
+                </ows:HTTP>
+            </ows:DCP>
+        </ows:Operation>
+    </ows:OperationsMetadata>
+
+    <Contents>
+        <Layer>
+            <ows:Title>{{ layer_title }}</ows:Title>
+            <ows:Identifier>{{ id }}</ows:Identifier>
+            <ows:WGS84BoundingBox crs="urn:ogc:def:crs:OGC:2:84">
+                <ows:LowerCorner>{{ bounds[0] }} {{ bounds[1] }}</ows:LowerCorner>
+                <ows:UpperCorner>{{ bounds[2] }} {{ bounds[3] }}</ows:UpperCorner>
+            </ows:WGS84BoundingBox>
+            <ows:Metadata xlink:href="{{ metadata_url }}"/>
+            <Style isDefault="true">
+                <ows:Identifier>default</ows:Identifier>
+            </Style>
+            <Format>{{ content_type }}</Format>
+            <TileMatrixSetLink>
+                <TileMatrixSet>GoogleMapsCompatible</TileMatrixSet>
+            </TileMatrixSetLink>
+            <ResourceURL format="{{ content_type }}" resourceType="tile" template="{{ base_url }}{TileMatrix}/{TileCol}/{TileRow}@2x.{{ ext }}"/>
+        </Layer>
+        <TileMatrixSet>
+          <ows:Title>GoogleMapsCompatible</ows:Title>
+          <ows:Abstract>the wellknown 'GoogleMapsCompatible' tile matrix set defined by OGC WMTS specification</ows:Abstract>
+          <ows:Identifier>GoogleMapsCompatible</ows:Identifier>
+          <ows:SupportedCRS>urn:ogc:def:crs:EPSG:6.18.3:3857</ows:SupportedCRS>
+          <WellKnownScaleSet>urn:ogc:def:wkss:OGC:1.0:GoogleMapsCompatible</WellKnownScaleSet>
+        {% for zoom in range(minzoom, maxzoom + 1) %}
+          <TileMatrix>
+              <ows:Identifier>{{ zoom }}</ows:Identifier>
+              <ScaleDenominator>{{ 279541132.015 / 2 ** zoom }}</ScaleDenominator>
+              <TopLeftCorner>-20037508.34278925 20037508.34278925</TopLeftCorner>
+              <TileWidth>{{ tile_width }}</TileWidth>
+              <TileHeight>{{ tile_height }}</TileHeight>
+              <MatrixWidth>{{ 2 ** zoom }}</MatrixWidth>
+              <MatrixHeight>{{ 2 ** zoom }}</MatrixHeight>
+          </TileMatrix>
+        {% endfor %}
+        </TileMatrixSet>
+      </Contents>
+    <ServiceMetadataURL xlink:href="{{ base_url }}wmts"/>
+</Capabilities>
