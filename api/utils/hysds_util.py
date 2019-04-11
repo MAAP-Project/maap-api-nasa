@@ -1,7 +1,6 @@
 import json
 import os
 import re
-import uuid
 import requests
 import api.settings as settings
 import datetime
@@ -84,7 +83,10 @@ def create_job_spec(script_command, algorithm_params):
             if key != "download":
                 param_spec = dict()
                 param_spec["name"] = param[key]
-                param_spec["destination"] = destination
+                if param[key] == "username":
+                    param_spec["destination"] = "context"
+                else:
+                    param_spec["destination"] = destination
                 params.append(param_spec)
         job_spec["params"] = params
 
@@ -105,7 +107,7 @@ def write_spec_file(spec_type, algorithm, body, repo_name=settings.REPO_NAME):
     write_file(path, file_name, json.dumps(body))
 
 
-def create_config_file(docker_container_url):
+def create_config_file(docker_container_url=settings.CONTAINER_URL):
     """
     Creates the contents of config.txt file
     Contains the base docker image URL for the job container
@@ -115,11 +117,10 @@ def create_config_file(docker_container_url):
     return docker_container_url
 
 
-def get_job_submission_json(algorithm, algorithm_params):
+def get_job_submission_json(algorithm):
     """
     This JSON is sent back by the CI, on successful container build
     :param algorithm:
-    :param algorithm_params:
     :return:
     """
     job_json = dict()

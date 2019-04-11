@@ -5,7 +5,6 @@ from api.restplus import api
 import traceback
 import api.utils.github_util as git
 import api.utils.hysds_util as hysds
-import api.utils.job_id_store as db
 import api.settings as settings
 import api.utils.ogc_translate as ogc
 import json
@@ -41,7 +40,8 @@ class Register(Resource):
             "script_command" : "python /home/ops/path/to/script.py",
             "algorithm_description" : "Description",
             "algorithm_name" : "name_without_spaces",
-            "repo_url": "http://url/to/repo"
+            "repo_url": "http://url/to/repo",
+            "docker_container_url": "http://url/to/container",
             "algorithm_params": [
                 {
                 "field": "param_name1",
@@ -57,7 +57,8 @@ class Register(Resource):
         { "script_command" : "python /app/plant.py",
         "algorithm_name" : "plant_test",
          "algorithm_description" : "Test Plant",
-         "repo_url": "http://url/to/repo"
+         "repo_url": "http://url/to/repo",
+         "docker_container_url": "http://url/to/container",
          "algorithm_params" : [
               {
               "field": "localize_urls",
@@ -91,11 +92,16 @@ class Register(Resource):
             response_body["error"] = "{} Traceback: {}".format(ex.message, tb)
             return response_body
 
-
         try:
             req_data = request.get_json()
-            docker_container_url = settings.CONTAINER_URL
             script_command = req_data["script_command"]
+            cmd_list = script_command.split(" ")
+            docker_cmd = " "
+            for index, item in enumerate(cmd_list):
+                if "." in item:
+                    if item.split(".")[1] in settings.SUPPORTED_EXTENSIONS:
+                        cmd_list[index] = "/{}/{}".format("app", item)
+            script_command = docker_cmd.join(cmd_list)
             algorithm_name = req_data["algorithm_name"]
             algorithm_description = req_data["algorithm_description"]
             algorithm_params = req_data["algorithm_params"]
@@ -103,7 +109,6 @@ class Register(Resource):
             algorithm_params.append({"field": "username"})
             validate_register_inputs(script_command, algorithm_name)
 
-            log.debug("docker_container_url: {}".format(docker_container_url))
             log.debug("script_command: {}".format(script_command))
             log.debug("algorithm_name: {}".format(algorithm_name))
             log.debug("algorithm_description: {}".format(algorithm_description))
@@ -130,11 +135,14 @@ class Register(Resource):
             job_spec = hysds.create_job_spec(script_command=script_command, algorithm_params=algorithm_params)
             hysds.write_spec_file(spec_type="job-spec", algorithm=algorithm_name, body=job_spec)
             # creating config file
-            config = hysds.create_config_file(docker_container_url=docker_container_url)
+            if "docker_container_url" in req_data:
+                config = hysds.create_config_file(docker_container_url=req_data["docker_container_url"])
+            else:
+                config = hysds.create_config_file()
             hysds.write_file("{}/{}".format(settings.REPO_PATH, settings.REPO_NAME), "config.txt", config)
             # creating file whose contents are returned on ci build success
-            job_submission_json = hysds.get_job_submission_json(algorithm_name, algorithm_params)
-            hysds.write_file("{}/{}".format(settings.REPO_PATH, settings.REPO_NAME),"job-submission.json",
+            job_submission_json = hysds.get_job_submission_json(algorithm_name)
+            hysds.write_file("{}/{}".format(settings.REPO_PATH, settings.REPO_NAME), "job-submission.json",
                              job_submission_json)
             log.debug("Created spec files")
         except Exception as ex:
@@ -158,7 +166,6 @@ class Register(Resource):
         response_body["code"] = 200
         response_body["message"] = "Successfully registered {}".format(algorithm_name)
 
-        print(response_body)
         return response_body
 
     def get(self):
