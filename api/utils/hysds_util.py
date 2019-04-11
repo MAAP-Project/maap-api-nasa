@@ -76,9 +76,8 @@ def create_job_spec(script_command, algorithm_params):
     params = list()
     for param in algorithm_params:
         destination = "positional"
-        if "download" in param:
-            if param["download"]:
-                destination = "localize"
+        if param.get("download", False):
+            destination = "localize"
         for key in param:
             if key != "download":
                 param_spec = dict()
