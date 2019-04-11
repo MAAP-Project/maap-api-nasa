@@ -31,11 +31,11 @@ GIT_REPO_URL = "https://gitlab-ci-token:$TOKEN@repo.nasa.maap.xyz/root/register-
 REPO_NAME = "register-job"
 REPO_PATH = "/home/ubuntu/repo"
 VERSION = "master"
+SUPPORTED_EXTENSIONS = ["py", "java", "sh"]
 
 # Docker container URL
-CONTAINER_URL = "registry.nasa.maap.xyz/root/plant-analysis:master"
+CONTAINER_URL = "registry.nasa.maap.xyz/root/dps_plot:master"
 
 # HySDS Mozart
 MOZART_URL = "https://[MOZART_IP]/mozart/api/v0.1"
 DEFAULT_QUEUE = "test-job_worker-large"
-
