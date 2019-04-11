@@ -74,11 +74,16 @@ class Result(Resource):
             mozart_job_id = db.get_mozart_id(job_id)
             logging.info("Retrieved Mozart job id: {}".format(mozart_job_id))
             response = hysds.get_mozart_job_info(mozart_job_id)
-            job_info = response.get("job").get("job_info").get("products_staged")
+            job_info = response.get("job").get("job_info").get("metrics").get("products_staged")
             if job_info is not None:
                 for product in job_info:
                     prod = dict()
                     prod["urls"] = product.get("urls")
+                    clickable_url = "https://s3.console.aws.amazon.com/s3/buckets/"
+                    for url in prod["urls"]:
+                        if url.startswith("s3://"):
+                            clickable_url += url.split(":80/")[1] + "/?region=us-east-1&tab=overview"
+                    prod["urls"].append(clickable_url)
                     prod["id"] = product.get("id")
                     prod_list.append(prod)
             return Response(ogc.result_response(job_id=job_id, job_result=prod_list), mimetype='text/xml')
