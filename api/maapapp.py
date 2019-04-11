@@ -9,6 +9,7 @@ from api import settings
 from api.endpoints.cmr import ns as cmr_collections_namespace
 from api.endpoints.algorithm import ns as algorithm_namespace
 from api.endpoints.job import ns as job_namespace
+from api.endpoints.wmts import ns as wmts_namespace
 from api.restplus import api
 import jwt
 import datetime
@@ -69,7 +70,7 @@ def configure_app(flask_app):
     flask_app.config['RESTPLUS_VALIDATE'] = settings.RESTPLUS_VALIDATE
     flask_app.config['RESTPLUS_MASK_SWAGGER'] = settings.RESTPLUS_MASK_SWAGGER
     flask_app.config['ERROR_404_HELP'] = settings.RESTPLUS_ERROR_404_HELP
-
+    flask_app.config['TILER_ENDPOINT'] = settings.TILER_ENDPOINT
 
 def initialize_app(flask_app):
     configure_app(flask_app)
@@ -79,6 +80,7 @@ def initialize_app(flask_app):
     api.add_namespace(cmr_collections_namespace)
     api.add_namespace(algorithm_namespace)
     api.add_namespace(job_namespace)
+    api.add_namespace(wmts_namespace)
     flask_app.register_blueprint(blueprint)
 
 
