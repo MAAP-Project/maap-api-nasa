@@ -8,7 +8,7 @@ from api.restplus import api
 import api.utils.auth_util as auth
 from api import settings
 import api.endpoints.cmr as cmr
-import api.utils.Granule as Granule
+from api.utils.Granule import Granule
 from collections import OrderedDict
 import xmltodict
 
