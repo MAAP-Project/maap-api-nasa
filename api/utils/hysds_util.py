@@ -200,6 +200,21 @@ def mozart_job_status(job_id):
     return mozart_response.json()
 
 
+def mozart_delete_job_type(job_type):
+    params = dict()
+    params["id"] = job_type
+
+    session = requests.Session()
+    session.verify = False
+
+    try:
+        mozart_response = session.get("{}/job_spec/remove".format(settings.MOZART_URL), params=params)
+    except Exception as ex:
+        raise ex
+
+    return mozart_response.json()
+
+
 def get_job_spec(job_type):
     """
     Get the job spec of a registered algorigthm
@@ -236,3 +251,18 @@ def get_mozart_job_info(job_id):
             raise ex
     else:
         raise Exception("Aborting retrieving information of job because status is {}".format(job_status))
+
+
+def delete_mozart_job_type(job_type):
+    params = dict()
+    params["id"] = job_type
+    session = requests.Session()
+    session.verify = False
+
+    response = mozart_delete_job_type(job_type)
+    status = response.get("success")
+    message = response.get("message")
+    if status is True:
+            return status
+    else:
+        raise Exception("Failed to remove job spec. Error: {}".format(message))
