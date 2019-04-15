@@ -228,7 +228,7 @@ class Describe(Resource):
         except Exception as ex:
             tb = traceback.format_exc()
             response_body["code"] = 500
-            response_body["message"] = "Failed to create spec files"
+            response_body["message"] = "Failed to process request to delete {}".format(algo_id)
             response_body["error"] = "{} Traceback: {}".format(ex, tb)
             return response_body
 
