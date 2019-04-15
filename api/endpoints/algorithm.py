@@ -213,6 +213,25 @@ class Describe(Resource):
                                               ex_message="Failed to get parameters for algorithm. {} Traceback: {}"
                                               .format(ex.message, tb)), mimetype='text/xml')
 
+    def delete(self, algo_id):
+        """
+        delete a registered algorithm
+        :return:
+        """
+        response_body = {"code": None, "message": None}
+        try:
+            algo_id = "job-{}".format(algo_id)
+            hysds.delete_mozart_job_type(algo_id)
+            response_body["code"] = 200
+            response_body["message"] = "successfully deleted {}".format(algo_id)
+            return response_body
+        except Exception as ex:
+            tb = traceback.format_exc()
+            response_body["code"] = 500
+            response_body["message"] = "Failed to create spec files"
+            response_body["error"] = "{} Traceback: {}".format(ex, tb)
+            return response_body
+
 
 @ns.route('/build')
 class Build(Resource):
@@ -226,7 +245,7 @@ class Build(Resource):
         job_type = req_data["job_type"]
 
         response_body = dict()
-        response_body["message"] = "Successfully completed registration of  job type {}".format(job_type)
+        response_body["message"] = "Successfully completed registration of job type {}".format(job_type)
         response_body["code"] = 200
         response_body["success"] = True
 
