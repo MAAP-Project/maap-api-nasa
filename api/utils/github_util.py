@@ -27,3 +27,13 @@ def update_git_repo(repo, repo_name, algorithm_name):
     repo.index.commit(commit_message)
     origin = repo.remote('origin')
     origin.push()
+
+
+def clean_up_git_repo(repo, repo_name):
+    files_list = os.listdir(os.path.join(settings.REPO_PATH, repo_name, "docker"))
+    for file in files_list:
+        if file != "Dockerfile":
+            print("Removing file : {}".format(file))
+            os.remove('{}/{}/docker/{}'.format(settings.REPO_PATH, repo_name, file))
+            repo.index.remove(['{}/{}/docker/{}'.format(settings.REPO_PATH, repo_name, file)])
+    return repo

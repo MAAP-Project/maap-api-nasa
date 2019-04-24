@@ -126,10 +126,11 @@ class Register(Resource):
             return response_body
 
         try:
+            # clean up any old specs from the repo
+            repo = git.clean_up_git_repo(repo, repo_name=settings.REPO_NAME)
             # creating hysds-io file
             hysds_io = hysds.create_hysds_io(algorithm_description=algorithm_description,
                                              algorithm_params=algorithm_params)
-
             hysds.write_spec_file(spec_type="hysds-io", algorithm=algorithm_name, body=hysds_io)
             # creating job spec file
             job_spec = hysds.create_job_spec(script_command=script_command, algorithm_params=algorithm_params)
