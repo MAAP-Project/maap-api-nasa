@@ -7,7 +7,6 @@ import api.utils.github_util as git
 import api.utils.hysds_util as hysds
 import api.settings as settings
 import api.utils.ogc_translate as ogc
-import json
 
 log = logging.getLogger(__name__)
 
@@ -21,11 +20,13 @@ def is_empty(item):
         return False
 
 
-def validate_register_inputs(script_command, algorithm_name):
+def validate_register_inputs(script_command, algorithm_name, environment_name):
     if is_empty(script_command):
         raise Exception("Command to run script is required")
     if is_empty(algorithm_name):
         raise Exception("Algorithm Name is required")
+    if is_empty(environment_name):
+        raise Exception("Environment Name is required")
 
 
 @ns.route('/algorithm')
@@ -41,7 +42,10 @@ class Register(Resource):
             "algorithm_description" : "Description",
             "algorithm_name" : "name_without_spaces",
             "repo_url": "http://url/to/repo",
+            "branch_name": "master",
+            "environment_name": "ubuntu",
             "docker_container_url": "http://url/to/container",
+            "path_to_dockerfile": "repo_name/algo_name/version/DockerFile"
             "algorithm_params": [
                 {
                 "field": "param_name1",
@@ -55,10 +59,13 @@ class Register(Resource):
 
         Sample JSON to post:
         { "script_command" : "python /app/plant.py",
-        "algorithm_name" : "plant_test",
+         "algorithm_name" : "plant_test",
          "algorithm_description" : "Test Plant",
          "repo_url": "http://url/to/repo",
+         "branch_name": "master",
+         "environment_name": "ubuntu",
          "docker_container_url": "http://url/to/container",
+         "path_to_dockerfile": "repo_name/algo_name/version/DockerFile"
          "algorithm_params" : [
               {
               "field": "localize_urls",
@@ -66,6 +73,9 @@ class Register(Resource):
               },
               {
               "field": "timestamp"
+              },
+              {
+              "field": "username"
               }
             ]
         }
@@ -75,10 +85,10 @@ class Register(Resource):
 
         try:
             req_data = request.get_json()
-            if "repo_url" in req_data:
-                repo_url = req_data["repo_url"]
+            if req_data.get("repo_url") is not None:
+                repo_url = req_data.get("repo_url")
                 split = repo_url.split("://")
-                repo_url = split[0] + "://" + "gitlab-ci-token:$TOKEN@" + split[1]
+                repo_url = "{}://gitlab-ci-token:$TOKEN@{}".format(split[0], split[1])
                 repo_name = split[1].split(".git")
                 repo_name = repo_name[0][repo_name[0].rfind("/") + 1:]
                 repo = git.git_clone(repo_url=repo_url, repo_name=repo_name)
@@ -90,11 +100,11 @@ class Register(Resource):
             response_body["code"] = 500
             response_body["message"] = "Error during git clone"
             response_body["error"] = "{} Traceback: {}".format(ex.message, tb)
-            return response_body
+            return response_body, 500
 
         try:
             req_data = request.get_json()
-            script_command = req_data["script_command"]
+            script_command = req_data.get("script_command")
             cmd_list = script_command.split(" ")
             docker_cmd = " "
             for index, item in enumerate(cmd_list):
@@ -102,12 +112,12 @@ class Register(Resource):
                     if item.split(".")[1] in settings.SUPPORTED_EXTENSIONS:
                         cmd_list[index] = "/{}/{}".format("app", item)
             script_command = docker_cmd.join(cmd_list)
-            algorithm_name = req_data["algorithm_name"]
-            algorithm_description = req_data["algorithm_description"]
-            algorithm_params = req_data["algorithm_params"]
             # adding a mandatory field - username to every spec
-            algorithm_params.append({"field": "username"})
-            validate_register_inputs(script_command, algorithm_name)
+            validate_register_inputs(script_command, req_data.get("algorithm_name"), req_data.get("environment_name"))
+            algorithm_name = "{}_{}".format(req_data.get("algorithm_name"), req_data.get("environment_name"))
+            algorithm_description = req_data.get("algorithm_description")
+            algorithm_params = req_data.get("algorithm_params")
+
 
             log.debug("script_command: {}".format(script_command))
             log.debug("algorithm_name: {}".format(algorithm_name))
@@ -123,7 +133,7 @@ class Register(Resource):
             except AttributeError:
                 log.debug(ex)
                 response_body["error"] = "{} Traceback: {}".format(ex, tb)
-            return response_body
+            return response_body, 500
 
         try:
             # clean up any old specs from the repo
@@ -135,14 +145,19 @@ class Register(Resource):
             # creating job spec file
             job_spec = hysds.create_job_spec(script_command=script_command, algorithm_params=algorithm_params)
             hysds.write_spec_file(spec_type="job-spec", algorithm=algorithm_name, body=job_spec)
+
             # creating config file
-            if "docker_container_url" in req_data:
-                config = hysds.create_config_file(docker_container_url=req_data["docker_container_url"])
+            if req_data.get("docker_container_url") is not None and req_data.get("path_to_dockerfile") is not None:
+                config = hysds.create_config_file(docker_container_url=req_data.get("docker_container_url"),
+                                                  path_to_dockerfile=req_data.get("path_to_dockerfile"))
             else:
                 config = hysds.create_config_file()
             hysds.write_file("{}/{}".format(settings.REPO_PATH, settings.REPO_NAME), "config.txt", config)
             # creating file whose contents are returned on ci build success
-            job_submission_json = hysds.get_job_submission_json(algorithm_name)
+            if req_data.get("branch_name") is not None:
+                job_submission_json = hysds.get_job_submission_json(algorithm_name, req_data.get("branch_name"))
+            else:
+                job_submission_json = hysds.get_job_submission_json(algorithm_name)
             hysds.write_file("{}/{}".format(settings.REPO_PATH, settings.REPO_NAME), "job-submission.json",
                              job_submission_json)
             log.debug("Created spec files")
@@ -151,7 +166,7 @@ class Register(Resource):
             response_body["code"] = 500
             response_body["message"] = "Failed to create spec files"
             response_body["error"] = "{} Traceback: {}".format(ex.message, tb)
-            return response_body
+            return response_body, 500
 
         try:
             git.update_git_repo(repo, repo_name=settings.REPO_NAME,
@@ -162,7 +177,7 @@ class Register(Resource):
             response_body["code"] = 500
             response_body["message"] = "Failed to register {}".format(algorithm_name)
             response_body["error"] = "{} Traceback: {}".format(ex.message, tb)
-            return response_body
+            return response_body, 500
 
         response_body["code"] = 200
         response_body["message"] = "Successfully registered {}".format(algorithm_name)
