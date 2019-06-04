@@ -160,9 +160,10 @@ def mozart_submit_job(job_type, params={}):
     job_payload["type"] = job_type
     job_payload["queue"] = settings.DEFAULT_QUEUE
     job_payload["priority"] = 0
-    job_payload["tags"] = json.dumps(["maap-api_submit", str(datetime.datetime.now().isoformat())])
+    job_payload["tags"] = json.dumps(["maap-api_submit"])
     job_payload["params"] = json.dumps(params)
-    job_payload["enable_dedup"] = False
+    job_payload["enable_dedup"] = "false"
+    job_payload["username"] = params.get("username").strip()
 
     print(json.dumps(job_payload))
 

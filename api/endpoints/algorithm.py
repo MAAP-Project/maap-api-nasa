@@ -42,7 +42,7 @@ class Register(Resource):
             "algorithm_description" : "Description",
             "algorithm_name" : "name_without_spaces",
             "repo_url": "http://url/to/repo",
-            "branch_name": "master",
+            "code_version": "master",
             "environment_name": "ubuntu",
             "docker_container_url": "http://url/to/container",
             "path_to_dockerfile": "repo_name/algo_name/version/DockerFile"
@@ -62,7 +62,7 @@ class Register(Resource):
          "algorithm_name" : "plant_test",
          "algorithm_description" : "Test Plant",
          "repo_url": "http://url/to/repo",
-         "branch_name": "master",
+         "code_version": "master",
          "environment_name": "ubuntu",
          "docker_container_url": "http://url/to/container",
          "path_to_dockerfile": "repo_name/algo_name/version/DockerFile"
@@ -154,8 +154,8 @@ class Register(Resource):
                 config = hysds.create_config_file()
             hysds.write_file("{}/{}".format(settings.REPO_PATH, settings.REPO_NAME), "config.txt", config)
             # creating file whose contents are returned on ci build success
-            if req_data.get("branch_name") is not None:
-                job_submission_json = hysds.get_job_submission_json(algorithm_name, req_data.get("branch_name"))
+            if req_data.get("code_version") is not None:
+                job_submission_json = hysds.get_job_submission_json(algorithm_name, req_data.get("code_version"))
             else:
                 job_submission_json = hysds.get_job_submission_json(algorithm_name)
             hysds.write_file("{}/{}".format(settings.REPO_PATH, settings.REPO_NAME), "job-submission.json",
