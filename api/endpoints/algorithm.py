@@ -45,7 +45,6 @@ class Register(Resource):
             "code_version": "master",
             "environment_name": "ubuntu",
             "docker_container_url": "http://url/to/container",
-            "path_to_dockerfile": "repo_name/algo_name/version/DockerFile"
             "algorithm_params": [
                 {
                 "field": "param_name1",
@@ -65,7 +64,6 @@ class Register(Resource):
          "code_version": "master",
          "environment_name": "ubuntu",
          "docker_container_url": "http://url/to/container",
-         "path_to_dockerfile": "repo_name/algo_name/version/DockerFile"
          "algorithm_params" : [
               {
               "field": "localize_urls",
@@ -118,7 +116,6 @@ class Register(Resource):
             algorithm_description = req_data.get("algorithm_description")
             algorithm_params = req_data.get("algorithm_params")
 
-
             log.debug("script_command: {}".format(script_command))
             log.debug("algorithm_name: {}".format(algorithm_name))
             log.debug("algorithm_description: {}".format(algorithm_description))
@@ -148,8 +145,7 @@ class Register(Resource):
 
             # creating config file
             if req_data.get("docker_container_url") is not None and req_data.get("path_to_dockerfile") is not None:
-                config = hysds.create_config_file(docker_container_url=req_data.get("docker_container_url"),
-                                                  path_to_dockerfile=req_data.get("path_to_dockerfile"))
+                config = hysds.create_config_file(docker_container_url=req_data.get("docker_container_url"))
             else:
                 config = hysds.create_config_file()
             hysds.write_file("{}/{}".format(settings.REPO_PATH, settings.REPO_NAME), "config.txt", config)

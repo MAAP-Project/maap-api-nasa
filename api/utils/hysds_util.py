@@ -106,15 +106,14 @@ def write_spec_file(spec_type, algorithm, body, repo_name=settings.REPO_NAME):
     write_file(path, file_name, json.dumps(body))
 
 
-def create_config_file(docker_container_url=settings.CONTAINER_URL, path_to_dockerfile=None):
+def create_config_file(docker_container_url=settings.CONTAINER_URL):
     """
     Creates the contents of config.txt file
     Contains the base docker image URL for the job container
     :param docker_container_url:
-    :param path_to_dockerfile:
     :return:
     """
-    return json.dumps({"git_url": docker_container_url, "path": path_to_dockerfile})
+    return docker_container_url
 
 
 def get_job_submission_json(algorithm, branch=settings.VERSION):
