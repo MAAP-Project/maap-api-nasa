@@ -110,7 +110,7 @@ class Register(Resource):
                     if item.split(".")[1] in settings.SUPPORTED_EXTENSIONS:
                         cmd_list[index] = "/{}/{}".format("app", item)
             script_command = docker_cmd.join(cmd_list)
-            # adding a mandatory field - username to every spec
+
             validate_register_inputs(script_command, req_data.get("algorithm_name"), req_data.get("environment_name"))
             algorithm_name = "{}_{}".format(req_data.get("algorithm_name"), req_data.get("environment_name"))
             algorithm_description = req_data.get("algorithm_description")
@@ -136,6 +136,8 @@ class Register(Resource):
             # clean up any old specs from the repo
             repo = git.clean_up_git_repo(repo, repo_name=settings.REPO_NAME)
             # creating hysds-io file
+            # adding a mandatory field - username to every spec
+            algorithm_params.append({"field": "username"})
             hysds_io = hysds.create_hysds_io(algorithm_description=algorithm_description,
                                              algorithm_params=algorithm_params)
             hysds.write_spec_file(spec_type="hysds-io", algorithm=algorithm_name, body=hysds_io)
