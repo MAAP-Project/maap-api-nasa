@@ -83,15 +83,7 @@ class Register(Resource):
 
         try:
             req_data = request.get_json()
-            if req_data.get("repo_url") is not None:
-                repo_url = req_data.get("repo_url")
-                split = repo_url.split("://")
-                repo_url = "{}://gitlab-ci-token:$TOKEN@{}".format(split[0], split[1])
-                repo_name = split[1].split(".git")
-                repo_name = repo_name[0][repo_name[0].rfind("/") + 1:]
-                repo = git.git_clone(repo_url=repo_url, repo_name=repo_name)
-            else:
-                repo = git.git_clone()
+            repo = git.git_clone()
         except Exception as ex:
             tb = traceback.format_exc()
             log.debug(ex.message)
@@ -151,6 +143,17 @@ class Register(Resource):
             else:
                 config = hysds.create_config_file()
             hysds.write_file("{}/{}".format(settings.REPO_PATH, settings.REPO_NAME), "config.txt", config)
+            # creating JSON file with all code information
+            if req_data.get("repo_url") is not None:
+                repo_url = req_data.get("repo_url")
+                split = repo_url.split("://")
+                repo_url = "{}://gitlab-ci-token:$TOKEN@{}".format(split[0], split[1])
+                repo_name = split[1].split(".git")
+                repo_name = repo_name[0][repo_name[0].rfind("/") + 1:]
+                code = hysds.create_code_info(repo_url=repo_url, repo_name=repo_name,
+                                              docker_container_url=req_data.get("docker_container_url", None),
+                                              path_to_dockerfile=req_data.get("path_to_dockerfile", None))
+                hysds.write_file("{}/{}".format(settings.REPO_PATH, settings.REPO_NAME), "code_config.json", code)
             # creating file whose contents are returned on ci build success
             if req_data.get("code_version") is not None:
                 job_submission_json = hysds.get_job_submission_json(algorithm_name, req_data.get("code_version"))
@@ -178,7 +181,7 @@ class Register(Resource):
             return response_body, 500
 
         response_body["code"] = 200
-        response_body["message"] = "Successfully registered {}".format(algorithm_name)
+        response_body["message"] = "Successfully registered {}:{}".format(algorithm_name, req_data.get("code_version"))
 
         return response_body
 

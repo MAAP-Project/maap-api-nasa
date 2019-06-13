@@ -113,7 +113,25 @@ def create_config_file(docker_container_url=settings.CONTAINER_URL):
     :param docker_container_url:
     :return:
     """
+
     return docker_container_url
+
+
+def create_code_info(repo_url, repo_name, docker_container_url=settings.CONTAINER_URL, path_to_dockerfile=None):
+    """
+
+    :param repo_url:
+    :param repo_name:
+    :param docker_container_url:
+    :param path_to_dockerfile:
+    :return:
+    """
+    return json.dumps({
+        "repo_url": repo_url,
+        "repo_name": repo_name,
+        "docker_file_url": docker_container_url,
+        "path_to_dockerfile": path_to_dockerfile
+    })
 
 
 def get_job_submission_json(algorithm, branch=settings.VERSION):
@@ -153,7 +171,6 @@ def mozart_submit_job(job_type, params={}):
     :param params:
     :return:
     """
-    params.update({"timestamp": str(datetime.datetime.now().isoformat())})
 
     job_payload = dict()
     job_payload["type"] = job_type

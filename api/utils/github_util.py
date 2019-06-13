@@ -20,6 +20,7 @@ def update_git_repo(repo, repo_name, algorithm_name):
         '{}/{}/docker/hysds-io.json.{}'.format(settings.REPO_PATH, repo_name, algorithm_name),
         '{}/{}/docker/job-spec.json.{}'.format(settings.REPO_PATH, repo_name, algorithm_name),
         '{}/{}/config.txt'.format(settings.REPO_PATH, repo_name),
+        '{}/{}/code_config.json'.format(settings.REPO_PATH, repo_name),
         '{}/{}/job-submission.json'.format(settings.REPO_PATH, repo_name)
     ]
     commit_message = 'Registering algorithm: {}'.format(algorithm_name)
