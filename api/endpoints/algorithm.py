@@ -208,7 +208,7 @@ class Register(Resource):
             tb = traceback.format_exc()
             return Response(ogc.get_exception(type="FailedSearch", origin_process="GetAlgorithms",
                             ex_message="Failed to get list of jobs. {}. {}".format(ex.message, tb)),
-                            mimetype='text/xml')
+                            mimetype='text/xml'), 500
 
 
 @ns.route('/algorithm/<string:algo_id>')
@@ -228,7 +228,7 @@ class Describe(Resource):
             tb = traceback.format_exc()
             return Response(ogc.get_exception(type="FailedDescribeAlgo", origin_process="DescribeProcess",
                                               ex_message="Failed to get parameters for algorithm. {} Traceback: {}"
-                                              .format(ex.message, tb)), mimetype='text/xml')
+                                              .format(ex.message, tb)), mimetype='text/xml'), 500
 
     def delete(self, algo_id):
         """
@@ -247,7 +247,7 @@ class Describe(Resource):
             response_body["code"] = 500
             response_body["message"] = "Failed to process request to delete {}".format(algo_id)
             response_body["error"] = "{} Traceback: {}".format(ex, tb)
-            return response_body
+            return response_body, 404
 
 
 @ns.route('/build')
