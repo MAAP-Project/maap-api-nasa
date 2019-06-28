@@ -20,6 +20,7 @@ def update_git_repo(repo, repo_name, algorithm_name):
         '{}/{}/docker/hysds-io.json.{}'.format(settings.REPO_PATH, repo_name, algorithm_name),
         '{}/{}/docker/job-spec.json.{}'.format(settings.REPO_PATH, repo_name, algorithm_name),
         '{}/{}/config.txt'.format(settings.REPO_PATH, repo_name),
+        '{}/{}/code_config.json'.format(settings.REPO_PATH, repo_name),
         '{}/{}/job-submission.json'.format(settings.REPO_PATH, repo_name)
     ]
     commit_message = 'Registering algorithm: {}'.format(algorithm_name)
@@ -27,3 +28,13 @@ def update_git_repo(repo, repo_name, algorithm_name):
     repo.index.commit(commit_message)
     origin = repo.remote('origin')
     origin.push()
+
+
+def clean_up_git_repo(repo, repo_name):
+    files_list = os.listdir(os.path.join(settings.REPO_PATH, repo_name, "docker"))
+    for file in files_list:
+        if file != "Dockerfile":
+            print("Removing file : {}".format(file))
+            os.remove('{}/{}/docker/{}'.format(settings.REPO_PATH, repo_name, file))
+            repo.index.remove(['{}/{}/docker/{}'.format(settings.REPO_PATH, repo_name, file)])
+    return repo

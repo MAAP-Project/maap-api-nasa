@@ -113,17 +113,36 @@ def create_config_file(docker_container_url=settings.CONTAINER_URL):
     :param docker_container_url:
     :return:
     """
+
     return docker_container_url
 
 
-def get_job_submission_json(algorithm):
+def create_code_info(repo_url, repo_name, docker_container_url=settings.CONTAINER_URL, path_to_dockerfile=None):
+    """
+
+    :param repo_url:
+    :param repo_name:
+    :param docker_container_url:
+    :param path_to_dockerfile:
+    :return:
+    """
+    return json.dumps({
+        "repo_url": repo_url,
+        "repo_name": repo_name,
+        "docker_file_url": docker_container_url,
+        "path_to_dockerfile": path_to_dockerfile
+    })
+
+
+def get_job_submission_json(algorithm, branch=settings.VERSION):
     """
     This JSON is sent back by the CI, on successful container build
     :param algorithm:
+    :param branch:
     :return:
     """
     job_json = dict()
-    job_json["job_type"] = "job-{}:{}".format(algorithm, settings.VERSION)
+    job_json["job_type"] = "job-{}:{}".format(algorithm, branch)
     return json.dumps(job_json)
 
 
@@ -152,15 +171,15 @@ def mozart_submit_job(job_type, params={}):
     :param params:
     :return:
     """
-    params.update({"timestamp": str(datetime.datetime.now().isoformat())})
 
     job_payload = dict()
     job_payload["type"] = job_type
     job_payload["queue"] = settings.DEFAULT_QUEUE
     job_payload["priority"] = 0
-    job_payload["tags"] = json.dumps(["maap-api_submit", str(datetime.datetime.now().isoformat())])
+    job_payload["tags"] = json.dumps(["maap-api_submit"])
     job_payload["params"] = json.dumps(params)
-    job_payload["enable_dedup"] = False
+    job_payload["enable_dedup"] = "false"
+    job_payload["username"] = params.get("username").strip()
 
     print(json.dumps(job_payload))
 
@@ -194,6 +213,21 @@ def mozart_job_status(job_id):
     try:
         mozart_response = session.get("{}/job/status".format(settings.MOZART_URL), params=params)
 
+    except Exception as ex:
+        raise ex
+
+    return mozart_response.json()
+
+
+def mozart_delete_job_type(job_type):
+    params = dict()
+    params["id"] = job_type
+
+    session = requests.Session()
+    session.verify = False
+
+    try:
+        mozart_response = session.get("{}/job_spec/remove".format(settings.MOZART_URL), params=params)
     except Exception as ex:
         raise ex
 
@@ -236,3 +270,18 @@ def get_mozart_job_info(job_id):
             raise ex
     else:
         raise Exception("Aborting retrieving information of job because status is {}".format(job_status))
+
+
+def delete_mozart_job_type(job_type):
+    params = dict()
+    params["id"] = job_type
+    session = requests.Session()
+    session.verify = False
+
+    response = mozart_delete_job_type(job_type)
+    status = response.get("success")
+    message = response.get("message")
+    if status is True:
+            return status
+    else:
+        raise Exception("Failed to remove job spec. Error: {}".format(message))

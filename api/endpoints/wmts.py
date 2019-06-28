@@ -62,7 +62,7 @@ class GetCapabilities(Resource):
         urls = granule['links']
         browse_file = list(filter(lambda x: "(BROWSE)" in x['title'], urls))[0]['href']
         layer_title = granule['dataset_id']
-        r = requests.get(f"{settings.TILER_ENDPOINT}/metadata?url={browse_file}")
+        r = requests.get(settings.TILER_ENDPOINT + "/metadata?url=" + browse_file)
         meta = r.json()
         bbox = meta['bounds']['value']
         context = {

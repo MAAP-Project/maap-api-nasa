@@ -1,16 +1,11 @@
 # NASA MAAP API
-The NASA MAAP API is an implementation of the [MAAP API specification](https://github.com/MAAP-Project/maap-api) for querying multi-mission data and collaborating on an open library of science algorithms to analyze these data. 
+The joint ESA-NASA Multi-Mission Algorithm and Analysis Platform (MAAP) focuses on developing a collaborative data system enabling collocated data, processing, and analysis tools for NASA and ESA datasets. The NASA MAAP API adheres to the joint ESA-NASA MAAP API specification currently in development. This joint architectural approach enables NASA and ESA to each run independent MAAPs, while ultimately sharing common facilities to share and integrate collocated platform services.
 
 Development server: https://api.maap.xyz/api
 
-## API Specifications
-
-- [Skeleton API](https://github.com/MAAP-Project/maap-api/blob/master/maap-skeleton.yaml): the proposed API specification for initial release.
-- [Job Submission API](maap-job-submission.yaml): a subset of the MAAP API that provides services that submit and fetch HySDS jobs.
-
 ## Getting Started
 
-To run the MAAP API locally in PyCharm, create a Python Configuration with the following settings:
+To run the MAAP API locally using PyCharm, create a Python Configuration with the following settings:
 
 - Script path: `./api/maapapp.py`
 - Environment variables: `PYTHONUNBUFFERED=1`
@@ -19,7 +14,7 @@ To run the MAAP API locally in PyCharm, create a Python Configuration with the f
 
 ## User Accounts
 
-A valid MAAP API token must be included in the header for any API request. To obtain a token, URS credentials must be provided as shown below:
+A valid MAAP API token must be included in the header for any API request. An [Earthdata account](https://uat.urs.earthdata.nasa.gov) is required to access the MAAP API. To obtain a token, URS credentials must be provided as shown below:
 
 ```bash
 curl -X POST --header "Content-Type: application/json" -d "{ \"username\": \"urs_username\", \"password\": \"urs_password\" }" https://api.maap.xyz/token
@@ -27,7 +22,7 @@ curl -X POST --header "Content-Type: application/json" -d "{ \"username\": \"urs
 
 ## Deployment
 
-The MAAP API is written using [Flask](http://flask.pocoo.org/), and is commonly deployed using [WSGI Middlewares](http://flask.pocoo.org/docs/1.0/quickstart/#hooking-in-wsgi-middlewares). This deployment guide targets Ubuntu 18.04 running Apache2 in AWS with [Let's Encrypt](https://letsencrypt.org/).
+The MAAP API is written in [Flask](http://flask.pocoo.org/), and commonly deployed using [WSGI Middlewares](http://flask.pocoo.org/docs/1.0/quickstart/#hooking-in-wsgi-middlewares). This deployment guide targets Ubuntu 18.04 running Apache2 in AWS with [Let's Encrypt](https://letsencrypt.org/).
 
 1. Install and enable [mod_wsgi](https://pypi.org/project/mod_wsgi/).
 2. Create an app directory for MAAP API, typically under `/var/www`
