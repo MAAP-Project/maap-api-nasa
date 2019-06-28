@@ -8,7 +8,7 @@ from api.restplus import api
 import api.utils.auth_util as auth
 from api import settings
 import api.endpoints.cmr as cmr
-import api.utils.Granule as Granule
+from api.utils.Granule import Granule
 from collections import OrderedDict
 import xmltodict
 
@@ -19,7 +19,6 @@ ns = api.namespace('wmts', description='Retrieve tiles')
 @ns.route('/GetTile')
 class GetTile(Resource):
 
-    @auth.token_required
     def get(self):
         """
         This will submit jobs to the Job Execution System (HySDS)
@@ -85,7 +84,6 @@ class GetCapabilities(Resource):
         return json.loads(json.dumps(xmltodict.parse(xml_string)))
 
 
-    @auth.token_required
     def get(self):
         """
         This will submit jobs to the Job Execution System (HySDS)
