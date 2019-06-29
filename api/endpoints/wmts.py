@@ -43,7 +43,7 @@ def get_collection_cogs(collection={}):
       'version': [ collection['version'] ],
       'page_size': 100
     }
-    if collection['additional_attributes']:
+    if 'additional_attributes' in collection:
         cmr_query_dict['attribute[]'] = collection['additional_attributes']
     search_headers = cmr.get_search_headers()
     search_headers['Accept'] = 'application/json'
@@ -132,7 +132,7 @@ class GetCapabilities(Resource):
 
     def generate_capabilities(self):
         layers = []
-        for collection in default_collections.values():
+        for key, collection in default_collections.items():
             browse_urls_query_string = get_collection_cogs(collection)
             # REVIEW(aimee): We're making a request for all the granule cog
             # urls here but then passing the collection name and version to
@@ -144,7 +144,7 @@ class GetCapabilities(Resource):
             meta = r.json()
             bbox = meta['bounds']
             layer_info = {
-                'layer_title': collection['short_name'],
+                'layer_title': key,
                 'collection_version': collection['version'],
                 # TODO(aimee): add default and alternatives
                 # TODO(aimee): use defaults from /mosaic/tilejson.json
