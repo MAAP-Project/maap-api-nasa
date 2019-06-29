@@ -101,6 +101,7 @@ class GetTile(Resource):
                     return response
                 else:
                     browse_urls_query_string = None
+                    collection = default_collections[collection_name]
                     if 'mosaiced_cog' in collection:
                         browse_urls_query_string = collection['mosaiced_cog']
                     else:
@@ -136,7 +137,7 @@ class GetCapabilities(Resource):
 
     def generate_capabilities(self):
         layers = []
-        for collection in default_collections:
+        for collection in default_collections.values():
             if 'mosaiced_cog' in collection:
                 browse_urls_query_string = collection['mosaiced_cog']
             else:
