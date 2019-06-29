@@ -44,7 +44,7 @@ def get_collection_cogs(collection={}):
       'page_size': 100
     }
     if collection['additional_attributes']:
-        cmr_query_dict['attribute[]'] = ','.join(collection['additional_attributes'][0])
+        cmr_query_dict['attribute[]'] = collection['additional_attributes']
     search_headers = cmr.get_search_headers()
     search_headers['Accept'] = 'application/json'
     cmr_resp = requests.get(cmr_search_granules_url, headers=search_headers, params=cmr_query_dict)
@@ -102,17 +102,11 @@ class GetTile(Resource):
                 else:
                     browse_urls_query_string = None
                     collection = default_collections[collection_name]
-                    if 'mosaiced_cog' in collection:
-                        browse_urls_query_string = collection['mosaiced_cog']
-                    else:
-                        browse_urls_query_string = get_collection_cogs(collection)
+                    browse_urls_query_string = get_collection_cogs(collection)
 
                 mosaic_url = '{}/mosaic/{}/{}/{}.{}?urls={}&color_map={}&rescale={}'.format(
                     settings.TILER_ENDPOINT, z, x, y, ext, browse_urls_query_string, color_map, rescale
                 )
-                if len(mosaic_url) > max_url_length:
-                    mosaic_url = mosaic_url[0:max_url_length]
-                    mosaic_url = mosaic_url[0:mosaic_url.rfind(',')]
                 tile_response = requests.get(mosaic_url)
                 response = Response(tile_response.content, tile_response.status_code, {'Content-Type': 'image/png', 'Access-Control-Allow-Origin': '*'})
                 return response
@@ -139,10 +133,7 @@ class GetCapabilities(Resource):
     def generate_capabilities(self):
         layers = []
         for collection in default_collections.values():
-            if 'mosaiced_cog' in collection:
-                browse_urls_query_string = collection['mosaiced_cog']
-            else:
-                browse_urls_query_string = get_collection_cogs(collection)
+            browse_urls_query_string = get_collection_cogs(collection)
             # REVIEW(aimee): We're making a request for all the granule cog
             # urls here but then passing the collection name and version to
             # generate the GetCapabilities which means the service will
