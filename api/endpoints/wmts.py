@@ -98,7 +98,7 @@ class GetTile(Resource):
                     return redirect(mosaic_url)
                 else:
                     browse_urls_query_string = get_collection_cogs({
-                      'short_name': collection_version,
+                      'short_name': collection_name,
                       'version': collection_version
                     })
                     mosaic_url = '{}/mosaic/{}/{}/{}.{}?urls={}&color_map={}&rescale={}'.format(
@@ -130,16 +130,16 @@ class GetCapabilities(Resource):
     def generate_capabilities(self):
         layers = []
         for collection in default_collections:
-            browse_urls_query_string = get_collection_cogs(collection)
+            if 'mosaiced_cog' in collection:
+                browse_urls_query_string = collection['mosaiced_cog']
+            else:
+                browse_urls_query_string = get_collection_cogs(collection)
             # REVIEW(aimee): We're making a request for all the granule cog
             # urls here but then passing the collection name and version to
             # generate the GetCapabilities which means the service will
             # likely make the request to CMR twice. Is this necessary?
             # This would be a reason to permit GetTile to take a list of urls directly.
             mosaic_tilejson_url = '{}/mosaic/tilejson.json?urls={}'.format(settings.TILER_ENDPOINT, browse_urls_query_string)
-            if len(mosaic_tilejson_url) > max_url_length:
-                mosaic_tilejson_url = mosaic_tilejson_url[0:max_url_length]
-                mosaic_tilejson_url = mosaic_tilejson_url[0:mosaic_tilejson_url.rfind(',')]
             r = requests.get(mosaic_tilejson_url)
             meta = r.json()
             bbox = meta['bounds']
@@ -170,7 +170,6 @@ class GetCapabilities(Resource):
         ROOT = os.path.dirname(os.path.abspath(__file__))
         template = open(os.path.join(ROOT, 'capabilities_template.xml'), 'r').read()
         xml_string = render_template_string(template, **context)
-        # print(xml_string)
         return xml_string
 
     def get(self):
