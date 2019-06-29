@@ -1,5 +1,5 @@
 import unittest
-from api.maapapp import app, initialize_app
+from api.maapapp import app
 from api import settings
 import json
 

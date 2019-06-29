@@ -21,7 +21,7 @@
         <ows:Operation name="GetCapabilities">
             <ows:DCP>
                 <ows:HTTP>
-                    <ows:Get xlink:href="{{ base_url }}wmts">
+                    <ows:Get xlink:href="{{ base_url }}/wmts">
                         <ows:Constraint name="GetEncoding">
                             <ows:AllowedValues>
                                 <ows:Value>RESTful</ows:Value>
@@ -34,7 +34,7 @@
         <ows:Operation name="GetTile">
             <ows:DCP>
                 <ows:HTTP>
-                    <ows:Get xlink:href="{{ base_url }}wmts">
+                    <ows:Get xlink:href="{{ base_url }}/wmts">
                         <ows:Constraint name="GetEncoding">
                             <ows:AllowedValues>
                                 <ows:Value>RESTful</ows:Value>
@@ -47,23 +47,25 @@
     </ows:OperationsMetadata>
 
     <Contents>
+      {% for layer in layers %}
         <Layer>
-            <ows:Title>{{ layer_title }}</ows:Title>
-            <ows:Identifier>{{ id }}</ows:Identifier>
+            <ows:Title>{{ layer['layer_title'] }}</ows:Title>
+            <ows:Identifier>{{ layer['id'] }}</ows:Identifier>
             <ows:WGS84BoundingBox crs="urn:ogc:def:crs:OGC:2:84">
-                <ows:LowerCorner>{{ bounds[0] }} {{ bounds[1] }}</ows:LowerCorner>
-                <ows:UpperCorner>{{ bounds[2] }} {{ bounds[3] }}</ows:UpperCorner>
+                <ows:LowerCorner>{{ layer['bounds'][0] }} {{ layer['bounds'][1] }}</ows:LowerCorner>
+                <ows:UpperCorner>{{ layer['bounds'][2] }} {{ layer['bounds'][3] }}</ows:UpperCorner>
             </ows:WGS84BoundingBox>
-            <ows:Metadata xlink:href="{{ metadata_url }}"/>
+            <ows:Metadata xlink:href=""/>
             <Style isDefault="true">
                 <ows:Identifier>default</ows:Identifier>
             </Style>
-            <Format>{{ content_type }}</Format>
+            <Format>{{ layer['content_type'] }}</Format>
             <TileMatrixSetLink>
                 <TileMatrixSet>GoogleMapsCompatible</TileMatrixSet>
             </TileMatrixSetLink>
-            <ResourceURL format="{{ content_type }}" resourceType="tile" template="{{ base_url }}{TileMatrix}/{TileCol}/{TileRow}@2x.{{ ext }}"/>
+            <ResourceURL format="{{ layer['content_type'] }}" resourceType="tile" template="{{ base_url }}/wmts/GetTile/{TileMatrix}/{TileCol}/{TileRow}.{{ layer['ext'] }}?collection_name={{ layer['layer_title'] }}&collection_version={{ layer['collection_version'] }}&color_map={{ layer['color_map'] }}&rescale={{ layer['rescale'] }}"/>
         </Layer>
+      {% endfor %}
         <TileMatrixSet>
           <ows:Title>GoogleMapsCompatible</ows:Title>
           <ows:Abstract>the wellknown 'GoogleMapsCompatible' tile matrix set defined by OGC WMTS specification</ows:Abstract>
@@ -83,5 +85,5 @@
         {% endfor %}
         </TileMatrixSet>
       </Contents>
-    <ServiceMetadataURL xlink:href="{{ base_url }}wmts"/>
+    <ServiceMetadataURL xlink:href="{{ base_url }}/wmts"/>
 </Capabilities>
