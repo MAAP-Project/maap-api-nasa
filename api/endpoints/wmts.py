@@ -33,12 +33,18 @@ def get_collection_cogs(collection={}):
     links for that collection's granules.
     :return:
     """
-    # TODO(aimee): It could be that more than 2000 granules are
+    # TODO(aimee): It could be that more than 100 granules are
     # returned - but this would probably overload the tiler? We
     # need a better answer for collections with a large number
     # of granules.
     browse_urls = []
-    cmr_query_dict = { 'short_name': [ collection['short_name'] ], 'version': [ collection['version'] ], 'page_size': 2000 }
+    cmr_query_dict = {
+      'short_name': [ collection['short_name'] ],
+      'version': [ collection['version'] ],
+      'page_size': 100
+    }
+    if collection['additional_attributes']:
+        cmr_query_dict['attribute[]'] = ','.join(collection['additional_attributes'][0])
     search_headers = cmr.get_search_headers()
     search_headers['Accept'] = 'application/json'
     cmr_resp = requests.get(cmr_search_granules_url, headers=search_headers, params=cmr_query_dict)
@@ -99,10 +105,7 @@ class GetTile(Resource):
                     if 'mosaiced_cog' in collection:
                         browse_urls_query_string = collection['mosaiced_cog']
                     else:
-                        browse_urls_query_string = get_collection_cogs({
-                          'short_name': collection_name,
-                          'version': collection_version
-                        })
+                        browse_urls_query_string = get_collection_cogs(collection)
 
                 mosaic_url = '{}/mosaic/{}/{}/{}.{}?urls={}&color_map={}&rescale={}'.format(
                     settings.TILER_ENDPOINT, z, x, y, ext, browse_urls_query_string, color_map, rescale
@@ -155,7 +158,7 @@ class GetCapabilities(Resource):
                 # TODO(aimee): add default and alternatives
                 # TODO(aimee): use defaults from /mosaic/tilejson.json
                 'color_map': 'schwarzwald',
-                'rescale': '-1,1',
+                'rescale': collection['rescale'],
                 'bounds': [ bbox[0], bbox[1], bbox[2], bbox[3] ],
                 # TODO(aimee): Should and how is ext and content_type configurable?
                 'content_type': 'png',
