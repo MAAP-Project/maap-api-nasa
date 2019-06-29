@@ -93,12 +93,6 @@ class GetTile(Resource):
                         if browse_file:
                             browse_urls.append(browse_file[0]['href'])
                     browse_urls_query_string = ','.join(browse_urls)
-                    mosaic_url = '{}/mosaic/{}/{}/{}.{}?urls={}&color_map={}&rescale={}'.format(
-                        settings.TILER_ENDPOINT, z, x, y, ext, browse_urls_query_string, color_map, rescale
-                    )
-                    tile_response = requests.get(mosaic_url)
-                    response = Response(tile_response.content, tile_response.status_code, {'Content-Type': 'image/png', 'Access-Control-Allow-Origin': '*'})
-                    return response
                 else:
                     browse_urls_query_string = None
                     collection = default_collections[collection_name]
@@ -109,12 +103,16 @@ class GetTile(Resource):
                           'short_name': collection_name,
                           'version': collection_version
                         })
-                    mosaic_url = '{}/mosaic/{}/{}/{}.{}?urls={}&color_map={}&rescale={}'.format(
-                        settings.TILER_ENDPOINT, z, x, y, ext, browse_urls_query_string, color_map, rescale
-                    )
-                    tile_response = requests.get(mosaic_url)
-                    response = Response(tile_response.content, tile_response.status_code, {'Content-Type': 'image/png', 'Access-Control-Allow-Origin': '*'})
-                    return response
+
+                mosaic_url = '{}/mosaic/{}/{}/{}.{}?urls={}&color_map={}&rescale={}'.format(
+                    settings.TILER_ENDPOINT, z, x, y, ext, browse_urls_query_string, color_map, rescale
+                )
+                if len(mosaic_url) > max_url_length:
+                    mosaic_url = mosaic_url[0:max_url_length]
+                    mosaic_url = mosaic_url[0:mosaic_url.rfind(',')]
+                tile_response = requests.get(mosaic_url)
+                response = Response(tile_response.content, tile_response.status_code, {'Content-Type': 'image/png', 'Access-Control-Allow-Origin': '*'})
+                return response
 
             # TODO(aimee): More specific errors, such as:
             # - One or more granules associated with granule_urs not exist in CMR
