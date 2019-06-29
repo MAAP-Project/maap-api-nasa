@@ -3,7 +3,7 @@ import json
 import os
 import sys, traceback
 import requests
-from flask import request, render_template_string
+from flask import Response, request, render_template_string
 from flask_restplus import Resource
 from api.restplus import api
 import api.utils.auth_util as auth
@@ -39,7 +39,9 @@ def get_collection_cogs(collection={}):
     # of granules.
     browse_urls = []
     cmr_query_dict = { 'short_name': [ collection['short_name'] ], 'version': [ collection['version'] ], 'page_size': 2000 }
-    cmr_resp = requests.get(cmr_search_granules_url, headers=cmr.get_search_headers(), params=cmr_query_dict)
+    search_headers = cmr.get_search_headers()
+    search_headers['Accept'] = 'application/json'
+    cmr_resp = requests.get(cmr_search_granules_url, headers=search_headers, params=cmr_query_dict)
     cmr_response_feed = json.loads(cmr_resp.text)['feed']['entry']
     for granule in cmr_response_feed:
         granule = Granule(granule, 'aws_access_key_id', 'aws_secret_access_key')
@@ -94,18 +96,24 @@ class GetTile(Resource):
                     mosaic_url = '{}/mosaic/{}/{}/{}.{}?urls={}&color_map={}&rescale={}'.format(
                         settings.TILER_ENDPOINT, z, x, y, ext, browse_urls_query_string, color_map, rescale
                     )
-                    log.info('Redirecting to {}'.format(mosaic_url))
-                    return redirect(mosaic_url)
+                    tile_response = requests.get(mosaic_url)
+                    response = Response(tile_response.content, tile_response.status_code, {'Content-Type': 'image/png', 'Access-Control-Allow-Origin': '*'})
+                    return response
                 else:
-                    browse_urls_query_string = get_collection_cogs({
-                      'short_name': collection_name,
-                      'version': collection_version
-                    })
+                    browse_urls_query_string = None
+                    if 'mosaiced_cog' in collection:
+                        browse_urls_query_string = collection['mosaiced_cog']
+                    else:
+                        browse_urls_query_string = get_collection_cogs({
+                          'short_name': collection_name,
+                          'version': collection_version
+                        })
                     mosaic_url = '{}/mosaic/{}/{}/{}.{}?urls={}&color_map={}&rescale={}'.format(
                         settings.TILER_ENDPOINT, z, x, y, ext, browse_urls_query_string, color_map, rescale
                     )
-                    log.info('Redirecting to {}'.format(mosaic_url))
-                    return redirect(mosaic_url)
+                    tile_response = requests.get(mosaic_url)
+                    response = Response(tile_response.content, tile_response.status_code, {'Content-Type': 'image/png', 'Access-Control-Allow-Origin': '*'})
+                    return response
 
             # TODO(aimee): More specific errors, such as:
             # - One or more granules associated with granule_urs not exist in CMR
@@ -116,12 +124,11 @@ class GetTile(Resource):
                 print(repr(traceback.extract_tb(exc_traceback)))
                 log.error(str(exc_message))
                 log.error(repr(traceback.extract_tb(exc_traceback)))
-                error_message = 'Failed to fetch tiles for {}'.format(granule_ur)
+                error_message = 'Failed to fetch tiles for {}'.format(request.args)
                 response_body["code"] = 500
                 response_body["message"] = error_message
                 response_body["error"] = str(exc_message)
                 response_body["success"] = False
-
         return response_body
 
 @ns.route('/GetCapabilities')
@@ -188,5 +195,4 @@ class GetCapabilities(Resource):
             response_body["message"] = "Failed to fetch tiles for {}".format(granule_ur)
             response_body["error"] = str(ex)
             response_body["success"] = False
-
         return response_body

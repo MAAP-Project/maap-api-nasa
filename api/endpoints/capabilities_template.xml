@@ -50,7 +50,7 @@
       {% for layer in layers %}
         <Layer>
             <ows:Title>{{ layer['layer_title'] }}</ows:Title>
-            <ows:Identifier>{{ layer['id'] }}</ows:Identifier>
+            <ows:Identifier>{{ layer['layer_title'] }}</ows:Identifier>
             <ows:WGS84BoundingBox crs="urn:ogc:def:crs:OGC:2:84">
                 <ows:LowerCorner>{{ layer['bounds'][0] }} {{ layer['bounds'][1] }}</ows:LowerCorner>
                 <ows:UpperCorner>{{ layer['bounds'][2] }} {{ layer['bounds'][3] }}</ows:UpperCorner>
