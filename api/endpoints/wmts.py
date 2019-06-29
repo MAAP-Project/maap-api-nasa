@@ -165,7 +165,9 @@ class GetCapabilities(Resource):
             'layers': layers,
             'minzoom': meta['minzoom'],
             'maxzoom': meta['maxzoom'],
-            'zoom': 10
+            'zoom': 10,
+            'tile_width': 256,
+            'tile_height': 256
         }
         ROOT = os.path.dirname(os.path.abspath(__file__))
         template = open(os.path.join(ROOT, 'capabilities_template.xml'), 'r').read()
@@ -173,19 +175,20 @@ class GetCapabilities(Resource):
         return xml_string
 
     def get(self):
-        response_body = dict()
         try:
             get_capabilities_object = self.generate_capabilities()
             # Return get capabilities
-            response_body["message"] = "Successfully generated get capabilities"
-            response_body["body"] = get_capabilities_object
-            response_body["code"] = 200
-            response_body["success"] = True
+            response = Response(get_capabilities_object, 200, {
+                'Content-Type': 'application/xml',
+                'Access-Control-Allow-Origin': '*'
+            })
+            return response
         except Exception as ex:
+            response_body = dict()
             log.error(str(ex))
             log.error(json.dumps(ex, indent=2))
             response_body["code"] = 500
             response_body["message"] = "Failed to fetch tiles for {}".format(granule_ur)
             response_body["error"] = str(ex)
             response_body["success"] = False
-        return response_body
+            return response_body
