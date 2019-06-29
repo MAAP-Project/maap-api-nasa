@@ -2,7 +2,7 @@
 APP_AUTH_KEY = "thisisthesecretkey"
 
 # Flask settings
-FLASK_SERVER_NAME = 'localhost:5000'
+FLASK_SERVER_NAME = '52.90.119.181:5000'
 FLASK_DEBUG = True  # Do not use debug mode in production
 
 # Flask-Restplus settings
