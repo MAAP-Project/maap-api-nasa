@@ -37,14 +37,14 @@ def get_collection_cogs(collection={}):
     # returned - but this would probably overload the tiler? We
     # need a better answer for collections with a large number
     # of granules.
+    if 'mosaiced_cog' in collection:
+        return collection['mosaiced_cog']
     browse_urls = []
     cmr_query_dict = {
       'short_name': [ collection['short_name'] ],
       'version': [ collection['version'] ],
       'page_size': 100
     }
-    if 'additional_attributes' in collection:
-        cmr_query_dict['attribute[]'] = collection['additional_attributes']
     search_headers = cmr.get_search_headers()
     search_headers['Accept'] = 'application/json'
     cmr_resp = requests.get(cmr_search_granules_url, headers=search_headers, params=cmr_query_dict)
