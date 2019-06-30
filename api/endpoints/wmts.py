@@ -158,7 +158,7 @@ class GetCapabilities(Resource):
             # TODO(aimee): add settings to collection object
             # TODO(aimee): use defaults from /mosaic/tilejson.json
             'color_map': 'schwarzwald',
-            'rescale': '-1,1'
+            'rescale': '0,70'
         }
         if collection:
             layer_info['query'] = f"short_name={collection['short_name']}&version={collection['version']}"
@@ -178,7 +178,7 @@ class GetCapabilities(Resource):
         # into different layers
         if len(request_args) > 0:
             urls = get_cog_urls_string(request_args)
-            layers.append(self.generate_layer_info('Search Results', urls))
+            layers.append(self.generate_layer_info('search_results', urls))
         else:
             for key, collection in default_collections.items():
                 browse_urls_query_string = get_cog_urls_string(collection_params(collection))
