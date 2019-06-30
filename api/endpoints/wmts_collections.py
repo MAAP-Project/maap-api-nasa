@@ -1,4 +1,4 @@
-{
+default_collections = {
   "AfriSAR_UAVSAR_Coreg_SLC": {
     "short_name": "AfriSAR_UAVSAR_Coreg_SLC",
     "version": "1",

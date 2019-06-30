@@ -2,13 +2,10 @@ import unittest
 import os
 from api.maapapp import app
 from api import settings
+from api.endpoints.wmts_collections import default_collections
 import json
 
-# ROOT = os.path.dirname(os.path.abspath(__file__))
-# collections_json = open(os.path.join(ROOT, '../../wmts_collections.json'), 'r').read()
-# default_collections = json.loads(collections_json)
-
-class MyAppCase(unittest.TestCase):
+class GetCapabilitiesCase(unittest.TestCase):
     def get_capabilities_path(self, params={}):
       return 'api/wmts/GetCapabilities'
 
@@ -19,5 +16,6 @@ class MyAppCase(unittest.TestCase):
 
     def test_get_capabilities_default(self):
         response = self.app.get(self.get_capabilities_path())
-        data = json.loads(response.get_data(as_text=True))
-        self.assertEqual(data['code'], 200)
+        data = response.get_data(as_text=True)
+        self.assertEqual(response.status_code, 200)
+        [self.assertTrue(collection_name in data) for collection_name in default_collections.keys()]

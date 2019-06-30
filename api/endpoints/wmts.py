@@ -6,23 +6,18 @@ import requests
 from flask import Response, request, render_template_string
 from flask_restplus import Resource
 from api.restplus import api
-import api.utils.auth_util as auth
 from api import settings
 import api.endpoints.cmr as cmr
 from api.utils.Granule import Granule
 from collections import OrderedDict
 import xmltodict
-from flask import redirect
+from api.endpoints.wmts_collections import default_collections
 
 log = logging.getLogger(__name__)
 
 ns = api.namespace('wmts', description='Retrieve tiles')
 
 # Load default collections
-ROOT = os.path.dirname(os.path.abspath(__file__))
-collections_json = open(os.path.join(ROOT, 'wmts_collections.json'), 'r').read()
-default_collections = json.loads(collections_json)
-
 cmr_search_granules_url = os.path.join(settings.CMR_URL, 'search', 'granules')
 max_url_length = 8192
 
@@ -120,7 +115,8 @@ class GetTile(Resource):
                 print(repr(traceback.extract_tb(exc_traceback)))
                 log.error(str(exc_message))
                 log.error(repr(traceback.extract_tb(exc_traceback)))
-                error_message = 'Failed to fetch tiles for {}'.format(request.args)
+                error_message = 'Failed to fetch tiles for {}'.format(json.dumps(request.args))
+                print(error_message)
                 response_body["code"] = 500
                 response_body["message"] = error_message
                 response_body["error"] = str(exc_message)
