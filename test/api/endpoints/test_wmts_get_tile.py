@@ -84,3 +84,7 @@ class GetTileCase(unittest.TestCase):
           )
         )
         return self.assert_image_response(response)
+
+    def test_get_tile_urls_returns_image(self):
+        # TODO(aimee): Add test
+        pass

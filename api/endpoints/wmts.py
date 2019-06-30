@@ -12,6 +12,7 @@ from api.utils.Granule import Granule
 from collections import OrderedDict
 import xmltodict
 from api.endpoints.wmts_collections import default_collections
+from werkzeug.datastructures import ImmutableMultiDict
 
 log = logging.getLogger(__name__)
 
@@ -19,30 +20,35 @@ ns = api.namespace('wmts', description='Retrieve tiles')
 
 # Load default collections
 cmr_search_granules_url = os.path.join(settings.CMR_URL, 'search', 'granules')
+# TODO: assert the URL is not longer than max_url_length to avoid a 413 error.
 max_url_length = 8192
 
-def get_collection_cogs(collection={}):
+def collection_params(collection={}):
+    collection_attrs = ['short_name', 'version', 'mosaiced_cog']
+    return {k: v for k,v in collection.items() if k in collection_attrs}
+
+def get_cog_urls_string(params={}):
     """
     Given a collection object (name and version), request all granules
     for that collection and return a comma-list of all urls for browse
     links for that collection's granules.
     :return:
     """
-    # TODO(aimee): It could be that more than 100 granules are
-    # returned - but this would probably overload the tiler? We
-    # need a better answer for collections with a large number
-    # of granules.
-    if 'mosaiced_cog' in collection:
-        return collection['mosaiced_cog']
+    if type(params) == ImmutableMultiDict:
+        params = params.to_dict()
+    if 'mosaiced_cog' in params:
+        return params['mosaiced_cog']
     browse_urls = []
-    cmr_query_dict = {
-      'short_name': [ collection['short_name'] ],
-      'version': [ collection['version'] ],
-      'page_size': 100
-    }
+    # REVIEW(aimee): What's reasonable? Default is 10 TODO(aimee):
+    # Depending on what's reasonable, throw an error if over a limit
+    # (e.g. refine query?) We need a better answer for collections with
+    # a large number of granules. 
+    params['page_size'] = 100
     search_headers = cmr.get_search_headers()
     search_headers['Accept'] = 'application/json'
-    cmr_resp = requests.get(cmr_search_granules_url, headers=search_headers, params=cmr_query_dict)
+    print('params are {}'.format(json.dumps(params, indent=2)))
+    cmr_resp = requests.get(cmr_search_granules_url, headers=search_headers, params=params)
+    print('cmr response: {}'.format(cmr_resp.text))
     cmr_response_feed = json.loads(cmr_resp.text)['feed']['entry']
     for granule in cmr_response_feed:
         granule = Granule(granule, 'aws_access_key_id', 'aws_secret_access_key')
@@ -62,13 +68,14 @@ class GetTile(Resource):
         :return:
         """
         granule_urs = request.args.get("granule_urs")
+        urls = request.args.get("urls")
         collection_name = request.args.get("collection_name")
         collection_version = request.args.get("collection_version")
         color_map = request.args.get("color_map")
         rescale = request.args.get('rescale')
         response_body = dict()
 
-        if not (granule_urs or (collection_name and collection_version)):
+        if not (granule_urs or urls or (collection_name and collection_version)):
             message = "Neither required param granule_urs nor collection name and version provided in request"
             response_body["code"] = 422
             response_body["message"] = message
@@ -76,9 +83,11 @@ class GetTile(Resource):
             response_body["success"] = False
         else:
             try:
-                browse_urls = []
-                # REVIEW(aimee): Assumption we don't want both granule_urs AND collection identifiers
-                if granule_urs:
+                if urls:
+                    browse_urls_query_string = urls
+                # Granule URs are passed
+                elif granule_urs:
+                    browse_urls = []
                     granule_urs = granule_urs.split(',')
                     # REVIEW(aimee): Should this fail if some are missing? Right now it won't fail unless all are missing (I think)
                     # REVIEW(aimee): This is non-ideal since we're making a request for each granule. Would be more ideal to pass query params of the user directly to this method.
@@ -97,7 +106,7 @@ class GetTile(Resource):
                 else:
                     browse_urls_query_string = None
                     collection = default_collections[collection_name]
-                    browse_urls_query_string = get_collection_cogs(collection)
+                    browse_urls_query_string = get_cog_urls_string(collection_params(collection))
 
                 mosaic_url = '{}/mosaic/{}/{}/{}.{}?urls={}&color_map={}&rescale={}'.format(
                     settings.TILER_ENDPOINT, z, x, y, ext, browse_urls_query_string, color_map, rescale
@@ -126,32 +135,48 @@ class GetTile(Resource):
 @ns.route('/GetCapabilities')
 class GetCapabilities(Resource):
 
-    def generate_capabilities(self):
+    def generate_layer_info(self, key, urls_query_string, collection={}):
+        # REVIEW(aimee): We're making a request for all the granule cog
+        # urls here but then passing the collection name and version to
+        # generate the GetCapabilities which means the service will
+        # likely make the request to CMR twice. Is this necessary?
+        # This would be a reason to permit GetTile to take a list of urls directly.
+        mosaic_tilejson_url = '{}/mosaic/tilejson.json?urls={}'.format(settings.TILER_ENDPOINT, urls_query_string)
+        r = requests.get(mosaic_tilejson_url)
+        meta = r.json()
+        bbox = meta['bounds']
+        layer_info = {
+            'layer_title': key,
+            'bounds': [ bbox[0], bbox[1], bbox[2], bbox[3] ],
+            # TODO(aimee): Should and how is ext and content_type configurable?
+            'content_type': 'png',
+            'ext': 'png',
+            # TODO(aimee): add settings to collection object
+            # TODO(aimee): use defaults from /mosaic/tilejson.json
+            'color_map': 'schwarzwald',
+            'rescale': '-1,1'
+        }
+        if collection:
+            layer_info['collection_version'] = collection['version']
+            if 'color_map' in collection:
+                layer_info['color_map'] = collection['color_map']
+            if 'rescale' in collection:
+                layer_info['rescale'] = collection['rescale']
+        return layer_info
+
+    def generate_capabilities(self, request_args):
         layers = []
-        for key, collection in default_collections.items():
-            browse_urls_query_string = get_collection_cogs(collection)
-            # REVIEW(aimee): We're making a request for all the granule cog
-            # urls here but then passing the collection name and version to
-            # generate the GetCapabilities which means the service will
-            # likely make the request to CMR twice. Is this necessary?
-            # This would be a reason to permit GetTile to take a list of urls directly.
-            mosaic_tilejson_url = '{}/mosaic/tilejson.json?urls={}'.format(settings.TILER_ENDPOINT, browse_urls_query_string)
-            r = requests.get(mosaic_tilejson_url)
-            meta = r.json()
-            bbox = meta['bounds']
-            layer_info = {
-                'layer_title': key,
-                'collection_version': collection['version'],
-                # TODO(aimee): add default and alternatives
-                # TODO(aimee): use defaults from /mosaic/tilejson.json
-                'color_map': 'schwarzwald',
-                'rescale': collection['rescale'],
-                'bounds': [ bbox[0], bbox[1], bbox[2], bbox[3] ],
-                # TODO(aimee): Should and how is ext and content_type configurable?
-                'content_type': 'png',
-                'ext': 'png'
-            }
-            layers.append(layer_info)
+        # TODO(aimee): assumes single layer for all request args,
+        # results from different collections should probably be grouped
+        # into different layers
+        if len(request_args) > 0:
+            browse_urls_query_string = get_cog_urls_string(request_args)
+            layers.append(self.generate_layer_info('search_results', browse_urls_query_string))
+        else:
+            for key, collection in default_collections.items():
+                browse_urls_query_string = get_cog_urls_string(collection_params(collection))
+                layer_info = self.generate_layer_info(key, browse_urls_query_string, collection)
+                layers.append(layer_info)
 
         context = {
             'service_title': 'MAAP WMTS',
@@ -172,7 +197,7 @@ class GetCapabilities(Resource):
 
     def get(self):
         try:
-            get_capabilities_object = self.generate_capabilities()
+            get_capabilities_object = self.generate_capabilities(request.args)
             # Return get capabilities
             response = Response(get_capabilities_object, 200, {
                 'Content-Type': 'application/xml',
