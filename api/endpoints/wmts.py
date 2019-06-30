@@ -163,8 +163,8 @@ class GetCapabilities(Resource):
             'provider_url': '{}/api'.format(settings.FLASK_SERVER_NAME),
             'base_url': '{}/api'.format(settings.FLASK_SERVER_NAME),
             'layers': layers,
-            'minzoom': 1,
-            'maxzoom': meta['maxzoom'],
+            'minzoom': 0,
+            'maxzoom': 18,
             'zoom': 10,
             'tile_width': 256,
             'tile_height': 256
