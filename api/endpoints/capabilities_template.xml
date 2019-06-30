@@ -63,7 +63,7 @@
             <TileMatrixSetLink>
                 <TileMatrixSet>GoogleMapsCompatible</TileMatrixSet>
             </TileMatrixSetLink>
-            <ResourceURL format="{{ layer['content_type'] }}" resourceType="tile" template="{{ base_url }}/wmts/GetTile/{TileMatrix}/{TileCol}/{TileRow}.{{ layer['ext'] }}?collection_name={{ layer['layer_title'] }}&amp;collection_version={{ layer['collection_version'] }}&amp;color_map={{ layer['color_map'] }}&amp;rescale={{ layer['rescale'] }}"/>
+            <ResourceURL format="{{ layer['content_type'] }}" resourceType="tile" template="{{ base_url }}/wmts/GetTile/{TileMatrix}/{TileCol}/{TileRow}.{{ layer['ext'] }}?{{ layer['query'] }}&amp;color_map={{ layer['color_map'] }}&amp;rescale={{ layer['rescale'] }}"/>
         </Layer>
       {% endfor %}
         <TileMatrixSet>

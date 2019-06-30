@@ -39,16 +39,15 @@ def get_cog_urls_string(params={}):
     if 'mosaiced_cog' in params:
         return params['mosaiced_cog']
     browse_urls = []
-    # REVIEW(aimee): What's reasonable? Default is 10 TODO(aimee):
-    # Depending on what's reasonable, throw an error if over a limit
-    # (e.g. refine query?) We need a better answer for collections with
-    # a large number of granules. 
+    # REVIEW / TODO(aimee): What's reasonable? Default page_size is 10,
+    # but many granules do not have associated browse imagery at this
+    # time. Depending on what's reasonable, throw an error if over a
+    # limit (e.g. refine query?) We need a better answer for collections
+    # with a large number of granules.
     params['page_size'] = 100
     search_headers = cmr.get_search_headers()
     search_headers['Accept'] = 'application/json'
-    print('params are {}'.format(json.dumps(params, indent=2)))
     cmr_resp = requests.get(cmr_search_granules_url, headers=search_headers, params=params)
-    print('cmr response: {}'.format(cmr_resp.text))
     cmr_response_feed = json.loads(cmr_resp.text)['feed']['entry']
     for granule in cmr_response_feed:
         granule = Granule(granule, 'aws_access_key_id', 'aws_secret_access_key')
@@ -125,7 +124,6 @@ class GetTile(Resource):
                 log.error(str(exc_message))
                 log.error(repr(traceback.extract_tb(exc_traceback)))
                 error_message = 'Failed to fetch tiles for {}'.format(json.dumps(request.args))
-                print(error_message)
                 response_body["code"] = 500
                 response_body["message"] = error_message
                 response_body["error"] = str(exc_message)
@@ -157,11 +155,14 @@ class GetCapabilities(Resource):
             'rescale': '-1,1'
         }
         if collection:
-            layer_info['collection_version'] = collection['version']
+            layer_info['query'] = f"short_name={collection['short_name']}&amp;version={collection['version']}"
             if 'color_map' in collection:
                 layer_info['color_map'] = collection['color_map']
             if 'rescale' in collection:
                 layer_info['rescale'] = collection['rescale']
+        else:
+            layer_info['query'] = f'urls={urls_query_string}'
+
         return layer_info
 
     def generate_capabilities(self, request_args):
@@ -170,8 +171,8 @@ class GetCapabilities(Resource):
         # results from different collections should probably be grouped
         # into different layers
         if len(request_args) > 0:
-            browse_urls_query_string = get_cog_urls_string(request_args)
-            layers.append(self.generate_layer_info('search_results', browse_urls_query_string))
+            urls = get_cog_urls_string(request_args)
+            layers.append(self.generate_layer_info('Search Results', urls))
         else:
             for key, collection in default_collections.items():
                 browse_urls_query_string = get_cog_urls_string(collection_params(collection))
