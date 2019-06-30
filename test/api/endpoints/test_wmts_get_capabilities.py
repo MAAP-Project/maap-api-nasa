@@ -24,6 +24,6 @@ class GetCapabilitiesCase(unittest.TestCase):
         [self.assertTrue(collection_name in data) for collection_name in default_collections.keys()]
 
     def test_get_capabilites_params(self):
-        response = self.app.get(self.get_capabilities_path("attribute[]=string,Site Name,Lope National Park Gabon"))
+        response = self.app.get(self.get_capabilities_path("attribute[]=float,Flight Number,57438"))
         data = response.get_data(as_text=True)
         self.assertEqual(response.status_code, 200)
