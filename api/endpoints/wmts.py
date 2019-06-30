@@ -68,13 +68,13 @@ class GetTile(Resource):
         """
         granule_urs = request.args.get("granule_urs")
         urls = request.args.get("urls")
-        collection_name = request.args.get("collection_name")
-        collection_version = request.args.get("collection_version")
+        short_name = request.args.get("short_name")
+        version = request.args.get("version")
         color_map = request.args.get("color_map")
         rescale = request.args.get('rescale')
         response_body = dict()
 
-        if not (granule_urs or urls or (collection_name and collection_version)):
+        if not (granule_urs or urls or (short_name and version)):
             message = "Neither required param granule_urs nor collection name and version provided in request"
             response_body["code"] = 422
             response_body["message"] = message
@@ -104,14 +104,20 @@ class GetTile(Resource):
                     browse_urls_query_string = ','.join(browse_urls)
                 else:
                     browse_urls_query_string = None
-                    collection = default_collections[collection_name]
+                    collection = default_collections[short_name]
                     browse_urls_query_string = get_cog_urls_string(collection_params(collection))
 
                 mosaic_url = '{}/mosaic/{}/{}/{}.{}?urls={}&color_map={}&rescale={}'.format(
                     settings.TILER_ENDPOINT, z, x, y, ext, browse_urls_query_string, color_map, rescale
                 )
                 tile_response = requests.get(mosaic_url)
-                response = Response(tile_response.content, tile_response.status_code, {'Content-Type': 'image/png', 'Access-Control-Allow-Origin': '*'})
+                response = Response(
+                    tile_response.content,
+                    tile_response.status_code,
+                    {
+                        'Content-Type': 'image/png',
+                        'Access-Control-Allow-Origin': '*'
+                    })
                 return response
 
             # TODO(aimee): More specific errors, such as:
