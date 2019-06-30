@@ -161,7 +161,7 @@ class GetCapabilities(Resource):
             'rescale': '-1,1'
         }
         if collection:
-            layer_info['query'] = f"short_name={collection['short_name']}&amp;version={collection['version']}"
+            layer_info['query'] = f"short_name={collection['short_name']}&version={collection['version']}"
             if 'color_map' in collection:
                 layer_info['color_map'] = collection['color_map']
             if 'rescale' in collection:
