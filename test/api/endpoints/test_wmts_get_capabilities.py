@@ -4,6 +4,10 @@ from api.maapapp import app
 from api import settings
 from api.endpoints.wmts_collections import default_collections
 import json
+from unittest.mock import Mock, MagicMock
+import api.endpoints.wmts as wmts
+
+MOCK_RESPONSES = False if os.environ.get('MOCK_RESPONSES') == 'false' else True
 
 class GetCapabilitiesCase(unittest.TestCase):
     def get_capabilities_path(self, params=''):
@@ -16,6 +20,16 @@ class GetCapabilitiesCase(unittest.TestCase):
         app.config['TESTING'] = True
         self.maxDiff = None # For seeing the whole redirect message
         self.app = app.test_client()
+        if MOCK_RESPONSES:
+            wmts.get_mosaic_tilejson = MagicMock(return_value = {
+                                                     'bounds': [8.727, -2.291, 13.800, 2.04],
+                                                     'center': [11.264, -0.121],
+                                                     'minzoom': 6,
+                                                     'maxzoom': 12,
+                                                     'tilejson': '2.1.0',
+                                                     'tiles': ['https://888.execute-api.us-east-1.amazonaws.com/production/mosaic/{z}/{x}/{y}.png?urls=s3://bucket/cog.tif']
+                                                 })
+            wmts.get_cog_urls_string = MagicMock(return_value = 'test.tif')
 
     def test_get_capabilities_default(self):
         response = self.app.get(self.get_capabilities_path())

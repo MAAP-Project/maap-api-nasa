@@ -8,6 +8,6 @@ default_collections = {
     "short_name": "lvis_collection_level_2",
     "version": "2.0.1",
     "rescale": "0,70",
-    "mosaiced_cog": "s3://cumulus-map-internal/file-staging/nasa-map/lvis_collection_level_2___2.0.1/lvis2-mosaic.cog.tif"
+    "mosaiced_cog": "s3://cumulus-map-internal/file-staging/nasa-map/lvis_collection_level_2___2.0.1/lvis2-mosaic_cog.tif"
   }
 }
