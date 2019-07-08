@@ -67,7 +67,7 @@ class GetTile(Resource):
 
     def get(self, z, x, y, ext, color_map=None, rescale=None):
         """
-        This will submit jobs to the Job Execution System (HySDS)
+        This will return a tile corresponding to the x, y, z of the url path and query parameters.
         :return:
         """
         granule_urs = request.args.get("granule_urs")
@@ -207,6 +207,14 @@ class GetCapabilities(Resource):
         return xml_string
 
     def get(self):
+        """
+        This will return OGC WMTS GetCapabilities XML. By default, it
+        will generate a layer for each collection defined in
+        wmts_collections.py. If query parameters are provided, it will
+        provide a layer built using those query parameters, discovering
+        browse imagery via CMR granule metadata.
+        :return:
+        """
         try:
             get_capabilities_object = self.generate_capabilities(request.args)
             # Return get capabilities
