@@ -20,8 +20,6 @@ ns = api.namespace('wmts', description='Retrieve tiles')
 
 # Load default collections
 cmr_search_granules_url = os.path.join(settings.CMR_URL, 'search', 'granules')
-# TODO: assert the URL is not longer than max_url_length to avoid a 413 error.
-max_url_length = 8192
 
 def collection_params(collection={}):
     collection_attrs = ['short_name', 'version', 'mosaiced_cog']
@@ -95,10 +93,12 @@ class GetTile(Resource):
                 elif granule_urs:
                     browse_urls = []
                     granule_urs = granule_urs.split(',')
-                    # REVIEW(aimee): Should this fail if some are missing? Right now it won't fail unless all are missing (I think)
-                    # REVIEW(aimee): This is non-ideal since we're making a request for each granule. Would be more ideal to pass query params of the user directly to this method.
-                    # TODO(aimee): Enable more CMR queries here
-                    # REVIEW(aimee): Should we limit the number of granules that can be requested at once?
+                    # REVIEW(aimee): This is non-ideal since we're
+                    # making a request for each granule. Would be more
+                    # ideal to pass query params of the user directly to
+                    # this method.
+                    # REVIEW(aimee): Should we limit the number of
+                    # granules that can be requested at once?
                     for granule_ur in granule_urs:
                         cmr_query_dict = { 'granule_ur': [ granule_ur ] }
                         browse_url = get_cog_urls_string(cmr_query_dict)
