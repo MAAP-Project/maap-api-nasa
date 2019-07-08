@@ -1,123 +1,226 @@
 import logging
 import json
 import os
+import sys, traceback
 import requests
-from flask import request, render_template_string
+from flask import Response, request, render_template_string
 from flask_restplus import Resource
 from api.restplus import api
-import api.utils.auth_util as auth
 from api import settings
 import api.endpoints.cmr as cmr
 from api.utils.Granule import Granule
 from collections import OrderedDict
 import xmltodict
+from api.endpoints.wmts_collections import default_collections
+from werkzeug.datastructures import ImmutableMultiDict
 
 log = logging.getLogger(__name__)
 
 ns = api.namespace('wmts', description='Retrieve tiles')
 
-@ns.route('/GetTile')
+# Load default collections
+cmr_search_granules_url = os.path.join(settings.CMR_URL, 'search', 'granules')
+
+def collection_params(collection={}):
+    collection_attrs = ['short_name', 'version', 'mosaiced_cog']
+    return {k: v for k,v in collection.items() if k in collection_attrs}
+
+def get_cog_urls_string(params={}):
+    """
+    Given a collection object (name and version), request all granules
+    for that collection and return a comma-list of all urls for browse
+    links for that collection's granules.
+    :return:
+    """
+    if type(params) == ImmutableMultiDict:
+        params = params.to_dict()
+    if 'mosaiced_cog' in params:
+        return params['mosaiced_cog']
+    browse_urls = []
+    # REVIEW / TODO(aimee): What's reasonable? Default page_size is 10,
+    # but many granules do not have associated browse imagery at this
+    # time. Depending on what's reasonable, throw an error if over a
+    # limit (e.g. refine query?) We need a better answer for collections
+    # with a large number of granules.
+    params['page_size'] = 100
+    search_headers = cmr.get_search_headers()
+    search_headers['Accept'] = 'application/json'
+    cmr_resp = requests.get(cmr_search_granules_url, headers=search_headers, params=params)
+    cmr_response_feed = json.loads(cmr_resp.text)['feed']['entry']
+    for granule in cmr_response_feed:
+        granule = Granule(granule, 'aws_access_key_id', 'aws_secret_access_key')
+        urls = granule['links']
+        browse_file = list(filter(lambda x: "(BROWSE)" in x['title'], urls))
+        if browse_file:
+            browse_urls.append(browse_file[0]['href'])
+    browse_urls_query_string = ','.join(browse_urls)
+    return browse_urls_query_string
+
+def gen_mosaic_url(params={}):
+    return f"{settings.TILER_ENDPOINT}/mosaic/{params['z']}/{params['x']}/{params['y']}.{params['ext']}?urls={params['urls']}&color_map={params['color_map']}&rescale={params['rescale']}"
+
+def get_tiles(tiler_url=''):
+    return requests.get(tiler_url)
+
+@ns.route('/GetTile/<int:z>/<int:x>/<int:y>.<ext>')
 class GetTile(Resource):
 
-    @auth.token_required
-    def get(self):
+    def get(self, z, x, y, ext, color_map=None, rescale=None):
         """
         This will submit jobs to the Job Execution System (HySDS)
         :return:
         """
-        granule_ur = request.args.get("granule_ur")
-        log.info('request.args {}'.format(request.args))
+        granule_urs = request.args.get("granule_urs")
+        urls = request.args.get("urls")
+        short_name = request.args.get("short_name")
+        version = request.args.get("version")
+        color_map = request.args.get("color_map")
+        rescale = request.args.get('rescale')
+        ext = request.args.get('ext') or 'png'
         response_body = dict()
 
-        if not granule_ur:
-            message = "required param granule_ur not provided in request"
+        if not (granule_urs or urls or (short_name and version)):
+            message = "Neither required param granule_urs nor collection name and version provided in request"
             response_body["code"] = 422
             response_body["message"] = message
             response_body["error"] = message
-            response_body["success"] = False            
-
-        try:
-            cmr_url = os.path.join(settings.CMR_URL, 'search', 'granules')
-            cmr_resp = requests.get(cmr_url, headers=cmr.get_search_headers(), params=cmr.parse_query_string(request.query_string))
-            granule = Granule(json.loads(cmr_resp.text)['feed']['entry'][0], 'aws_access_key_id', 'aws_secret_access_key')
-            urls = granule['links']
-            browse_file = list(filter(lambda x: "(BROWSE)" in x['title'], urls))[0]['href']
-            response_body["message"] = "Successfully fetched browse image for {}".format(granule_ur)
-            response_body["browse"] = browse_file
-            response_body["code"] = 200
-            response_body["success"] = True
-        except Exception as ex:
-            log.error(str(ex))
-            log.error(json.dumps(ex, indent=2))
-            response_body["code"] = 500
-            response_body["message"] = "Failed to fetch tiles for {}".format(granule_ur)
-            response_body["error"] = str(ex)
             response_body["success"] = False
+        else:
+            try:
+                if urls:
+                    browse_urls_query_string = urls
+                # Granule URs are passed
+                elif granule_urs:
+                    browse_urls = []
+                    granule_urs = granule_urs.split(',')
+                    # REVIEW(aimee): This is non-ideal since we're
+                    # making a request for each granule. Would be more
+                    # ideal to pass query params of the user directly to
+                    # this method.
+                    # REVIEW(aimee): Should we limit the number of
+                    # granules that can be requested at once?
+                    for granule_ur in granule_urs:
+                        cmr_query_dict = { 'granule_ur': [ granule_ur ] }
+                        browse_url = get_cog_urls_string(cmr_query_dict)
+                        if browse_url:
+                            browse_urls.append(browse_url)
+                    browse_urls_query_string = ','.join(browse_urls)
+                else:
+                    browse_urls_query_string = None
+                    collection = default_collections[short_name]
+                    browse_urls_query_string = get_cog_urls_string(collection_params(collection))
 
+                if not browse_urls_query_string:
+                    raise AssertionError('No browse images')
+
+                mosaic_url = gen_mosaic_url({
+                    'z': z,
+                    'x': x,
+                    'y': y,
+                    'urls': browse_urls_query_string,
+                    'color_map': color_map,
+                    'ext': ext,
+                    'rescale': rescale
+                })
+                tile_response = get_tiles(mosaic_url)
+                response = Response(
+                    tile_response.content,
+                    tile_response.status_code,
+                    {
+                        'Content-Type': 'image/png',
+                        'Access-Control-Allow-Origin': '*'
+                    })
+                return response
+            except:
+                exception = sys.exc_info()
+                exc_type, exc_message, exc_traceback = exception
+                print(repr(traceback.extract_tb(exc_traceback)))
+                log.error(str(exc_message))
+                log.error(repr(traceback.extract_tb(exc_traceback)))
+                error_message = f"Failed to fetch tiles for {json.dumps(request.args)}"
+                response_body["code"] = 500
+                response_body["message"] = error_message
+                response_body["error"] = str(exc_message)
+                response_body["success"] = False
         return response_body
+
+def get_mosaic_tilejson(urls_query_string=''):
+    mosaic_tilejson_url = f"{settings.TILER_ENDPOINT}/mosaic/tilejson.json?urls={urls_query_string}"
+    r = requests.get(mosaic_tilejson_url)
+    return r.json()
 
 @ns.route('/GetCapabilities')
 class GetCapabilities(Resource):
 
-    def generate_capabilities(self, granule):
-        urls = granule['links']
-        browse_file = list(filter(lambda x: "(BROWSE)" in x['title'], urls))[0]['href']
-        layer_title = granule['dataset_id']
-        r = requests.get(settings.TILER_ENDPOINT + "/metadata?url=" + browse_file)
-        meta = r.json()
-        bbox = meta['bounds']['value']
+    def generate_layer_info(self, key, urls_query_string, collection={}):
+        meta = get_mosaic_tilejson(urls_query_string)
+        bbox = meta['bounds']
+        layer_info = {
+            'layer_title': key,
+            'bounds': [ bbox[0], bbox[1], bbox[2], bbox[3] ],
+            # TODO(aimee): ext and content_type should be configurable
+            'content_type': 'png',
+            'ext': 'png',
+            # TODO(aimee): add settings to wmts_collectionss file
+            # TODO(aimee): use defaults from /mosaic/tilejson.json
+            'color_map': 'schwarzwald',
+            'rescale': '0,70'
+        }
+        if collection:
+            layer_info['query'] = f"short_name={collection['short_name']}&version={collection['version']}"
+            layer_info['color_map'] = collection.get('color_map')
+            layer_info['rescale'] = collection.get('rescale')
+        else:
+            layer_info['query'] = f'urls={urls_query_string}'
+
+        return layer_info
+
+    def generate_capabilities(self, request_args):
+        layers = []
+        # TODO(aimee): assumes single layer for all request args,
+        # results from different collections should probably be grouped
+        # into different layers (can do this with indexes)
+        if len(request_args) > 0:
+            urls = get_cog_urls_string(request_args)
+            layers.append(self.generate_layer_info('search_results', urls))
+        else:
+            for key, collection in default_collections.items():
+                browse_urls_query_string = get_cog_urls_string(collection_params(collection))
+                layer_info = self.generate_layer_info(key, browse_urls_query_string, collection)
+                layers.append(layer_info)
+
         context = {
-          'service_title': 'MAAP WMTS',
-          'provider': 'MAAP API',
-          'provider_url': '{}/api/'.format(settings.FLASK_SERVER_NAME),
-          'base_url': '{}/api/'.format(settings.FLASK_SERVER_NAME),
-          'layer_title': layer_title,
-          'bounds': [ bbox[0], bbox[1], bbox[2], bbox[3] ],
-          'content_type': 'tif',
-          'ext': 'tif',
-          'zoom': 10,
-          'minzoom': 8,
-          'maxzoom': 15
+            'service_title': 'MAAP WMTS',
+            'provider': 'MAAP API',
+            'provider_url': f"{settings.FLASK_SERVER_NAME}/api",
+            'base_url': f"{settings.FLASK_SERVER_NAME}/api",
+            'layers': layers,
+            'minzoom': 0,
+            'maxzoom': 18,
+            'zoom': 10,
+            'tile_width': 256,
+            'tile_height': 256
         }
         ROOT = os.path.dirname(os.path.abspath(__file__))
         template = open(os.path.join(ROOT, 'capabilities_template.xml'), 'r').read()
         xml_string = render_template_string(template, **context)
-        return json.loads(json.dumps(xmltodict.parse(xml_string)))
+        return xml_string
 
-
-    @auth.token_required
     def get(self):
-        """
-        This will submit jobs to the Job Execution System (HySDS)
-        :return:
-        """
-        granule_ur = request.args.get("granule_ur")
-        log.info('request.args {}'.format(request.args))
-        response_body = dict()
-
-        if not granule_ur:
-            message = "required param granule_ur not provided in request"
-            response_body["code"] = 422
-            response_body["message"] = message
-            response_body["error"] = message
-            response_body["success"] = False
-
         try:
-            cmr_url = os.path.join(settings.CMR_URL, 'search', 'granules')
-            cmr_resp = requests.get(cmr_url, headers=cmr.get_search_headers(), params=cmr.parse_query_string(request.query_string))
-            granule = Granule(json.loads(cmr_resp.text)['feed']['entry'][0], 'aws_access_key_id', 'aws_secret_access_key')
-            get_capabilities_object = self.generate_capabilities(granule)
+            get_capabilities_object = self.generate_capabilities(request.args)
             # Return get capabilities
-            response_body["message"] = "Successfully generated capabilities for {}".format(granule_ur)
-            response_body["body"] = get_capabilities_object
-            response_body["code"] = 200
-            response_body["success"] = True
+            response = Response(get_capabilities_object, 200, {
+                'Content-Type': 'application/xml',
+                'Access-Control-Allow-Origin': '*'
+            })
+            return response
         except Exception as ex:
+            response_body = dict()
             log.error(str(ex))
             log.error(json.dumps(ex, indent=2))
             response_body["code"] = 500
-            response_body["message"] = "Failed to fetch tiles for {}".format(granule_ur)
+            response_body["message"] = f"Failed to fetch tiles for {granule_ur}"
             response_body["error"] = str(ex)
             response_body["success"] = False
-
-        return response_body
+            return response_body
