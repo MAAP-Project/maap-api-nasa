@@ -138,7 +138,7 @@ class Register(Resource):
             hysds.write_spec_file(spec_type="job-spec", algorithm=algorithm_name, body=job_spec)
 
             # creating config file
-            if req_data.get("docker_container_url") is not None and req_data.get("path_to_dockerfile") is not None:
+            if req_data.get("docker_container_url") is not None:
                 config = hysds.create_config_file(docker_container_url=req_data.get("docker_container_url"))
             else:
                 config = hysds.create_config_file()
@@ -151,8 +151,7 @@ class Register(Resource):
                 repo_name = split[1].split(".git")
                 repo_name = repo_name[0][repo_name[0].rfind("/") + 1:]
                 code = hysds.create_code_info(repo_url=repo_url, repo_name=repo_name,
-                                              docker_container_url=req_data.get("docker_container_url", None),
-                                              path_to_dockerfile=req_data.get("path_to_dockerfile", None))
+                                              docker_container_url=req_data.get("docker_container_url"))
                 hysds.write_file("{}/{}".format(settings.REPO_PATH, settings.REPO_NAME), "code_config.json", code)
             # creating file whose contents are returned on ci build success
             if req_data.get("code_version") is not None:
