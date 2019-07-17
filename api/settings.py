@@ -43,3 +43,8 @@ DEFAULT_QUEUE = "test-job_worker-large"
 # FASTBROWSE API
 TILER_ENDPOINT = 'https://8e9mu91qr6.execute-api.us-east-1.amazonaws.com/production'
 
+# CAS
+CAS_SECRET_KEY = ''
+CAS_SERVER_NAME = ''
+CAS_AFTER_LOGIN = 'profile'
+

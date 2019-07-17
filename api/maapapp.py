@@ -15,11 +15,10 @@ from api.restplus import api
 import jwt
 import datetime
 from flask_cas import CAS
-from flask_cas import login_required
 
 app = Flask(__name__)
 cas = CAS(app)
-app.secret_key = '9c0d611c-04c5-4f36-b91c-8374b4410590'
+app.secret_key = settings.CAS_SECRET_KEY
 logging_conf_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '../logging.conf'))
 logging.config.fileConfig(logging_conf_path)
 log = logging.getLogger(__name__)
@@ -30,8 +29,8 @@ api.add_namespace(cmr_collections_namespace)
 app.register_blueprint(blueprint)
 
 
-app.config['CAS_SERVER'] = 'https://auth.maap.xyz/cas'
-app.config['CAS_AFTER_LOGIN'] = 'profile'
+app.config['CAS_SERVER'] = settings.CAS_SERVER_NAME
+app.config['CAS_AFTER_LOGIN'] = settings.CAS_AFTER_LOGIN
 
 
 @app.route('/token', methods=['POST'])
