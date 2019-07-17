@@ -8,8 +8,6 @@ import tempfile
 from flask import request, json
 from flask_restplus import Resource
 from api.restplus import api
-from api.restplus import CmrError
-import api.utils.auth_util as auth
 
 try:
     import urllib.parse as urlparse

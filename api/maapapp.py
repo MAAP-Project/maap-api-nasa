@@ -10,11 +10,16 @@ from api.endpoints.cmr import ns as cmr_collections_namespace
 from api.endpoints.algorithm import ns as algorithm_namespace
 from api.endpoints.job import ns as job_namespace
 from api.endpoints.wmts import ns as wmts_namespace
+from api.endpoints.members import ns as members_namespace
 from api.restplus import api
 import jwt
 import datetime
+from flask_cas import CAS
+from flask_cas import login_required
 
 app = Flask(__name__)
+cas = CAS(app)
+app.secret_key = '9c0d611c-04c5-4f36-b91c-8374b4410590'
 logging_conf_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '../logging.conf'))
 logging.config.fileConfig(logging_conf_path)
 log = logging.getLogger(__name__)
@@ -25,10 +30,8 @@ api.add_namespace(cmr_collections_namespace)
 app.register_blueprint(blueprint)
 
 
-@app.route('/login')
-def login():
-    auth = request.authorization
-    return issue_token(auth.username, auth.password)
+app.config['CAS_SERVER'] = 'https://auth.maap.xyz/cas'
+app.config['CAS_AFTER_LOGIN'] = 'profile'
 
 
 @app.route('/token', methods=['POST'])
@@ -72,6 +75,7 @@ def configure_app(flask_app):
     flask_app.config['ERROR_404_HELP'] = settings.RESTPLUS_ERROR_404_HELP
     flask_app.config['TILER_ENDPOINT'] = settings.TILER_ENDPOINT
 
+
 def initialize_app(flask_app):
     configure_app(flask_app)
 
@@ -81,6 +85,7 @@ def initialize_app(flask_app):
     api.add_namespace(algorithm_namespace)
     api.add_namespace(job_namespace)
     api.add_namespace(wmts_namespace)
+    api.add_namespace(members_namespace)
     flask_app.register_blueprint(blueprint)
 
 
