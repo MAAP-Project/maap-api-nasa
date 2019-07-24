@@ -192,7 +192,7 @@ class Register(Resource):
         response_body = {"code": None, "message": None}
 
         try:
-            job_list = hysds.get_algorithms().get("result")
+            job_list = hysds.get_algorithms()
             algo_list = list()
             for job_type in job_list:
                 algo = dict()
@@ -221,7 +221,7 @@ class Describe(Resource):
             job_type = "job-{}".format(algo_id)
             response = hysds.get_job_spec(job_type)
             params = response.get("result").get("params")
-            response_body = ogc.describe_process_response(params)
+            response_body = ogc.describe_process_response(algo_id, params)
             return Response(response_body, mimetype='text/xml')
         except Exception as ex:
             tb = traceback.format_exc()

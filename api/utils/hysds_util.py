@@ -161,7 +161,13 @@ def get_algorithms():
     except Exception as ex:
         raise ex
 
-    return mozart_response.json()
+    algo_list = mozart_response.json().get("result")
+    maap_algo_list = list()
+    for algo in algo_list:
+        if not algo.startswith("job-lw-") and not algo.startswith("job-lightweight"):
+            maap_algo_list.append(algo)
+
+    return maap_algo_list
 
 
 def mozart_submit_job(job_type, params={}):

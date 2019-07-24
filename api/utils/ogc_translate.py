@@ -193,10 +193,11 @@ def get_op(op_ele, op_name, get_url = None, post_url = None):
     return op_ele
 
 
-def get_capabilities():
+def get_capabilities(job_list):
     """
     This creates a response containing service metadata such as the service name, keywords, and contact information for
     the organization operating the server.
+    :param: takes in the list of algorigthms available in the DPS
     :return:
     """
 
@@ -245,7 +246,20 @@ def get_capabilities():
     ET.SubElement(lang, "ows.Language").text = "en-US"
 
     content = ET.SubElement(response, "wps:Contents")
-
+    for job_type in job_list:
+        proc_summ = ET.SubElement(content, "wps:ProcessSummary")
+        proc_summ.set("processVersion", "1.0.0")
+        proc_summ.set("jobControlOptions", "sync-execute async-execute")
+        proc_summ.set("outputTransmission", "value reference")
+        ET.SubElement(proc_summ, "ows:Title").text = "Algorithm: {} ; Version: {}"\
+            .format(job_type.strip("job-").split(":")[0],
+                    job_type.strip("job-").split(":")[1])
+        ET.SubElement(proc_summ, "ows:Identifier").text = job_type
+        proc_metadata = ET.SubElement(proc_summ, "ows:Metadata")
+        proc_metadata.set("xlin:role", "Process description")
+        proc_metadata.set("xlin:href", "https://api.maap.xyz/api/mas/algorithm/{}%3A{}"
+                          .format(job_type.strip("job-").split(":")[0],
+                                  job_type.strip("job-").split(":")[1]))
     return tostring(response)
 
 
@@ -304,7 +318,7 @@ def get_input(process_xml, field):
     return process_xml
 
 
-def describe_process_response(params):
+def describe_process_response(label, params):
     """
 
     :param label:
@@ -318,8 +332,10 @@ def describe_process_response(params):
     offering.set("jobControlOptions", "sync-execute async-execute")
     offering.set("outputTransmission", "value reference")
     process = ET.SubElement(offering, "wps:Process")
-    ET.SubElement(process, "ows:Title").text = "org.n52.wps.server.algorithm.SimpleBufferAlgorithm"
-    ET.SubElement(process, "ows:Identifier").text = "org.n52.wps.server.algorithm.SimpleBufferAlgorithm"
+    ET.SubElement(process, "ows:Title").text = "Algorithm: {} ; Version: {}"\
+        .format(label.strip("job-").split(":")[0],
+                label.strip("job-").split(":")[1])
+    ET.SubElement(process, "ows:Identifier").text = label
 
     for param in params:
         process = get_input(process, param.get("name"))
