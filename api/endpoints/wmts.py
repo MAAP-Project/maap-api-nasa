@@ -21,9 +21,11 @@ ns = api.namespace('wmts', description='Retrieve tiles')
 # Load default collections
 cmr_search_granules_url = os.path.join(settings.CMR_URL, 'search', 'granules')
 
+
 def collection_params(collection={}):
     collection_attrs = ['short_name', 'version', 'mosaiced_cog']
     return {k: v for k,v in collection.items() if k in collection_attrs}
+
 
 def get_cog_urls_string(params={}):
     """
@@ -56,11 +58,21 @@ def get_cog_urls_string(params={}):
     browse_urls_query_string = ','.join(browse_urls)
     return browse_urls_query_string
 
+
 def gen_mosaic_url(params={}):
-    return f"{settings.TILER_ENDPOINT}/mosaic/{params['z']}/{params['x']}/{params['y']}.{params['ext']}?urls={params['urls']}&color_map={params['color_map']}&rescale={params['rescale']}"
+    return settings.TILER_ENDPOINT + '/mosaic/' + \
+           params['z'] + '/' + \
+           params['x'] + '/' + \
+           params['y'] + '.' + \
+           params['ext'] + '?urls=' + \
+           params['urls'] + '&color_map=' + \
+           params['color_map'] + '&rescale=' + \
+           params['rescale']
+
 
 def get_tiles(tiler_url=''):
     return requests.get(tiler_url)
+
 
 @ns.route('/GetTile/<int:z>/<int:x>/<int:y>.<ext>')
 class GetTile(Resource):
@@ -137,17 +149,19 @@ class GetTile(Resource):
                 print(repr(traceback.extract_tb(exc_traceback)))
                 log.error(str(exc_message))
                 log.error(repr(traceback.extract_tb(exc_traceback)))
-                error_message = f"Failed to fetch tiles for {json.dumps(request.args)}"
+                error_message = 'Failed to fetch tiles for ' + json.dumps(request.args)
                 response_body["code"] = 500
                 response_body["message"] = error_message
                 response_body["error"] = str(exc_message)
                 response_body["success"] = False
         return response_body
 
+
 def get_mosaic_tilejson(urls_query_string=''):
-    mosaic_tilejson_url = f"{settings.TILER_ENDPOINT}/mosaic/tilejson.json?urls={urls_query_string}"
+    mosaic_tilejson_url = settings.TILER_ENDPOINT + '/mosaic/tilejson.json?urls=' + urls_query_string
     r = requests.get(mosaic_tilejson_url)
     return r.json()
+
 
 @ns.route('/GetCapabilities')
 class GetCapabilities(Resource):
@@ -167,11 +181,11 @@ class GetCapabilities(Resource):
             'rescale': '0,70'
         }
         if collection:
-            layer_info['query'] = f"short_name={collection['short_name']}&version={collection['version']}"
+            layer_info['query'] = 'short_name=' + collection['short_name'] + '&version=' + collection['version']
             layer_info['color_map'] = collection.get('color_map')
             layer_info['rescale'] = collection.get('rescale')
         else:
-            layer_info['query'] = f'urls={urls_query_string}'
+            layer_info['query'] = 'urls=' + urls_query_string
 
         return layer_info
 
@@ -192,8 +206,8 @@ class GetCapabilities(Resource):
         context = {
             'service_title': 'MAAP WMTS',
             'provider': 'MAAP API',
-            'provider_url': f"{settings.FLASK_SERVER_NAME}/api",
-            'base_url': f"{settings.FLASK_SERVER_NAME}/api",
+            'provider_url': settings.FLASK_SERVER_NAME + '/api',
+            'base_url': settings.FLASK_SERVER_NAME + '/api',
             'layers': layers,
             'minzoom': 0,
             'maxzoom': 18,
@@ -228,7 +242,7 @@ class GetCapabilities(Resource):
             log.error(str(ex))
             log.error(json.dumps(ex, indent=2))
             response_body["code"] = 500
-            response_body["message"] = f"Failed to fetch tiles for {granule_ur}"
+            response_body["message"] = 'Failed to fetch tiles for granule_ur'
             response_body["error"] = str(ex)
             response_body["success"] = False
             return response_body
