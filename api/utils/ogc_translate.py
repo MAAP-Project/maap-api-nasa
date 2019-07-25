@@ -28,7 +28,7 @@ def parse_execute_request(request_xml):
        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
        xsi:schemaLocation="http://www.opengis.net/wps/2.0 ../wps.xsd" service="WPS"
        version="2.0.0" response="document" mode="sync">
-       <ows:Identifier>org.n52.wps.server.algorithm.SimpleBufferAlgorithm</ows:Identifier>
+       <ows:Identifier>algo_id:version</ows:Identifier>
              <wps:Input id="data">
                       <wps:Reference schema="http://schemas.opengis.net/gml/3.1.1/base/feature.xsd" xlink:href="http://geoprocessing.demo.52north.org:8080/geoserver/wfs?SERVICE=WFS&amp;VERSION=1.0.0&amp;REQUEST=GetFeature&amp;TYPENAME=topp:tasmania_roads&amp;SRS=EPSG:4326&amp;OUTPUTFORMAT=GML3"/>
              </wps:Input>
@@ -40,9 +40,9 @@ def parse_execute_request(request_xml):
 
     :return:
     """
-    job_type = None
     root = fromstring(request_xml)
     params = dict()
+    job_type = root.find('ows:Identifier', ns).text
     for input in root.findall('wps:Input', ns):
         for data in input.findall('wps:Data', ns):
             for value in data.findall('wps:LiteralValue', ns):
@@ -51,9 +51,8 @@ def parse_execute_request(request_xml):
                         params[input.attrib.get("id")] = json.loads(value.text)
                     except ValueError:
                         params[input.attrib.get("id")] = value.text
-                else:
-                    job_type = value.text.strip()
     output = root.find('wps:Output', ns).attrib.get("id")
+
     return job_type, params, output
 
 
