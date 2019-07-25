@@ -61,9 +61,9 @@ def get_cog_urls_string(params={}):
 
 def gen_mosaic_url(params={}):
     return settings.TILER_ENDPOINT + '/mosaic/' + \
-           params['z'] + '/' + \
-           params['x'] + '/' + \
-           params['y'] + '.' + \
+           str(params['z']) + '/' + \
+           str(params['x']) + '/' + \
+           str(params['y']) + '.' + \
            params['ext'] + '?urls=' + \
            params['urls'] + '&color_map=' + \
            params['color_map'] + '&rescale=' + \
