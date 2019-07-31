@@ -23,9 +23,17 @@ class GetMap(Resource):
         """
         try:
             wmts_getcapabilities_filename = 'maap.wmts.xml'
-            print('request.args')
-            print(json.dumps(request.args, indent=2))
-            get_capabilities_string = GetCapabilities().generate_capabilities(request.args)
+
+            # TODO(Aimee): This avoids an error response from CMR "Parameter [service]
+            # was not recognized" but we probably want a longer list of permitted
+            # params.
+            cmr_search_params_whitelist = ['granule_ur', 'short_name', 'version']
+            cmr_search_params = {}
+            for key in cmr_search_params_whitelist:
+                if key in request.args:
+                   cmr_search_params[key] = request.args[key]
+
+            get_capabilities_string = GetCapabilities().generate_capabilities(cmr_search_params)
             wmts_capabilities_file = open(wmts_getcapabilities_filename, 'w')
             wmts_capabilities_file.write(get_capabilities_string)
             wmts_capabilities_file.close()

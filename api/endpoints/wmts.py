@@ -48,6 +48,7 @@ def get_cog_urls_string(params={}):
     search_headers = cmr.get_search_headers()
     search_headers['Accept'] = 'application/json'
     cmr_resp = requests.get(cmr_search_granules_url, headers=search_headers, params=params)
+
     cmr_response_feed = json.loads(cmr_resp.text)['feed']['entry']
     for granule in cmr_response_feed:
         granule = Granule(granule, 'aws_access_key_id', 'aws_secret_access_key')
