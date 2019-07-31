@@ -10,7 +10,7 @@ consumes:
   - application/json
 produces:
   - application/json
-  
+
 paths:
 
   /info:
@@ -19,17 +19,17 @@ paths:
         - Info
       description: Get information about the MAAP service !
       operationId: get_service_info
-       
+
       responses:
         200:
           description: Service info
           schema:
-            $ref: "#/definitions/ServiceInfo"          
+            $ref: "#/definitions/ServiceInfo"
         default:
           description: Error
           schema:
             $ref: "#/definitions/ErrorResponse"
-            
+
   /workspace:
     get:
       tags:
@@ -44,7 +44,7 @@ paths:
         default:
           description: Error
           schema:
-            $ref: "#/definitions/ErrorResponse" 
+            $ref: "#/definitions/ErrorResponse"
     post:
       tags:
         - Workspace
@@ -55,7 +55,7 @@ paths:
           in: body
           required: true
           schema:
-            $ref: "#/definitions/WorkspaceInput"             
+            $ref: "#/definitions/WorkspaceInput"
       responses:
         200:
           description: New workspace
@@ -64,21 +64,21 @@ paths:
         default:
           description: Error
           schema:
-            $ref: "#/definitions/ErrorResponse"   
- 
+            $ref: "#/definitions/ErrorResponse"
+
   /jobs:
     get:
       tags:
         - Job
       description: Get list of jobs
       operationId: get_jobs
-       
+
       responses:
         200:
           description: List of jobs
           schema:
             type: array
-            items: 
+            items:
               $ref: "#/definitions/Job"
         default:
           description: Error
@@ -95,7 +95,7 @@ paths:
           in: body
           required: true
           schema:
-            $ref: "#/definitions/JobInput"             
+            $ref: "#/definitions/JobInput"
       responses:
         200:
           description: New job
@@ -104,7 +104,7 @@ paths:
         default:
           description: Error
           schema:
-            $ref: "#/definitions/ErrorResponse"            
+            $ref: "#/definitions/ErrorResponse"
   /jobs/{job_id}:
     get:
       tags:
@@ -116,7 +116,7 @@ paths:
           in: path
           description: unique id of job
           type: string
-          required: true      
+          required: true
       responses:
         200:
           description: Job info
@@ -125,8 +125,8 @@ paths:
         default:
           description: Error
           schema:
-            $ref: "#/definitions/ErrorResponse"            
-            
+            $ref: "#/definitions/ErrorResponse"
+
   /jobs/{job_id}/submit:
     post:
       tags:
@@ -138,7 +138,7 @@ paths:
           in: path
           description: unique id of job
           type: string
-          required: true        
+          required: true
       responses:
         200:
           description: Successful submission
@@ -213,7 +213,7 @@ paths:
         default:
           description: Error
           schema:
-            $ref: "#/definitions/ErrorResponse"  
+            $ref: "#/definitions/ErrorResponse"
 
   /algorithms:
     get:
@@ -221,13 +221,13 @@ paths:
         - Algorithm
       description: Get list of algorithms
       operationId: get_algorithms
-       
+
       responses:
         200:
           description: List of algorithms
           schema:
             type: array
-            items: 
+            items:
               $ref: "#/definitions/Algorithm"
         default:
           description: Error
@@ -244,7 +244,7 @@ paths:
           in: body
           required: true
           schema:
-            $ref: "#/definitions/AlgorithmInput"             
+            $ref: "#/definitions/AlgorithmInput"
       responses:
         200:
           description: New algorithm
@@ -253,7 +253,7 @@ paths:
         default:
           description: Error
           schema:
-            $ref: "#/definitions/ErrorResponse"            
+            $ref: "#/definitions/ErrorResponse"
   /algorithms/{algorithm_id}:
     get:
       tags:
@@ -265,7 +265,7 @@ paths:
           in: path
           description: unique id of algorithm
           type: string
-          required: true      
+          required: true
       responses:
         200:
           description: Algorithm info
@@ -274,8 +274,8 @@ paths:
         default:
           description: Error
           schema:
-            $ref: "#/definitions/ErrorResponse"            
-     
+            $ref: "#/definitions/ErrorResponse"
+
   /collections:
     post:
       tags:
@@ -287,7 +287,7 @@ paths:
           in: body
           required: true
           schema:
-            $ref: "#/definitions/CollectionInput"             
+            $ref: "#/definitions/CollectionInput"
       responses:
         200:
           description: New collection
@@ -296,7 +296,7 @@ paths:
         default:
           description: Error
           schema:
-            $ref: "#/definitions/ErrorResponse"            
+            $ref: "#/definitions/ErrorResponse"
   /collections/{collection_id}:
     get:
       tags:
@@ -308,7 +308,7 @@ paths:
           in: path
           description: unique id of collection
           type: string
-          required: true      
+          required: true
       responses:
         200:
           description: Collection info
@@ -317,7 +317,7 @@ paths:
         default:
           description: Error
           schema:
-            $ref: "#/definitions/ErrorResponse"  
+            $ref: "#/definitions/ErrorResponse"
     delete:
       tags:
         - Collection
@@ -328,13 +328,13 @@ paths:
           in: path
           description: unique id of collection
           type: string
-          required: true      
+          required: true
       responses:
         default:
           description: Error
           schema:
-            $ref: "#/definitions/ErrorResponse"             
-     
+            $ref: "#/definitions/ErrorResponse"
+
   /granules:
     post:
       tags:
@@ -346,7 +346,7 @@ paths:
           in: body
           required: true
           schema:
-            $ref: "#/definitions/GranuleInput"             
+            $ref: "#/definitions/GranuleInput"
       responses:
         200:
           description: New granule
@@ -355,7 +355,7 @@ paths:
         default:
           description: Error
           schema:
-            $ref: "#/definitions/ErrorResponse"            
+            $ref: "#/definitions/ErrorResponse"
   /granules/{granule_id}:
     get:
       tags:
@@ -367,7 +367,7 @@ paths:
           in: path
           description: unique id of granule
           type: string
-          required: true      
+          required: true
       responses:
         200:
           description: Granule info
@@ -376,41 +376,47 @@ paths:
         default:
           description: Error
           schema:
-            $ref: "#/definitions/ErrorResponse"  
-    delete:
+            $ref: "#/definitions/ErrorResponse"
+
+  /query:
+    post:
       tags:
-        - Granule
-      description: Delete a granule
-      operationId: delete_granule
+        - Query
+      description: Create a asynchronous query
+      operationId: create_query
       parameters:
-        - name: granule_id
-          in: path
-          description: unique id of granule
-          type: string
-          required: true      
-      responses:
-        default:
-          description: Error
+        - name: query_input
+          in: body
+          required: true
           schema:
-            $ref: "#/definitions/ErrorResponse"       
-  
+            $ref: "#/definitions/QueryInput"
+      # responses:
+      #   200:
+      #     description: Query Links
+      #     schema:
+      #       $ref: "#/definitions/QueryLink"
+      #   default:
+      #     description: Error
+      #     schema:
+      #       $ref: "#/definitions/ErrorResponse"
+
 definitions:
   ServiceInfo:
-    description: Information about the MAAP service  
+    description: Information about the MAAP service
     properties:
       name:
         type: string
         description: name of the service
       description:
         type: string
-        description: Description of the service        
+        description: Description of the service
       version:
         type: string
         description: version of the service
       subsytems:
-        type: array      
+        type: array
         items:
-          $ref: "#/definitions/SubsytemInfo"          
+          $ref: "#/definitions/SubsytemInfo"
 
   SubsytemInfo:
     description: Information about the subsystem api
@@ -420,21 +426,21 @@ definitions:
         description: name of the subsytem
       description:
         type: string
-        description: Description of the subsytem        
+        description: Description of the subsytem
       version:
         type: string
         description: version of the subsytem
       uri:
         type: string
         description: uri location of the subsytem
-        
+
   WorkspaceInput:
     description: Input to create a new workspace
     properties:
       workspace_name:
         type: string
         description: name of the workspace
-        
+
   Workspace:
     description: Jobs, algorithms, and user-specific work
     allOf:
@@ -445,22 +451,22 @@ definitions:
           type: string
           description: unique id of the algorithm
       jobs:
-        type: array      
+        type: array
         items:
-          $ref: "#/definitions/Job" 
+          $ref: "#/definitions/Job"
       algorithms:
-        type: array      
+        type: array
         items:
-          $ref: "#/definitions/Algorithm" 
+          $ref: "#/definitions/Algorithm"
       collections:
-        type: array      
+        type: array
         items:
-          $ref: "#/definitions/Collection" 
+          $ref: "#/definitions/Collection"
       granules:
-        type: array      
+        type: array
         items:
-          $ref: "#/definitions/Granule" 
-        
+          $ref: "#/definitions/Granule"
+
   AlgorithmInput:
     description: input to create a new algorithm
     properties:
@@ -469,14 +475,14 @@ definitions:
         description: name of the algorithm
       algorithm_uri:
         type: string
-        description: Unique uri of the algorithm 
+        description: Unique uri of the algorithm
       algorithm_branch:
         type: string
         description: Branch name of the algorithm
       algorithm_version:
         type: string
-        description: Version of the algorithm 
-        
+        description: Version of the algorithm
+
   Algorithm:
     allOf:
     - $ref: "#/definitions/AlgorithmInput"
@@ -485,7 +491,7 @@ definitions:
       algorithm_id:
           type: string
           description: unique id of the algorithm
-        
+
   JobInput:
     description: input to create a new job
     properties:
@@ -496,9 +502,9 @@ definitions:
         type: string
         description: id of the algorithm
       data_collection:
-        type: array      
+        type: array
         items:
-          $ref: "#/definitions/Granule" 
+          $ref: "#/definitions/Granule"
       status:
         type: string
         description: status of the job
@@ -506,10 +512,10 @@ definitions:
           - ACTIVE
           - DEPRECATED
       description:
-        type: string      
+        type: string
         description: description of the job
-        
-  Job:      
+
+  Job:
     allOf:
     - $ref: "#/definitions/JobInput"
     - type: object
@@ -630,14 +636,13 @@ definitions:
       description:
         type: string
         description: descripton of the file
-        
+
   CollectionInput:
     properties:
       description:
         type: string
         description: descripton of the collection
-        
-        
+
   Collection:
     allOf:
     - $ref: '#/definitions/CollectionInput'
@@ -646,13 +651,13 @@ definitions:
       collection_id:
         type: string
         description: Id of the granule
-        
+
   GranuleInput:
     properties:
       description:
         type: string
         description: descripton of the granule
-        
+
   Granule:
     allOf:
     - $ref: '#/definitions/GranuleInput'
@@ -661,7 +666,39 @@ definitions:
       granule_id:
         type: string
         description: Id of the granule
-        
+
+  QueryInput:
+    properties:
+    id:
+      type: string
+    src:
+      type: object
+      description: "Either a Collection"
+    query:
+      type: object
+      properties:
+      fields:
+        description: "Fields to be returned from dataset. If omitted, all fields will be returned"
+        type: array
+        items:
+        type: array
+      bbox:
+        description: "A GeoJSON-compliant 2D bounding box (https://tools.ietf.org/html/rfc7946#section-5)"
+        type: array
+        items:
+        - type: number
+          description: "X Min"
+        - type: number
+          description: "Y Min"
+        - type: number
+          description: "X Max"
+        - type: number
+          description: "Y Max"
+    required:
+    - id
+    - src
+    - query
+
   ErrorResponse:
     required:
     - message
@@ -671,15 +708,15 @@ definitions:
 
 
 parameters:
-    
+
   offset:
-    name: offset    
+    name: offset
     in: query
     description: Start index for pagination. zero based.
     required: false
     type: integer
     default: 0
-    
+
   limit:
     name: limit
     in: query
@@ -687,4 +724,4 @@ parameters:
     required: false
     type: integer
     default: 50
-  
+
