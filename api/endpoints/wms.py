@@ -22,6 +22,7 @@ class GetMap(Resource):
         :return:
         """
         try:
+            print(json.dumps(request.args, indent=2))
             wmts_getcapabilities_filename = 'maap.wmts.xml'
 
             # TODO(Aimee): This avoids an error response from CMR "Parameter [service]
@@ -41,10 +42,10 @@ class GetMap(Resource):
             wmts_confs = create_config_wmts(["file://" + os.path.abspath(wmts_getcapabilities_filename)])
 
             # Get args from request
-            bbox = (11.41071054972465, -0.3848431107778577, 11.857202093935395, 0.09666737807686826)
-            size = (1200, 600)
-            layer = 'AfriSAR_UAVSAR_Coreg_SLC'
-            img_format = 'image/png'
+            bbox = tuple(map(float, request.args['BBOX'].split(',')))
+            size = (int(request.args['HEIGHT']), int(request.args['WIDTH']))
+            layer = request.args['LAYERS'][0]
+            img_format = request.args['FORMAT']
             img_data = mapit(wmts_confs, layer, img_format, bbox, size)
 
             response = Response(
