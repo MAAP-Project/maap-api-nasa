@@ -6,4 +6,4 @@ gitpython~=2.1.11
 PyJWT~=1.7.1
 xmltodict~=0.12.0
 flask-cas-ng~=1.1.0
-boto3==1.9.184
+boto3==1.9.199
