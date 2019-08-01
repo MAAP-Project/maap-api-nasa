@@ -22,7 +22,6 @@ class GetMap(Resource):
         :return:
         """
         try:
-            print(json.dumps(request.args, indent=2))
             wmts_getcapabilities_filename = 'maap.wmts.xml'
 
             # TODO(Aimee): This avoids an error response from CMR "Parameter [service]
@@ -34,18 +33,27 @@ class GetMap(Resource):
                 if key in request.args:
                    cmr_search_params[key] = request.args[key]
 
+            # TODO(Aimee): This generates a local copy of WMTS GetCapabilities
+            # XML, which `create_config_wmts` requires. `create_config_wmts`
+            # could also call the /wmts/GetCapabilities endpoint but it would
+            # run the same code to generate the XML so the tradeoff is making a
+            # network call vs writing to the local filesystem.
             get_capabilities_string = GetCapabilities().generate_capabilities(cmr_search_params)
             wmts_capabilities_file = open(wmts_getcapabilities_filename, 'w')
             wmts_capabilities_file.write(get_capabilities_string)
             wmts_capabilities_file.close()
-
             wmts_confs = create_config_wmts(["file://" + os.path.abspath(wmts_getcapabilities_filename)])
 
             # Get args from request
+            # TODO(Aimee): Permitted parameters should be consistent with the
+            # OGC WMS spec. There are other args which could be supported such
+            # as STYLE. Also, multiple layers could be passed.
             bbox = tuple(map(float, request.args['BBOX'].split(',')))
             size = (int(request.args['HEIGHT']), int(request.args['WIDTH']))
             layer = request.args['LAYERS'][0]
             img_format = request.args['FORMAT']
+
+            # Create the image
             img_data = mapit(wmts_confs, layer, img_format, bbox, size)
 
             response = Response(
