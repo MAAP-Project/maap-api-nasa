@@ -3,7 +3,7 @@ import logging
 import uuid
 
 import boto3
-from flask import jsonify, request
+from flask import jsonify, request, redirect
 from flask_restplus import Resource
 
 from api.restplus import api
@@ -11,7 +11,7 @@ import api.settings as settings
 
 log = logging.getLogger(__name__)
 
-ns = api.namespace('query-service', description='Operations for Query Service')
+ns = api.namespace('query', description='Operations for Query Service')
 
 s3_client = boto3.client('s3')
 sf_client = boto3.client('stepfunctions')
@@ -36,7 +36,7 @@ def err_response(msg, code=400):
     }, code
 
 
-@ns.route('/query')
+@ns.route('/')
 class QueryServiceCreate(Resource):
 
     def _is_valid_fields(self, fields):
@@ -127,7 +127,6 @@ class QueryServiceCreate(Resource):
             )
 
         src = req_data.get('src') or {}
-        print('src', src)
         if not self._is_valid_src(src):
             return err_response(
                 "'src' property failed to validate as a Collection or Granule object."
@@ -157,21 +156,11 @@ class QueryServiceCreate(Resource):
         )
 
 
-@ns.route('/query/<string:query_id>')
+@ns.route('/<string:query_id>')
 class QueryServiceResults(Resource):
 
     def get(self, query_id):
         """
-        Get query results
+        Return redirect to query results
         """
-        return get_signed_url(query_id)
-
-
-@ns.route('/query/<string:query_id>/meta')
-class QueryServiceMetadata(Resource):
-
-    def get(self, query_id):
-        """
-        Get query metadata
-        """
-        return get_signed_url(f"{query_id}.meta")
+        return redirect(get_signed_url(query_id), code=302)
