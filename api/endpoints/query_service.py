@@ -18,7 +18,6 @@ sf_client = boto3.client('stepfunctions')
 
 
 def get_signed_url(key: str, expiration: int = 60 * 60 * 24):
-    # print(key, settings.QS_RESULT_BUCKET)
     return s3_client.generate_presigned_url(
         'get_object',
         Params={
@@ -108,7 +107,6 @@ class QueryServiceCreate(Resource):
         }
         """
         req_data = request.get_json()
-        print('req_data', req_data, args, kwargs)
         if not isinstance(req_data, dict):
             return err_response("Valid JSON body object required.")
 
