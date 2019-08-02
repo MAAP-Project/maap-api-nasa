@@ -28,7 +28,7 @@ def parse_execute_request(request_xml):
        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
        xsi:schemaLocation="http://www.opengis.net/wps/2.0 ../wps.xsd" service="WPS"
        version="2.0.0" response="document" mode="sync">
-       <ows:Identifier>org.n52.wps.server.algorithm.SimpleBufferAlgorithm</ows:Identifier>
+       <ows:Identifier>algo_id:version</ows:Identifier>
              <wps:Input id="data">
                       <wps:Reference schema="http://schemas.opengis.net/gml/3.1.1/base/feature.xsd" xlink:href="http://geoprocessing.demo.52north.org:8080/geoserver/wfs?SERVICE=WFS&amp;VERSION=1.0.0&amp;REQUEST=GetFeature&amp;TYPENAME=topp:tasmania_roads&amp;SRS=EPSG:4326&amp;OUTPUTFORMAT=GML3"/>
              </wps:Input>
@@ -40,9 +40,9 @@ def parse_execute_request(request_xml):
 
     :return:
     """
-    job_type = None
     root = fromstring(request_xml)
     params = dict()
+    job_type = root.find('ows:Identifier', ns).text
     for input in root.findall('wps:Input', ns):
         for data in input.findall('wps:Data', ns):
             for value in data.findall('wps:LiteralValue', ns):
@@ -51,9 +51,8 @@ def parse_execute_request(request_xml):
                         params[input.attrib.get("id")] = json.loads(value.text)
                     except ValueError:
                         params[input.attrib.get("id")] = value.text
-                else:
-                    job_type = value.text.strip()
     output = root.find('wps:Output', ns).attrib.get("id")
+
     return job_type, params, output
 
 
@@ -193,10 +192,11 @@ def get_op(op_ele, op_name, get_url = None, post_url = None):
     return op_ele
 
 
-def get_capabilities():
+def get_capabilities(job_list):
     """
     This creates a response containing service metadata such as the service name, keywords, and contact information for
     the organization operating the server.
+    :param: takes in the list of algorigthms available in the DPS
     :return:
     """
 
@@ -245,7 +245,20 @@ def get_capabilities():
     ET.SubElement(lang, "ows.Language").text = "en-US"
 
     content = ET.SubElement(response, "wps:Contents")
-
+    for job_type in job_list:
+        proc_summ = ET.SubElement(content, "wps:ProcessSummary")
+        proc_summ.set("processVersion", "1.0.0")
+        proc_summ.set("jobControlOptions", "sync-execute async-execute")
+        proc_summ.set("outputTransmission", "value reference")
+        ET.SubElement(proc_summ, "ows:Title").text = "Algorithm: {} ; Version: {}"\
+            .format(job_type.strip("job-").split(":")[0],
+                    job_type.strip("job-").split(":")[1])
+        ET.SubElement(proc_summ, "ows:Identifier").text = job_type
+        proc_metadata = ET.SubElement(proc_summ, "ows:Metadata")
+        proc_metadata.set("xlin:role", "Process description")
+        proc_metadata.set("xlin:href", "https://api.maap.xyz/api/mas/algorithm/{}%3A{}"
+                          .format(job_type.strip("job-").split(":")[0],
+                                  job_type.strip("job-").split(":")[1]))
     return tostring(response)
 
 
@@ -304,7 +317,7 @@ def get_input(process_xml, field):
     return process_xml
 
 
-def describe_process_response(params):
+def describe_process_response(label, params):
     """
 
     :param label:
@@ -318,8 +331,10 @@ def describe_process_response(params):
     offering.set("jobControlOptions", "sync-execute async-execute")
     offering.set("outputTransmission", "value reference")
     process = ET.SubElement(offering, "wps:Process")
-    ET.SubElement(process, "ows:Title").text = "org.n52.wps.server.algorithm.SimpleBufferAlgorithm"
-    ET.SubElement(process, "ows:Identifier").text = "org.n52.wps.server.algorithm.SimpleBufferAlgorithm"
+    ET.SubElement(process, "ows:Title").text = "Algorithm: {} ; Version: {}"\
+        .format(label.strip("job-").split(":")[0],
+                label.strip("job-").split(":")[1])
+    ET.SubElement(process, "ows:Identifier").text = label
 
     for param in params:
         process = get_input(process, param.get("name"))

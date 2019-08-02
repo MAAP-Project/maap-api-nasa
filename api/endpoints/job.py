@@ -46,7 +46,8 @@ class Submit(Resource):
         """
 
         try:
-            response_body = ogc.get_capabilities()
+            job_list = hysds.get_algorithms()
+            response_body = ogc.get_capabilities(job_list)
             return Response(response_body, mimetype='text/xml')
         except Exception as ex:
             tb = traceback.format_exc()
@@ -115,6 +116,33 @@ class Status(Resource):
                                               "job execution status. If still not found," \
                                               " please contact administrator " \
                                               "of DPS".format(job_id)), mimetype='text/xml'), 500
+
+
+@ns.route('/job/<string:username>/list')
+class Jobs(Resource):
+
+    def get(self, username):
+        """
+        This will return run a list of jobs for a specified user
+        :return:
+        """
+        # request_xml = request.data
+        # job_id = ogc.parse_status_request(request_xml)
+        try:
+            logging.info("Finding jobs for user: {}".format(username))
+            response = hysds.get_mozart_jobs(username=username)
+            job_list = response.get("result")
+            logging.info("Found Jobs: {}".format(job_list))
+            response_body = dict()
+            response_body["code"] = 200
+            response_body["jobs"] = job_list
+            response_body["message"] = "success"
+            return response_body
+        except Exception as ex:
+            return Response(ogc.get_exception(type="FailedGetJobs", origin_process="GetJobs",
+                                              ex_message="Failed to get jobs for user {}. " \
+                                              " please contact administrator " \
+                                              "of DPS".format(username)), mimetype='text/xml'), 500
 
 
 

@@ -161,7 +161,13 @@ def get_algorithms():
     except Exception as ex:
         raise ex
 
-    return mozart_response.json()
+    algo_list = mozart_response.json().get("result")
+    maap_algo_list = list()
+    for algo in algo_list:
+        if not algo.startswith("job-lw-") and not algo.startswith("job-lightweight"):
+            maap_algo_list.append(algo)
+
+    return maap_algo_list
 
 
 def mozart_submit_job(job_type, params={}):
@@ -270,6 +276,27 @@ def get_mozart_job_info(job_id):
             raise ex
     else:
         raise Exception("Aborting retrieving information of job because status is {}".format(job_status))
+
+
+def get_mozart_jobs(username):
+    """
+        Returns mozart's job list
+        :param username:
+        :return:
+        """
+    params = dict()
+    params["username"] = username
+
+    session = requests.Session()
+    session.verify = False
+
+    try:
+        mozart_response = session.get("{}/job/list".format(settings.MOZART_URL), params=params)
+
+    except Exception as ex:
+        raise ex
+
+    return mozart_response.json()
 
 
 def delete_mozart_job_type(job_type):
