@@ -48,3 +48,6 @@ CAS_SECRET_KEY = ''
 CAS_SERVER_NAME = ''
 CAS_AFTER_LOGIN = 'profile'
 
+# Query Service
+QS_STATE_MACHINE_ARN = "arn:aws:states:us-east-1:532321095167:stateMachine:maap-api-query-service-dev-RunQuery"
+QS_RESULT_BUCKET = "maap-api-query-service-dev-query-results"
