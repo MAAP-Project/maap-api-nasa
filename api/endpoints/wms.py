@@ -24,16 +24,10 @@ class GetMap(Resource):
         try:
             wmts_getcapabilities_filename = 'maap.wmts.xml'
 
-            # TODO(Aimee): This avoids an error response from CMR "Parameter [service]
-            # was not recognized" but we probably want a longer list of permitted
-            # params.
-            cmr_search_params_whitelist = ['granule_ur', 'short_name', 'version']
-            cmr_search_params = {}
-            for key in cmr_search_params_whitelist:
-                if key in request.args:
-                   cmr_search_params[key] = request.args[key]
+            # Pass param which can be used to generate GetCapabilities dynamically
+            cmr_search_params = {'granule_ur': request.args['LAYERS']}
 
-            # TODO(Aimee): This generates a local copy of WMTS GetCapabilities
+            # Review(Aimee): This generates a local copy of WMTS GetCapabilities
             # XML, which `create_config_wmts` requires. `create_config_wmts`
             # could also call the /wmts/GetCapabilities endpoint but it would
             # run the same code to generate the XML so the tradeoff is making a
@@ -50,7 +44,7 @@ class GetMap(Resource):
             # as STYLE. Also, multiple layers could be passed.
             bbox = tuple(map(float, request.args['BBOX'].split(',')))
             size = (int(request.args['HEIGHT']), int(request.args['WIDTH']))
-            layer = request.args['LAYERS']
+            layer = request.args['LAYERS'].replace(':', '')
             img_format = request.args['FORMAT']
 
             # Create the image
