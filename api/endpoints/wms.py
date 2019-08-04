@@ -50,7 +50,7 @@ class GetMap(Resource):
             # as STYLE. Also, multiple layers could be passed.
             bbox = tuple(map(float, request.args['BBOX'].split(',')))
             size = (int(request.args['HEIGHT']), int(request.args['WIDTH']))
-            layer = request.args['LAYERS'][0]
+            layer = request.args['LAYERS']
             img_format = request.args['FORMAT']
 
             # Create the image
