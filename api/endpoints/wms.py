@@ -44,6 +44,9 @@ class GetMap(Resource):
             # as STYLE. Also, multiple layers could be passed.
             bbox = tuple(map(float, request.args['BBOX'].split(',')))
             size = (int(request.args['HEIGHT']), int(request.args['WIDTH']))
+            # FIXME: One collection (AFLVIS2) has granule urs which include
+            # a colon, which causes a mapproxy configuration error.
+            # Example: SC:AFLVIS2.001:138348873. This also shows up in wmts.py.
             layer = request.args['LAYERS'].replace(':', '')
             img_format = request.args['FORMAT']
 

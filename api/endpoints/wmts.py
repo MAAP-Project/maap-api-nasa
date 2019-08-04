@@ -211,6 +211,9 @@ class GetCapabilities(Resource):
         if len(request_args) > 0:
             layer_title = 'search_results'
             if 'granule_ur' in request_args:
+                # FIXME: One collection (AFLVIS2) has granule urs which include
+                # a colon, which causes a mapproxy configuration error.
+                # Example: SC:AFLVIS2.001:138348873. This also shows up in wms.py.
                 layer_title = request_args['granule_ur'].replace(':', '')
             urls = get_cog_urls_string(request_args)
             layers.append(self.generate_layer_info(layer_title, urls))
