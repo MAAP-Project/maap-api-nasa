@@ -179,8 +179,8 @@ class GetCapabilities(Resource):
             stats_resp = get_stats(urls_query_string, ','.join(map(str, bbox)))
             stats = stats_resp['statistics']['1']
             std = stats['std']
-            min_scale = stats['min'] - (2*std)
-            max_scale = stats['min'] + (2*std)
+            min_scale = stats['min']
+            max_scale = stats['min'] + (3*std)
             rescale = ','.join([str(min_scale), str(max_scale)])
 
         layer_info = {
