@@ -47,28 +47,16 @@ class QueryServiceCreate(Resource):
             *[isinstance(f, float) or isinstance(f, int) for f in bbox]
         ])
 
-    def _is_valid_src(self, src):
-        return any([
-            self._contains_valid_collection(src),
-            self._contains_valid_granule(src)
-        ])
+    def _is_valid_where(self, where):
+        return isinstance(where, dict)
 
-    def _contains_valid_collection(self, src):
+    def _is_valid_src(self, src):
         collection = src.get('Collection')
         if not isinstance(collection, dict):
             return False
         return all([
             isinstance(collection.get('ShortName'), str),
             isinstance(collection.get('VersionId'), str)
-        ])
-
-    def _contains_valid_granule(self, src):
-        granule = src.get('Granule')
-        if not isinstance(granule, dict):
-            return False
-        return all([
-            self._contains_valid_collection(granule),
-            isinstance(granule.get('GranuleUR'), str),
         ])
 
     def post(self, *args, **kwargs):
@@ -84,6 +72,7 @@ class QueryServiceCreate(Resource):
                 }
             },
             "query": {
+                "where": {}     // Key:Value mapping
                 "bbox": [],     // GeoJSON compliant bbox
                 "fields": []    // Array of field names (string)
             }
@@ -97,13 +86,18 @@ class QueryServiceCreate(Resource):
                     "VersionId": "001"
                 }
             },
-            "bbox": [
-                -122.6,
-                38.4,
-                -122.5,
-                38.5
-            ],
-            "fields": ["project", "wkt"]
+            "query": {
+                "where": {
+                    "project": "usa_sonoma"
+                },
+                "bbox": [
+                    -122.6,
+                    38.4,
+                    -122.5,
+                    38.5
+                ],
+                "fields": ["project", "wkt"]
+            }
         }
         """
         req_data = request.get_json()
@@ -118,6 +112,10 @@ class QueryServiceCreate(Resource):
         if fields and not self._is_valid_fields(fields):
             return err_response("Optional 'fields' property must be array of field names")
 
+        where = query.get('where') or []
+        if where and not self._is_valid_where(where):
+            return err_response("Optional 'where' property must be object")
+
         bbox = query.get('bbox') or []
         if bbox and not self._is_valid_bbox(bbox):
             return err_response(
@@ -127,7 +125,7 @@ class QueryServiceCreate(Resource):
         src = req_data.get('src') or {}
         if not self._is_valid_src(src):
             return err_response(
-                "'src' property failed to validate as a Collection or Granule object."
+                "'src' property failed to validate as a Collection object."
             )
 
         # Schedule execution
