@@ -1,8 +1,8 @@
 version: 0.0
 os: linux
 files:
-#  - source: /api/endpoints
-#    destination: /var/www/maapapi/api/endpoints/
+  - source: /api/endpoints
+    destination: /var/www/maapapi/api/endpoints/
 #  - source: /api/templates
 #    destination: /var/www/maapapi/api/templates/
   - source: /api/utils
