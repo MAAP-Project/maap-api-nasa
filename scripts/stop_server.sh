@@ -1,3 +1,3 @@
-#!/usr/bin/env bash
+#!/bin/sh
 
 sudo service apache2 stop

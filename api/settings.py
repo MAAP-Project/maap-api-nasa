@@ -2,7 +2,7 @@
 APP_AUTH_KEY = "thisisthesecretkey"
 
 # Flask settings
-FLASK_SERVER_NAME = 'http://localhost:5000'
+FLASK_SERVER_NAME = 'localhost:5000'
 FLASK_DEBUG = True  # Do not use debug mode in production
 
 # Flask-Restplus settings
@@ -51,3 +51,6 @@ CAS_AFTER_LOGIN = 'profile'
 # Query Service
 QS_STATE_MACHINE_ARN = "arn:aws:states:us-east-1:532321095167:stateMachine:maap-api-query-service-dev-RunQuery"
 QS_RESULT_BUCKET = "maap-api-query-service-dev-query-results"
+
+# AWS
+AWS_REGION = "us-east-1"

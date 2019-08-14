@@ -13,8 +13,8 @@ log = logging.getLogger(__name__)
 
 ns = api.namespace('query', description='Operations for Query Service')
 
-s3_client = boto3.client('s3')
-sf_client = boto3.client('stepfunctions')
+s3_client = boto3.client('s3', region_name=settings.AWS_REGION)
+sf_client = boto3.client('stepfunctions', region_name=settings.AWS_REGION)
 
 
 def get_signed_url(key: str, expiration: int = 60 * 60 * 24):
