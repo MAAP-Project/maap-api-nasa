@@ -3,20 +3,20 @@ os: linux
 files:
   - source: /api/endpoints
     destination: /var/www/maapapi/api/endpoints/
-#  - source: /api/templates
-#    destination: /var/www/maapapi/api/templates/
+  - source: /api/templates
+    destination: /var/www/maapapi/api/templates/
   - source: /api/utils
     destination: /var/www/maapapi/api/utils/
   - source: /api/maapapp.py
     destination: /var/www/maapapi/api/
   - source: /api/restplus.py
     destination: /var/www/maapapi/api/
-#hooks:
-#  ApplicationStart:
-#    - location: scripts/start_server.sh
-#      timeout: 300
-#      runas: root
-#  ApplicationStop:
-#    - location: scripts/stop_server.sh
-#      timeout: 300
-#      runas: root
+hooks:
+  ApplicationStart:
+    - location: /scripts/start_server.sh
+      timeout: 300
+      runas: root
+  ApplicationStop:
+    - location: /scripts/stop_server.sh
+      timeout: 300
+      runas: root
