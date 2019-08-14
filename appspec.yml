@@ -2,17 +2,17 @@ version: 0.0
 os: linux
 files:
   - source: /api/endpoints
-    destination: /var/www/maapapi/api/endpoints
+    destination: /var/www/maapapi/api/endpoints/
   - source: /api/templates
-    destination: /var/www/maapapi/api/templates
+    destination: /var/www/maapapi/api/templates/
   - source: /api/utils
-    destination: /var/www/maapapi/api/utils
+    destination: /var/www/maapapi/api/utils/
   - source: /api/flaskapp.wsgi
-    destination: /var/www/maapapi/api/flaskapp.wsgi
+    destination: /var/www/maapapi/api/
   - source: /api/maapapp.py
-    destination: /var/www/maapapi/api/maapapp.py
+    destination: /var/www/maapapi/api/
   - source: /api/restplus.py
-    destination: /var/www/maapapi/api/restplus.py
+    destination: /var/www/maapapi/api/
 hooks:
   ApplicationStart:
     - location: scripts/start_server.sh
