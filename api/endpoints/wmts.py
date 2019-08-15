@@ -162,6 +162,10 @@ def get_mosaic_tilejson(urls_query_string=''):
     r = requests.get(mosaic_tilejson_url)
     return r.json()
 
+def get_stats(url, bbox):
+    stats_url = settings.TILER_ENDPOINT + '/bbox?url=' + url + '&bbox=' + bbox
+    r = requests.get(stats_url)
+    return r.json()
 
 @ns.route('/GetCapabilities')
 class GetCapabilities(Resource):
@@ -169,6 +173,16 @@ class GetCapabilities(Resource):
     def generate_layer_info(self, key, urls_query_string, collection={}):
         meta = get_mosaic_tilejson(urls_query_string)
         bbox = meta['bounds']
+        stats = None
+        rescale = '-1,1'
+        if len(urls_query_string.split(',')) == 1:
+            stats_resp = get_stats(urls_query_string, ','.join(map(str, bbox)))
+            stats = stats_resp['statistics']['1']
+            std = stats['std']
+            min_scale = stats['min']
+            max_scale = stats['min'] + (3*std)
+            rescale = ','.join([str(min_scale), str(max_scale)])
+
         layer_info = {
             'layer_title': key,
             'bounds': [ bbox[0], bbox[1], bbox[2], bbox[3] ],
@@ -178,7 +192,7 @@ class GetCapabilities(Resource):
             # TODO(aimee): add settings to wmts_collectionss file
             # TODO(aimee): use defaults from /mosaic/tilejson.json
             'color_map': 'schwarzwald',
-            'rescale': '0,70'
+            'rescale': rescale
         }
         if collection:
             layer_info['query'] = 'short_name=' + collection['short_name'] + '&version=' + collection['version']
@@ -195,8 +209,14 @@ class GetCapabilities(Resource):
         # results from different collections should probably be grouped
         # into different layers (can do this with indexes)
         if len(request_args) > 0:
+            layer_title = 'search_results'
+            if 'granule_ur' in request_args:
+                # FIXME: One collection (AFLVIS2) has granule urs which include
+                # a colon, which causes a mapproxy configuration error.
+                # Example: SC:AFLVIS2.001:138348873. This also shows up in wms.py.
+                layer_title = request_args['granule_ur'].replace(':', '')
             urls = get_cog_urls_string(request_args)
-            layers.append(self.generate_layer_info('search_results', urls))
+            layers.append(self.generate_layer_info(layer_title, urls))
         else:
             for key, collection in default_collections.items():
                 browse_urls_query_string = get_cog_urls_string(collection_params(collection))

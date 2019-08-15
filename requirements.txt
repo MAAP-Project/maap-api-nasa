@@ -6,3 +6,10 @@ gitpython~=2.1.11
 PyJWT~=1.7.1
 xmltodict~=0.12.0
 flask-cas-ng~=1.1.0
+boto3==1.9.199
+mapproxy~=1.11.0
+owslib~=0.18.0
+requests_file~=1.4.3
+natsort~=6.0.0
+pillow~=6.1.0
+pyproj==1.9.6
