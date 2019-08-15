@@ -171,10 +171,25 @@ def status_response(job_id, job_status):
     :return:
     """
 
+    if job_status == "job-queued":
+        status = "Accepted"
+    elif job_status == "job-started":
+        status = "Running"
+    elif job_status == "job-completed":
+        status = "Succeeded"
+    elif job_status == "job-failed":
+        status = "Failed"
+    else:
+        """
+        if job is deduped or offline setting it to failed
+        because technically the job didn't complete
+        """
+        status = "Failed"
+
     response = ET.Element("wps:StatusInfo")
     response = set_namespaces(response)
     ET.SubElement(response, "wps:JobID").text = job_id
-    ET.SubElement(response, "wps:Status").text = job_status
+    ET.SubElement(response, "wps:Status").text = status
 
     return tostring(response)
 
