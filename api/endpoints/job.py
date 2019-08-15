@@ -29,12 +29,14 @@ class Submit(Resource):
             if dedup is None:
                 response = hysds.mozart_submit_job(job_type=job_type, params=params)
             else:
-                response = hysds.mozart_submit_job(job_type=job_type, params=params, dedup= dedup)
+                response = hysds.mozart_submit_job(job_type=job_type, params=params, dedup=dedup)
             logging.info("Mozart Response: {}".format(json.dumps(response)))
             job_id = response.get("result")
+            response = hysds.mozart_job_status(job_id=job_id)
+            job_status = response.get("status")
             if job_id is not None:
                 logging.info("Submitted Job with HySDS ID: {}".format(job_id))
-                return Response(ogc.execute_response(job_id=job_id, output=output), mimetype='text/xml')
+                return Response(ogc.status_response(job_id=job_id, job_status=job_status), mimetype='text/xml')
             else:
                 raise Exception(response.get("message"))
         except Exception as ex:
@@ -125,7 +127,7 @@ class Result(Resource):
                 job_response = hysds.mozart_job_status(job_id)
                 if not_found_string in job_response.get("message") or job_response.get("success") == False:
                     # this means the job has been deleted.
-                    return Response(ogc.execute_response(job_id=job_id, output=output), mimetype='text/xml')
+                    return Response(ogc.execute_response(job_id=job_id, output=None), mimetype='text/xml')
                 else:
                     return Response(ogc.get_exception(type="FailedJobDismiss", origin_process="Dismiss",
                                                       ex_message="Failed to dismiss job {}. Please try again or "

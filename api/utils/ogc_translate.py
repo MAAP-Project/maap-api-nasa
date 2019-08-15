@@ -19,6 +19,30 @@ def set_namespaces(xml_element):
     return xml_element
 
 
+def get_status(job_status):
+    """
+    Translate HySDS job status to WPS status
+    :param job_status:
+    :return:
+    """
+    if job_status == "job-queued":
+        status = "Accepted"
+    elif job_status == "job-started":
+        status = "Running"
+    elif job_status == "job-completed":
+        status = "Succeeded"
+    elif job_status == "job-failed":
+        status = "Failed"
+    else:
+        """
+        if job is deduped or offline setting it to failed
+        because technically the job didn't complete
+        """
+        status = "Failed"
+
+    return status
+
+
 def parse_execute_request(request_xml):
     """
     OGC EXECUTE REQUEST
@@ -59,26 +83,30 @@ def parse_execute_request(request_xml):
     return job_type, params, output, dedup
 
 
-def execute_response(job_id, output):
+def execute_response(job_id, job_status, output):
     """
     OGC EXECUTE RESPONSE
 
     <wps:Result xmlns:wps="http://www.opengis.net/wps/2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
        xsi:schemaLocation="http://www.opengis.net/wps/2.0 http://schemas.opengis.net/wps/2.0/wps.xsd">
     <wps:JobID>3a097ae3-d3c0-4ba4-8b85-e6a4af3fe636</wps:JobID>
+    <wps:Status>Accepted</wps:Status>
       <wps:Output id="result">
         <wps:Data schema="http://schemas.opengis.net/kml/2.2.0/ogckml22.xsd" mimeType="application/vnd.google-earth.kml+xml">
       </wps:Output>
     </wps:Result>
 
     :param job_id:
+    :param job_status:
+    :param output:
     :return:
     """
+    status = get_status(job_status)
     response = ET.Element("wps:Result")
     response = set_namespaces(response)
     ET.SubElement(response, "wps:JobID").text = job_id
+    ET.SubElement(response, "wps:Status").text = status
     ET.SubElement(response, "wps:{}".format(output.capitalize()))
-
     return tostring(response)
 
 
@@ -171,21 +199,7 @@ def status_response(job_id, job_status):
     :return:
     """
 
-    if job_status == "job-queued":
-        status = "Accepted"
-    elif job_status == "job-started":
-        status = "Running"
-    elif job_status == "job-completed":
-        status = "Succeeded"
-    elif job_status == "job-failed":
-        status = "Failed"
-    else:
-        """
-        if job is deduped or offline setting it to failed
-        because technically the job didn't complete
-        """
-        status = "Failed"
-
+    status = get_status(job_status)
     response = ET.Element("wps:StatusInfo")
     response = set_namespaces(response)
     ET.SubElement(response, "wps:JobID").text = job_id
