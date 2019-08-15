@@ -20,3 +20,6 @@ hooks:
     - location: scripts/stop_server.sh
       timeout: 300
       runas: root
+  BeforeInstall:
+    - location: scripts/prepare_target.sh
+      timeout: 180
