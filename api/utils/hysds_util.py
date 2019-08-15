@@ -6,6 +6,28 @@ import api.settings as settings
 import datetime
 
 
+def get_es_query_by_job_id(job_id):
+    """
+    ES query for specific job ID
+    :param job_id:
+    :return:
+    """
+    query = {
+     "query": {
+              "bool": {
+                "must": [
+                    {
+                      "term": {
+                        "_id": job_id
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+    return query
+
+
 def get_algorithm_file_name(algorithm_name):
     """
     This strips any whitespaces from the algorithm name
@@ -170,11 +192,12 @@ def get_algorithms():
     return maap_algo_list
 
 
-def mozart_submit_job(job_type, params={}):
+def mozart_submit_job(job_type, params={}, dedup="false"):
     """
     Submit a job to Mozart
     :param job_type:
     :param params:
+    :param dedup:
     :return:
     """
 
@@ -184,7 +207,7 @@ def mozart_submit_job(job_type, params={}):
     job_payload["priority"] = 0
     job_payload["tags"] = json.dumps(["maap-api_submit"])
     job_payload["params"] = json.dumps(params)
-    job_payload["enable_dedup"] = "false"
+    job_payload["enable_dedup"] = dedup
     job_payload["username"] = params.get("username").strip()
 
     print(json.dumps(job_payload))
@@ -312,3 +335,19 @@ def delete_mozart_job_type(job_type):
             return status
     else:
         raise Exception("Failed to remove job spec. Error: {}".format(message))
+
+
+def delete_mozart_job(job_id):
+    """
+    This function deletes a job from Mozart
+    :param job_id:
+    :return:
+    """
+    job_type = "job-lw-mozart-purge:{}".format(settings.HYSDS_LW_VERSION)
+    params = {
+        "query": get_es_query_by_job_id(job_id),
+        "component": "mozart",
+        "operation": "purge"
+    }
+    return mozart_submit_job(job_type=job_type, params=params)
+

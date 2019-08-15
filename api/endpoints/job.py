@@ -23,10 +23,13 @@ class Submit(Resource):
         :return:
         """
         request_xml = request.data
-        job_type, params, output = ogc.parse_execute_request(request_xml)
+        job_type, params, output, dedup = ogc.parse_execute_request(request_xml)
 
         try:
-            response = hysds.mozart_submit_job(job_type=job_type, params=params)
+            if dedup is None:
+                response = hysds.mozart_submit_job(job_type=job_type, params=params)
+            else:
+                response = hysds.mozart_submit_job(job_type=job_type, params=params, dedup= dedup)
             logging.info("Mozart Response: {}".format(json.dumps(response)))
             job_id = response.get("result")
             if job_id is not None:
@@ -91,6 +94,51 @@ class Result(Resource):
                                                          " please contact administrator " \
                                                          "of DPS".format(job_id, ex)), mimetype='text/xml'), 500
 
+    def delete(self, job_id):
+        """
+        This will delete a job from the DPS
+        It submits a lightweight HySDS job of type purge to delete a job.
+        :param self:
+        :param job_id:
+        :return:
+        """
+        try:
+            # set job type for removing a job
+            not_found_string = "404 Client Error"
+            response = hysds.delete_mozart_job(job_id=job_id)
+            logging.info("Purge Job Submission Response: {}".format(json.dumps(response)))
+            purge_id = response.get("result")
+            if job_id is not None:
+                # poll until purge job is completed
+                poll = True
+                while poll:
+                    res = hysds.mozart_job_status(job_id=purge_id)
+                    job_status = res.get("status")
+                    if job_status == "failed":
+                        logging.info("Failed to complete purge job for job {}. Job ID of purge job is {}"
+                                     .format(job_id, purge_id))
+                        raise Exception("Failed to complete purge job for job {}. Job ID of purge job is {}"
+                                        .format(job_id, purge_id))
+                    if job_status != "queued" and job_status != "started":
+                        poll = True
+                # verify if job is deleted
+                job_response = hysds.mozart_job_status(job_id)
+                if not_found_string in job_response.get("message") or job_response.get("success") == False:
+                    # this means the job has been deleted.
+                    return Response(ogc.execute_response(job_id=job_id, output=output), mimetype='text/xml')
+                else:
+                    return Response(ogc.get_exception(type="FailedJobDismiss", origin_process="Dismiss",
+                                                      ex_message="Failed to dismiss job {}. Please try again or "
+                                                                 "contact DPS administrator".format(job_id)),
+                                    mimetype='text/xml'), 500
+            else:
+                raise Exception(response.get("message"))
+        except Exception as ex:
+            return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",
+                                              ex_message="Failed to dismiss job {}. Please try again or "
+                                                         "contact DPS administrator".format(job_id)),
+                            mimetype='text/xml'), 500
+
 
 @ns.route('/job/<string:job_id>/status')
 class Status(Resource):
@@ -143,6 +191,7 @@ class Jobs(Resource):
                                               ex_message="Failed to get jobs for user {}. " \
                                               " please contact administrator " \
                                               "of DPS".format(username)), mimetype='text/xml'), 500
+
 
 
 

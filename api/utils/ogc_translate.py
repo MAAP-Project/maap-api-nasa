@@ -42,18 +42,21 @@ def parse_execute_request(request_xml):
     """
     root = fromstring(request_xml)
     params = dict()
+    dedup = None
     job_type = root.find('ows:Identifier', ns).text
     for input in root.findall('wps:Input', ns):
         for data in input.findall('wps:Data', ns):
             for value in data.findall('wps:LiteralValue', ns):
-                if input.attrib.get("id") != "job_type":
+                if input.attrib.get("id") != "dedup":
                     try:
                         params[input.attrib.get("id")] = json.loads(value.text)
                     except ValueError:
                         params[input.attrib.get("id")] = value.text
+                else:
+                    dedup = value.text
     output = root.find('wps:Output', ns).attrib.get("id")
 
-    return job_type, params, output
+    return job_type, params, output, dedup
 
 
 def execute_response(job_id, output):
