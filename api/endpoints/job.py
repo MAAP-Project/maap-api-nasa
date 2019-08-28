@@ -36,12 +36,13 @@ class Submit(Resource):
             job_status = response.get("status")
             if job_id is not None:
                 logging.info("Submitted Job with HySDS ID: {}".format(job_id))
-                return Response(ogc.status_response(job_id=job_id, job_status=job_status), mimetype='text/xml')
+                return Response(ogc.status_response(job_id=job_id, job_status=job_status), mimetype='text/xml'), 200
             else:
                 raise Exception(response.get("message"))
         except Exception as ex:
             return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",
-                                              ex_message="Failed to submit job of type {}. Exception Message: {}".format(job_type, ex)),
+                                              ex_message="Failed to submit job of type {}. Exception Message: {}"
+                                              .format(job_type, ex)),
                             mimetype='text/xml'), 500
 
     def get(self):
@@ -105,40 +106,41 @@ class Result(Resource):
         :return:
         """
         try:
-            # set job type for removing a job
-            not_found_string = "404 Client Error"
-            response = hysds.delete_mozart_job(job_id=job_id)
-            logging.info("Purge Job Submission Response: {}".format(json.dumps(response)))
-            purge_id = response.get("result")
-            if job_id is not None:
-                # poll until purge job is completed
-                poll = True
-                while poll:
-                    res = hysds.mozart_job_status(job_id=purge_id)
-                    job_status = res.get("status")
-                    if job_status == "failed":
-                        logging.info("Failed to complete purge job for job {}. Job ID of purge job is {}"
-                                     .format(job_id, purge_id))
-                        raise Exception("Failed to complete purge job for job {}. Job ID of purge job is {}"
-                                        .format(job_id, purge_id))
-                    if job_status != "queued" and job_status != "started":
-                        poll = True
-                # verify if job is deleted
-                job_response = hysds.mozart_job_status(job_id)
-                if not_found_string in job_response.get("message") or job_response.get("success") == False:
-                    # this means the job has been deleted.
-                    return Response(ogc.execute_response(job_id=job_id, output=None), mimetype='text/xml')
-                else:
-                    return Response(ogc.get_exception(type="FailedJobDismiss", origin_process="Dismiss",
-                                                      ex_message="Failed to dismiss job {}. Please try again or "
-                                                                 "contact DPS administrator".format(job_id)),
-                                    mimetype='text/xml'), 500
+            # check if job is non-running
+            current_status = hysds.mozart_job_status(job_id).get("status")
+            logging.info("current job status: {}".format(current_status))
+            if current_status == "job-started":
+                raise Exception("Cannot delete job with ID: {} in running state.".format(job_id))
+            if current_status is None:
+                raise Exception("Job with id {} was not found.".format(job_id))
+            # submit purge job
+            logging.info("Submitting Purge job for Job {}".format(job_id))
+            purge_id, res = hysds.delete_mozart_job(job_id=job_id)
+            logging.info("Purge Job Submission Response: {}".format(res))
+            job_status = res.get("status")
+            if job_status == "job-failed" or job_status == "job-revoked" or job_status == "job-offline":
+                logging.info("Failed to complete purge job for job {}. Job ID of purge job is {}"
+                             .format(job_id, purge_id))
+                raise Exception("Failed to complete purge job for job {}. Job ID of purge job is {}"
+                                .format(job_id, purge_id))
+            # verify if job is deleted
+            job_response = hysds.mozart_job_status(job_id)
+            logging.info("Checkup on Deleted job. {}".format(job_response.get("success")))
+            if job_response.get("status") is None and job_response.get("success") is False:
+                # this means the job has been deleted.
+                logging.info("Job successfully deleted")
+                response = ogc.status_response(job_id=job_id, job_status="Deleted")
+                logging.info(response)
+                return Response(response=response, mimetype='text/xml')
             else:
-                raise Exception(response.get("message"))
+                return Response(ogc.get_exception(type="FailedJobDelete", origin_process="Delete",
+                                                  ex_message="Failed to delete job {}. Please try again or"
+                                                             " contact DPS administrator".format(job_id)),
+                                mimetype='text/xml'), 500
         except Exception as ex:
             return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",
-                                              ex_message="Failed to dismiss job {}. Please try again or "
-                                                         "contact DPS administrator".format(job_id)),
+                                              ex_message="Failed to delete job {}. Please try again or "
+                                                         "contact DPS administrator. {}".format(job_id, ex)),
                             mimetype='text/xml'), 500
 
 
@@ -149,8 +151,6 @@ class Status(Resource):
         """This will return run status of a job given a job id
         :return:
         """
-        # request_xml = request.data
-        # job_id = ogc.parse_status_request(request_xml)
         try:
             logging.info("Finding status of job with id {}".format(job_id))
             logging.info("Retrieved Mozart job id: {}".format(job_id))
@@ -193,6 +193,50 @@ class Jobs(Resource):
                                               ex_message="Failed to get jobs for user {}. " \
                                               " please contact administrator " \
                                               "of DPS".format(username)), mimetype='text/xml'), 500
+
+
+@ns.route('/job/revoke/<string:job_id>')
+class StopJobs(Resource):
+
+    def delete(self, job_id):
+        try:
+            # check if job is non-running
+            current_status = hysds.mozart_job_status(job_id).get("status")
+            logging.info("current job status: {}".format(current_status))
+            if current_status != "job-started":
+                raise Exception("Cannot revoke job with ID: {} in state other than started.".format(job_id))
+            if current_status is None:
+                raise Exception("Job with id {} was not found.".format(job_id))
+            # submit purge job
+            logging.info("Submitting Revoke job for Job {}".format(job_id))
+            purge_id, res = hysds.revoke_mozart_job(job_id=job_id)
+            logging.info("Revoke Job Submission Response: {}".format(res))
+            job_status = res.get("status")
+            if job_status == "job-failed" or job_status == "job-revoked" or job_status == "job-offline":
+                logging.info("Failed to complete revoke job for job {}. Job ID of revoke job is {}"
+                             .format(job_id, purge_id))
+                raise Exception("Failed to complete revoke job for job {}. Job ID of revoke job is {}"
+                                .format(job_id, purge_id))
+            # verify if job is deleted
+            job_response = hysds.mozart_job_status(job_id)
+            logging.info("Checkup on Deleted job. {}".format(job_response.get("success")))
+            if job_response.get("status") is None and job_response.get("success") is False:
+                # this means the job has been deleted.
+                logging.info("Job successfully deleted")
+                response = ogc.status_response(job_id=job_id, job_status="Deleted")
+                logging.info(response)
+                return Response(response=response, mimetype='text/xml')
+            else:
+                return Response(ogc.get_exception(type="FailedJobRevoke", origin_process="Dismiss",
+                                                  ex_message="Failed to delete job {}. Please try again or"
+                                                             " contact DPS administrator".format(job_id)),
+                                mimetype='text/xml'), 500
+        except Exception as ex:
+            return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",
+                                              ex_message="Failed to delete job {}. Please try again or "
+                                                         "contact DPS administrator. {}".format(job_id, ex)),
+                            mimetype='text/xml'), 500
+
 
 
 

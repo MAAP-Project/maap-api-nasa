@@ -33,6 +33,8 @@ def get_status(job_status):
         status = "Succeeded"
     elif job_status == "job-failed":
         status = "Failed"
+    elif job_status == "Deleted" or job_status is None:
+        status = "Deleted"
     else:
         """
         if job is deduped or offline setting it to failed

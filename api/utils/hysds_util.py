@@ -1,9 +1,12 @@
 import json
+import logging
 import os
 import re
 import requests
 import api.settings as settings
-import datetime
+import time
+
+log = logging.getLogger(__name__)
 
 
 def get_es_query_by_job_id(job_id):
@@ -26,6 +29,28 @@ def get_es_query_by_job_id(job_id):
               }
             }
     return query
+
+
+def poll_for_completion(job_id):
+    poll = True
+    while poll:
+        sleep_time = 2
+        status_response = mozart_job_status(job_id=job_id)
+        logging.info("response: {}".format(json.dumps(status_response)))
+        job_status = status_response.get("status")
+        if job_status != "job-queued" and job_status != "job-started":
+            logging.info("Purge Job Done")
+            logging.info("status: {}".format(job_status))
+            logging.info("response: {}".format(status_response))
+            return job_id, status_response
+        else:
+            if job_status == "job-queued":
+                sleep_time *= 2
+            else:
+                # if job has started then poll more frequently
+                # setting it to 2 seconds
+                sleep_time = 2
+            time.sleep(sleep_time)
 
 
 def get_algorithm_file_name(algorithm_name):
@@ -201,6 +226,8 @@ def mozart_submit_job(job_type, params={}, dedup="false"):
     :return:
     """
 
+    logging.info("Received parameters for job: {}".format(json.dumps(params)))
+
     job_payload = dict()
     job_payload["type"] = job_type
     job_payload["queue"] = settings.DEFAULT_QUEUE
@@ -208,9 +235,10 @@ def mozart_submit_job(job_type, params={}, dedup="false"):
     job_payload["tags"] = json.dumps(["maap-api_submit"])
     job_payload["params"] = json.dumps(params)
     job_payload["enable_dedup"] = dedup
-    job_payload["username"] = params.get("username").strip()
+    if params.get("username") is not None:
+        job_payload["username"] = params.get("username").strip()
 
-    print(json.dumps(job_payload))
+    logging.info("job payload: {}".format(json.dumps(job_payload)))
 
     headers = {'content-type': 'application/json'}
 
@@ -223,7 +251,6 @@ def mozart_submit_job(job_type, params={}, dedup="false"):
                                        verify=False)
     except Exception as ex:
         raise ex
-
     return mozart_response.json()
 
 
@@ -241,7 +268,7 @@ def mozart_job_status(job_id):
 
     try:
         mozart_response = session.get("{}/job/status".format(settings.MOZART_URL), params=params)
-
+        logging.info("Job Status::: {}".format(mozart_response.json()))
     except Exception as ex:
         raise ex
 
@@ -349,5 +376,34 @@ def delete_mozart_job(job_id):
         "component": "mozart",
         "operation": "purge"
     }
-    return mozart_submit_job(job_type=job_type, params=params)
+    logging.info("Submitting job of type {} with params {}".format(job_type, json.dumps(params)))
+    submit_response = mozart_submit_job(job_type=job_type, params=params)
+    lw_job_id = submit_response.get("result")
+    logging.info(lw_job_id)
+
+    # keep polling mozart until the purge job is finished.
+    return poll_for_completion(lw_job_id)
+
+
+def revoke_mozart_job(job_id):
+    """
+    This function deletes a job from Mozart
+    :param job_id:
+    :return:
+    """
+    job_type = "job-lw-mozart-revoke:{}".format(settings.HYSDS_LW_VERSION)
+    params = {
+        "query": get_es_query_by_job_id(job_id),
+        "component": "mozart",
+        "operation": "revoke"
+    }
+    logging.info("Submitting job of type {} with params {}".format(job_type, json.dumps(params)))
+    submit_response = mozart_submit_job(job_type=job_type, params=params)
+    lw_job_id = submit_response.get("result")
+    logging.info(lw_job_id)
+
+    # keep polling mozart until the purge job is finished.
+    return poll_for_completion(lw_job_id)
+
+
 
