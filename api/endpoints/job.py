@@ -36,14 +36,13 @@ class Submit(Resource):
             job_status = response.get("status")
             if job_id is not None:
                 logging.info("Submitted Job with HySDS ID: {}".format(job_id))
-                return Response(ogc.status_response(job_id=job_id, job_status=job_status), mimetype='text/xml'), 200
+                return Response(ogc.status_response(job_id=job_id, job_status=job_status), mimetype='text/xml')
             else:
                 raise Exception(response.get("message"))
         except Exception as ex:
             return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",
-                                              ex_message="Failed to submit job of type {}. Exception Message: {}"
-                                              .format(job_type, ex)),
-                            mimetype='text/xml'), 500
+                            ex_message="Failed to submit job of type {}. Exception Message: {}"
+                            .format(job_type, ex)), status=500)
 
     def get(self):
         """
@@ -60,7 +59,8 @@ class Submit(Resource):
             return Response(ogc.get_exception(type="FailedGetCapabilities", origin_process="GetCapabilities",
                                               ex_message="Failed to get server capabilities. {}. {}"
                                               .format(ex.message, tb)),
-                            mimetype='text/xml'), 500
+                            mimetype='text/xml',
+                            status=500)
 
 
 @ns.route('/job/<string:job_id>')
@@ -71,8 +71,6 @@ class Result(Resource):
         :return:
         """
         try:
-            #request_xml = request.data
-            #job_id = ogc.parse_result_request(request_xml)
             prod_list = list()
             logging.info("Finding result of job with id {}".format(job_id))
             logging.info("Retrieved Mozart job id: {}".format(job_id))
@@ -95,7 +93,7 @@ class Result(Resource):
                                               ex_message="Failed to get job result of job with id: {}. " \
                                                          "{}. If you don't see expected results," \
                                                          " please contact administrator " \
-                                                         "of DPS".format(job_id, ex)), mimetype='text/xml'), 500
+                                                         "of DPS".format(job_id, ex)), mimetype='text/xml', status=500)
 
     def delete(self, job_id):
         """
@@ -136,12 +134,13 @@ class Result(Resource):
                 return Response(ogc.get_exception(type="FailedJobDelete", origin_process="Delete",
                                                   ex_message="Failed to delete job {}. Please try again or"
                                                              " contact DPS administrator".format(job_id)),
-                                mimetype='text/xml'), 500
+                                mimetype='text/xml',
+                                status=500)
         except Exception as ex:
             return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",
                                               ex_message="Failed to delete job {}. Please try again or "
                                                          "contact DPS administrator. {}".format(job_id, ex)),
-                            mimetype='text/xml'), 500
+                            mimetype='text/xml', status=500)
 
 
 @ns.route('/job/<string:job_id>/status')
@@ -165,7 +164,7 @@ class Status(Resource):
                                               "Please check back a little later for " \
                                               "job execution status. If still not found," \
                                               " please contact administrator " \
-                                              "of DPS".format(job_id)), mimetype='text/xml'), 500
+                                              "of DPS".format(job_id)), mimetype='text/xml', status=500)
 
 
 @ns.route('/job/<string:username>/list')
@@ -192,7 +191,7 @@ class Jobs(Resource):
             return Response(ogc.get_exception(type="FailedGetJobs", origin_process="GetJobs",
                                               ex_message="Failed to get jobs for user {}. " \
                                               " please contact administrator " \
-                                              "of DPS".format(username)), mimetype='text/xml'), 500
+                                              "of DPS".format(username)), mimetype='text/xml', status=500)
 
 
 @ns.route('/job/revoke/<string:job_id>')
@@ -230,12 +229,13 @@ class StopJobs(Resource):
                 return Response(ogc.get_exception(type="FailedJobRevoke", origin_process="Dismiss",
                                                   ex_message="Failed to delete job {}. Please try again or"
                                                              " contact DPS administrator".format(job_id)),
-                                mimetype='text/xml'), 500
+                                mimetype='text/xml',
+                                status=500)
         except Exception as ex:
             return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",
                                               ex_message="Failed to delete job {}. Please try again or "
                                                          "contact DPS administrator. {}".format(job_id, ex)),
-                            mimetype='text/xml'), 500
+                            mimetype='text/xml', status=500)
 
 
 
