@@ -177,7 +177,6 @@ class GetCapabilities(Resource):
         rescale = '-1,1'
         if len(urls_query_string.split(',')) == 1:
             stats_resp = get_stats(urls_query_string, ','.join(map(str, bbox)))
-            print(f"response is {stats_resp}")
             stats = stats_resp['statistics']['1']
             rescale = ','.join([str(stats['pc'][0]), str(stats['pc'][1])])
 
