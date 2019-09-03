@@ -29,7 +29,14 @@ class GetCapabilitiesCase(unittest.TestCase):
                                                      'tilejson': '2.1.0',
                                                      'tiles': ['https://888.execute-api.us-east-1.amazonaws.com/production/mosaic/{z}/{x}/{y}.png?urls=s3://bucket/cog.tif']
                                                  })
-            wmts.get_cog_urls_string = MagicMock(return_value = 'test.tif')
+            wmts.get_stats = MagicMock(return_value = {
+                                         'statistics': {
+                                           '1': {
+                                             'pc': [2.3, 51.1]
+                                           }
+                                         }
+                                       })
+            wmts.get_cog_urls_string = MagicMock(return_value = 'out.cog.tif')
 
     def test_get_capabilities_default(self):
         response = self.app.get(self.get_capabilities_path())
