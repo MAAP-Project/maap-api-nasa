@@ -217,11 +217,12 @@ def get_algorithms():
     return maap_algo_list
 
 
-def mozart_submit_job(job_type, params={}, dedup="false"):
+def mozart_submit_job(job_type, params={}, queue=settings.DEFAULT_QUEUE, dedup="false"):
     """
     Submit a job to Mozart
     :param job_type:
     :param params:
+    :param queue:
     :param dedup:
     :return:
     """
@@ -230,7 +231,7 @@ def mozart_submit_job(job_type, params={}, dedup="false"):
 
     job_payload = dict()
     job_payload["type"] = job_type
-    job_payload["queue"] = settings.DEFAULT_QUEUE
+    job_payload["queue"] = queue
     job_payload["priority"] = 0
     job_payload["tags"] = json.dumps(["maap-api_submit"])
     job_payload["params"] = json.dumps(params)
@@ -377,7 +378,7 @@ def delete_mozart_job(job_id):
         "operation": "purge"
     }
     logging.info("Submitting job of type {} with params {}".format(job_type, json.dumps(params)))
-    submit_response = mozart_submit_job(job_type=job_type, params=params)
+    submit_response = mozart_submit_job(job_type=job_type, params=params, queue=settings.LW_QUEUE)
     lw_job_id = submit_response.get("result")
     logging.info(lw_job_id)
 
@@ -398,7 +399,7 @@ def revoke_mozart_job(job_id):
         "operation": "revoke"
     }
     logging.info("Submitting job of type {} with params {}".format(job_type, json.dumps(params)))
-    submit_response = mozart_submit_job(job_type=job_type, params=params)
+    submit_response = mozart_submit_job(job_type=job_type, params=params, queue = settings.LW_QUEUE)
     lw_job_id = submit_response.get("result")
     logging.info(lw_job_id)
 

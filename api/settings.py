@@ -39,6 +39,7 @@ CONTAINER_URL = "registry.nasa.maap.xyz/root/dps_plot:master"
 # HySDS Mozart
 MOZART_URL = "https://[MOZART_IP]/mozart/api/v0.2"
 DEFAULT_QUEUE = "test-job_worker-large"
+LW_QUEUE = "system-jobs-queue"
 HYSDS_LW_VERSION = "v0.0.5"
 
 # FASTBROWSE API

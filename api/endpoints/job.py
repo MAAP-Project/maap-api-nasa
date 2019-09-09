@@ -218,22 +218,22 @@ class StopJobs(Resource):
                                 .format(job_id, purge_id))
             # verify if job is deleted
             job_response = hysds.mozart_job_status(job_id)
-            logging.info("Checkup on Deleted job. {}".format(job_response.get("success")))
-            if job_response.get("status") is None and job_response.get("success") is False:
-                # this means the job has been deleted.
-                logging.info("Job successfully deleted")
-                response = ogc.status_response(job_id=job_id, job_status="Deleted")
+            logging.info("Checkup on Revoked job. {}".format(job_response.get("success")))
+            if job_response.get("status") == "job-revoked":
+                # this means the job has been revoked.
+                logging.info("Job successfully revoked")
+                response = ogc.status_response(job_id=job_id, job_status="job-revoked")
                 logging.info(response)
                 return Response(response=response, mimetype='text/xml')
             else:
                 return Response(ogc.get_exception(type="FailedJobRevoke", origin_process="Dismiss",
-                                                  ex_message="Failed to delete job {}. Please try again or"
+                                                  ex_message="Failed to dismiss job {}. Please try again or"
                                                              " contact DPS administrator".format(job_id)),
                                 mimetype='text/xml',
                                 status=500)
         except Exception as ex:
             return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",
-                                              ex_message="Failed to delete job {}. Please try again or "
+                                              ex_message="Failed to dismiss job {}. Please try again or "
                                                          "contact DPS administrator. {}".format(job_id, ex)),
                             mimetype='text/xml', status=500)
 
