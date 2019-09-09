@@ -178,10 +178,7 @@ class GetCapabilities(Resource):
         if len(urls_query_string.split(',')) == 1:
             stats_resp = get_stats(urls_query_string, ','.join(map(str, bbox)))
             stats = stats_resp['statistics']['1']
-            std = stats['std']
-            min_scale = stats['min']
-            max_scale = stats['min'] + (3*std)
-            rescale = ','.join([str(min_scale), str(max_scale)])
+            rescale = ','.join([str(stats['pc'][0]), str(stats['pc'][1])])
 
         layer_info = {
             'layer_title': key,
