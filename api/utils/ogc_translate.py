@@ -163,15 +163,8 @@ def result_response(job_id, job_result):
     OCG GetResult Response
     <wps:Result xsi:schemaLocation="http://www.opengis.net/wps/2.0 http://schemas.opengis.net/wps/2.0/wps.xsd" xmlns:wps="http://www.opengis.net/wps/2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
     <wps:JobID>336d5fa5-3bd6-4ee9-81ea-c6bccd2d443e</wps:JobID>
-    <wps:Output id="result">
-        <wps:Products>
-        <wps:Product>
-        <wps:ProductName></wps:ProductName>
-        <wps:Locations>
-        <wps:Location><wps:Location>
-        </wps:Locations>
-        </wps:Product>
-        </wps:Products>
+    <wps:Output id="filename">
+      <wps:Reference xlin:href="location of product on S3 bucket"/>
     </wps:Output>
     </wps:Result>​
     :param job_result:
@@ -180,11 +173,13 @@ def result_response(job_id, job_result):
     response = ET.Element("wps:Result")
     response = set_namespaces(response)
     ET.SubElement(response, "wps:JobID").text = job_id
-    output = ET.SubElement(response, "wps:Output")
-    output.set("id","result")
-    products = ET.SubElement(output, "wps:Products")
     for product in job_result:
-        products = construct_product(products, product)
+        output = ET.SubElement(response, "wps:Output")
+        output.set("id", product.get("id"))
+        for url in product.get("urls"):
+            location = ET.SubElement(output, "wps:Data")
+            location.text = url
+        # products = construct_product(products, product)
     return tostring(response)
 
 
@@ -292,7 +287,7 @@ def get_capabilities(job_list):
         ET.SubElement(proc_summ, "ows:Identifier").text = job_type
         proc_metadata = ET.SubElement(proc_summ, "ows:Metadata")
         proc_metadata.set("xlin:role", "Process description")
-        proc_metadata.set("xlin:href", "https://api.maap.xyz/api/mas/algorithm/{}%3A{}"
+        proc_metadata.set("xlin:href", "https://api.maap.xyz/api/dps/job/describeprocess/{}%3A{}"
                           .format(job_type.strip("job-").split(":")[0],
                                   job_type.strip("job-").split(":")[1]))
     return tostring(response)

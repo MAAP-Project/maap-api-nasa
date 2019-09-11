@@ -63,6 +63,27 @@ class Submit(Resource):
                             status=500)
 
 
+@ns.route('/job/describeprocess/<string:algo_id>')
+class Describe(Resource):
+    def get(self, algo_id):
+        """
+        request detailed metadata on selected processes offered by a server
+        :return:
+        """
+        try:
+            job_type = "job-{}".format(algo_id)
+            response = hysds.get_job_spec(job_type)
+            print(json.dumps(response))
+            params = response.get("result").get("params")
+            response_body = ogc.describe_process_response(algo_id, params)
+            return Response(response_body, mimetype='text/xml')
+        except Exception as ex:
+            tb = traceback.format_exc()
+            return Response(ogc.get_exception(type="FailedDescribeProcess", origin_process="DescribeProcess",
+                                              ex_message="Failed to get parameters for algorithm. {} Traceback: {}"
+                                              .format(ex, tb)), status=500, mimetype='text/xml')
+
+
 @ns.route('/job/<string:job_id>')
 class Result(Resource):
     def get(self, job_id):
