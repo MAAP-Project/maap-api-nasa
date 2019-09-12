@@ -284,7 +284,7 @@ def get_capabilities(job_list):
         ET.SubElement(proc_summ, "ows:Title").text = "Algorithm: {} ; Version: {}"\
             .format(job_type.strip("job-").split(":")[0],
                     job_type.strip("job-").split(":")[1])
-        ET.SubElement(proc_summ, "ows:Identifier").text = job_type
+        ET.SubElement(proc_summ, "ows:Identifier").text = job_type.strip("job-")
         proc_metadata = ET.SubElement(proc_summ, "ows:Metadata")
         proc_metadata.set("xlin:role", "Process description")
         proc_metadata.set("xlin:href", "https://api.maap.xyz/api/dps/job/describeprocess/{}%3A{}"
