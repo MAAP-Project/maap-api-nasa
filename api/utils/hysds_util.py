@@ -153,15 +153,79 @@ def write_spec_file(spec_type, algorithm, body, repo_name=settings.REPO_NAME):
     write_file(path, file_name, json.dumps(body))
 
 
-def create_config_file(docker_container_url=settings.CONTAINER_URL):
+def write_dockerfile(repo_name, dockerfile_content):
     """
-    Creates the contents of config.txt file
-    Contains the base docker image URL for the job container
-    :param docker_container_url:
+    Write the docker file to the docker directory
+    :param dockerfile_content:
     :return:
     """
+    path = "{}/{}/docker/".format(settings.REPO_PATH, repo_name)
+    write_file(path, "Dockerfile", dockerfile_content)
 
-    return docker_container_url
+
+def create_config_file(repo_name, repo_url_w_token, repo_branch, docker_container_url=settings.CONTAINER_URL):
+    """
+    Creates the contents of config.txt file
+    Contains the information needed for the job container
+
+    Example content:
+    BASE_IMAGE_NAME=<registery-url>/root/jupyter_image/vanilla:1.0
+    REPO_URL_WITH_TOKEN=https://<gitlab-token>@mas.maap-project.org/root/dps_plot.git
+    REPO_NAME=dps_plot
+    BRANCH=master
+
+    :param repo_name:
+    :param repo_url_w_token:
+    :param repo_branch:
+    :param docker_container_url:
+    :return: config.txt content
+    """
+    config_content = "BASE_IMAGE_NAME={}\n".format(docker_container_url)
+    config_content += "REPO_URL_WITH_TOKEN={}\n".format(repo_url_w_token)
+    config_content += "REPO_NAME={}\n".format(repo_name)
+    config_content += "BRANCH={}".format(repo_branch)
+
+    return config_content
+
+
+def create_dockerfile(base_docker_image_name, label, repo_url, repo_name, branch):
+    """
+    This will create the Dockerfile the container builder on the CI will use.
+    :param base_docker_image_name:
+    :param repo_url:
+    :param repo_name:
+    :param branch:
+
+    sample:
+    FROM ${BASE_IMAGE_NAME}
+
+    MAINTAINER malarout "Namrata.Malarout@jpl.nasa.gov"
+    LABEL description="Lightweight System Jobs"
+
+    # provision lightweight-jobs PGE
+    USER ops
+
+    #clone in the SPDM repo
+    RUN git clone ${REPO_URL_WITH_TOKEN} && \
+        cd ${REPO_NAME} && \
+        git checkout ${BRANCH} && \
+
+    # set entrypoint
+    WORKDIR /home/ops
+    CMD ["/bin/bash", "--login"]
+    :return:
+    """
+    dockerfile = "FROM {}\n".format(base_docker_image_name)
+    dockerfile += "LABEL description={}\n".format(label)
+    dockerfile += "USER ops\n"
+    dockerfile += "RUN git clone {} && ".format(repo_url)
+    dockerfile += "    cd {} && ".format(repo_name)
+    dockerfile += "    git checkout {}".format(branch)
+    dockerfile += "\n# set entrypoint\n"
+    dockerfile += "WORKDIR /home/ops\n"
+    dockerfile += "CMD [\"bin/bash\", \"--login\"]"
+
+    return dockerfile
 
 
 def create_code_info(repo_url, repo_name, docker_container_url=settings.CONTAINER_URL, path_to_dockerfile=None):

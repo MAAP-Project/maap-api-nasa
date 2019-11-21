@@ -59,11 +59,15 @@ class Register(Resource):
         Sample JSON to post:
         { "script_command" : "python /app/plant.py",
          "algorithm_name" : "plant_test",
-         "algorithm_description" : "Test Plant",
-         "repo_url": "http://url/to/repo",
+         "label" : "test plant algorithm",
          "code_version": "master",
+         "algorithm_description" : "Test Plant",
          "environment_name": "ubuntu",
          "docker_container_url": "http://url/to/container",
+         "repo_url": "http://url/to/repo",
+
+
+
          "algorithm_params" : [
               {
               "field": "localize_urls",
@@ -137,12 +141,6 @@ class Register(Resource):
             job_spec = hysds.create_job_spec(script_command=script_command, algorithm_params=algorithm_params)
             hysds.write_spec_file(spec_type="job-spec", algorithm=algorithm_name, body=job_spec)
 
-            # creating config file
-            if req_data.get("docker_container_url") is not None:
-                config = hysds.create_config_file(docker_container_url=req_data.get("docker_container_url"))
-            else:
-                config = hysds.create_config_file()
-            hysds.write_file("{}/{}".format(settings.REPO_PATH, settings.REPO_NAME), "config.txt", config)
             # creating JSON file with all code information
             if req_data.get("repo_url") is not None:
                 repo_url = req_data.get("repo_url")
@@ -153,6 +151,23 @@ class Register(Resource):
                 code = hysds.create_code_info(repo_url=repo_url, repo_name=repo_name,
                                               docker_container_url=req_data.get("docker_container_url"))
                 hysds.write_file("{}/{}".format(settings.REPO_PATH, settings.REPO_NAME), "code_config.json", code)
+
+                # create the Dockerfile for the container build
+                docker_container_url = req_data.get("docker_container_url")
+                image_name = docker_container_url[docker_container_url.rfind("/") + 1:]
+                dockerfile = hysds.create_dockerfile(base_docker_image_name=image_name,
+                                                     label=req_data.get("label"),
+                                                     repo_url=req_data.get("repo_url"),
+                                                     repo_name=repo_name, branch=req_data.get("code_version"))
+                hysds.write_dockerfile(settings.REPO_NAME, dockerfile)
+
+                # creating config file
+                config = hysds.create_config_file(repo_name=repo_name,
+                                                  docker_container_url=req_data.get("docker_container_url"),
+                                                  repo_url_w_token=req_data.get("repo_url"),
+                                                  repo_branch=req_data.get("code_version"))
+                hysds.write_file("{}/{}".format(settings.REPO_PATH, settings.REPO_NAME), "config.txt", config)
+
             # creating file whose contents are returned on ci build success
             if req_data.get("code_version") is not None:
                 job_submission_json = hysds.get_job_submission_json(algorithm_name, req_data.get("code_version"))
