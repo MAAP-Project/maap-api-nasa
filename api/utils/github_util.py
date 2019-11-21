@@ -6,7 +6,7 @@ import api.settings as settings
 
 
 def git_clone(repo_url=settings.GIT_REPO_URL, repo_name=settings.REPO_NAME):
-    GITLAB_TOKEN = os.environ['gitlab_token']
+    GITLAB_TOKEN = settings.GITLAB_TOKEN
     git_url = Template(repo_url).substitute(TOKEN=GITLAB_TOKEN)
     repo_path = os.path.join(settings.REPO_PATH, repo_name)
     if os.path.exists(repo_path):

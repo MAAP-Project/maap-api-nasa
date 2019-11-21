@@ -28,6 +28,9 @@ CMR_CLIENT_ID = ''
 # GIT settings
 GIT_REPO_URL = "https://gitlab-ci-token:$TOKEN@repo.nasa.maap.xyz/root/register-job.git"
 
+# GTILAB Settings
+GITLAB_TOKEN = "foobar"
+
 REPO_NAME = "register-job"
 REPO_PATH = "/home/ubuntu/repo"
 VERSION = "master"
