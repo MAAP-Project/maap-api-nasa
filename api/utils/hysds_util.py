@@ -150,6 +150,8 @@ def write_spec_file(spec_type, algorithm, body, repo_name=settings.REPO_NAME):
     """
     path = "{}/{}/docker/".format(settings.REPO_PATH, repo_name)
     file_name = "{}.json.{}".format(spec_type, get_algorithm_file_name(algorithm))
+    # Additions to job spec schema in HySDS core v3.0
+    body.update({"soft_time_limit": 86400, "time_limit": 86400})
     write_file(path, file_name, json.dumps(body))
 
 
