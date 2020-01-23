@@ -152,15 +152,6 @@ class Register(Resource):
                                               docker_container_url=req_data.get("docker_container_url"))
                 hysds.write_file("{}/{}".format(settings.REPO_PATH, settings.REPO_NAME), "code_config.json", code)
 
-                # create the Dockerfile for the container build
-                docker_container_url = req_data.get("docker_container_url")
-                image_name = docker_container_url[docker_container_url.rfind("/") + 1:]
-                dockerfile = hysds.create_dockerfile(base_docker_image_name=image_name,
-                                                     label=req_data.get("label"),
-                                                     repo_url=req_data.get("repo_url"),
-                                                     repo_name=repo_name, branch=req_data.get("code_version"))
-                hysds.write_dockerfile(settings.REPO_NAME, dockerfile)
-
                 # creating config file
                 config = hysds.create_config_file(repo_name=repo_name,
                                                   docker_container_url=req_data.get("docker_container_url"),
