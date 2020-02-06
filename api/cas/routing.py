@@ -111,7 +111,7 @@ def validate(ticket):
 
         cas_validate_proxy_url = create_cas_proxy_url(
             current_app.config['CAS_SERVER'],
-            'https://api.maap.xyz/api/members/self',
+            'https://api.maap.xyz',
             proxy_granting_ticket
         )
 
@@ -124,7 +124,7 @@ def validate(ticket):
 
             proxy_validate_url = create_cas_proxy_validate_url(
                 current_app.config['CAS_SERVER'],
-                'https://api.maap.xyz/api/members/self',
+                'https://api.maap.xyz',
                 proxy_ticket
             )
 
