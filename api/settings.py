@@ -49,9 +49,9 @@ HYSDS_LW_VERSION = "v0.0.5"
 TILER_ENDPOINT = 'https://8e9mu91qr6.execute-api.us-east-1.amazonaws.com/production'
 
 # CAS
-CAS_SECRET_KEY = ''
-CAS_SERVER_NAME = ''
-CAS_AFTER_LOGIN = 'profile'
+CAS_SECRET_KEY = '9c0d611c-04c5-4f36-b91c-8374b4410590'
+CAS_SERVER_NAME = 'https://auth.nasa.maap.xyz/cas'
+CAS_AFTER_LOGIN = 'api.members_self'
 
 # Query Service
 QS_STATE_MACHINE_ARN = "arn:aws:states:us-east-1:532321095167:stateMachine:maap-api-query-service-dev-RunQuery"

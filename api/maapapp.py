@@ -3,8 +3,7 @@
 import logging.config
 
 import os
-import requests
-from flask import Flask, Blueprint, jsonify, request, make_response
+from flask import Flask, Blueprint
 from api import settings
 from api.endpoints.cmr import ns as cmr_collections_namespace
 from api.endpoints.algorithm import ns as algorithm_namespace
@@ -14,7 +13,8 @@ from api.endpoints.wms import ns as wms_namespace
 from api.endpoints.members import ns as members_namespace
 from api.endpoints.query_service import ns as query_service_namespace
 from api.restplus import api
-from flask_cas import CAS
+from api.cas.CAS import CAS
+from api.cas.CAS import login_required
 
 app = Flask(__name__)
 cas = CAS(app)
@@ -31,6 +31,13 @@ app.register_blueprint(blueprint)
 
 app.config['CAS_SERVER'] = settings.CAS_SERVER_NAME
 app.config['CAS_AFTER_LOGIN'] = settings.CAS_AFTER_LOGIN
+app.config['CAS_VALIDATE_ROUTE'] = '/cas/p3/serviceValidate'
+
+
+@app.route('/test')
+@login_required
+def route_root():
+    return cas.username# json.dumps(cas.attributes)
 
 
 @app.route('/')
