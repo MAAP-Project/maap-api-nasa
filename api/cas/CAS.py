@@ -1,5 +1,5 @@
 import flask
-from flask import current_app
+from flask import current_app, request
 from . import routing
 
 from functools import wraps
@@ -78,11 +78,19 @@ def login_required(function):
     @wraps(function)
     def wrap(*args, **kwargs):
         if 'CAS_USERNAME' not in flask.session:
-            flask.session['CAS_AFTER_LOGIN_SESSION_URL'] = (
-                    flask.request.script_root +
-                    flask.request.full_path
-            )
-            return login()
+
+            if 'proxy-ticket' in request.headers:
+                routing.validate('')
+
+                if 'CAS_USERNAME' not in flask.session:
+                    return login()
+
+            else:
+                flask.session['CAS_AFTER_LOGIN_SESSION_URL'] = (
+                        flask.request.script_root +
+                        flask.request.full_path
+                )
+                return login()
         else:
             return function(*args, **kwargs)
 
