@@ -18,7 +18,7 @@ from api.cas.CAS import login_required
 
 app = Flask(__name__)
 cas = CAS(app)
-app.secret_key = settings.CAS_SECRET_KEY
+app.secret_key = 'tempkey123' # settings.CAS_SECRET_KEY
 logging_conf_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '../logging.conf'))
 logging.config.fileConfig(logging_conf_path)
 log = logging.getLogger(__name__)
