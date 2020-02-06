@@ -44,6 +44,10 @@ class CAS(object):
         app.config.setdefault('CAS_AFTER_LOGOUT', None)
         # Register Blueprint
         app.register_blueprint(routing.blueprint, url_prefix=url_prefix)
+        app.logger.debug('app.config')
+        app.logger.debug(app.config)
+        current_app.logger.debug(current_app.config)
+        current_app.logger.debug(current_app.config)
 
 
     @property
