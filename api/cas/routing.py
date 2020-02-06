@@ -111,7 +111,7 @@ def validate(ticket):
 
         cas_validate_proxy_url = create_cas_proxy_url(
             current_app.config['CAS_SERVER'],
-            flask.url_for('.login', origin=flask.session.get('CAS_AFTER_LOGIN_SESSION_URL'), _external=True),
+            'https://api.maap.xyz/api/members/self',
             proxy_granting_ticket
         )
 
@@ -124,7 +124,7 @@ def validate(ticket):
 
             proxy_validate_url = create_cas_proxy_validate_url(
                 current_app.config['CAS_SERVER'],
-                flask.url_for('.login', origin=flask.session.get('CAS_AFTER_LOGIN_SESSION_URL'), _external=True),
+                'https://api.maap.xyz/api/members/self',
                 proxy_ticket
             )
 
