@@ -174,7 +174,6 @@ def validate_cas_request(cas_url):
                            "cas:proxySuccess" in xml_from_dict["cas:serviceResponse"] else False
     except ValueError:
         current_app.logger.error("CAS returned unexpected result")
-        current_app.logger.debug(xml_from_dict)
 
     return is_valid, xml_from_dict
 
