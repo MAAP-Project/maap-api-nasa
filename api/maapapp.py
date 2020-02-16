@@ -32,6 +32,7 @@ app.config['CAS_AFTER_LOGIN'] = settings.CAS_AFTER_LOGIN
 app.config['SQLALCHEMY_DATABASE_URI'] = settings.DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+app.app_context().push()
 db.init_app(app)
 db.create_all()
 db.session.commit()
