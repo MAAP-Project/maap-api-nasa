@@ -13,11 +13,9 @@ from api.endpoints.wms import ns as wms_namespace
 from api.endpoints.members import ns as members_namespace
 from api.endpoints.query_service import ns as query_service_namespace
 from api.restplus import api
-from api.cas.CAS import CAS
-from api.cas.CAS import login_required
+from api.maap_database import db
 
 app = Flask(__name__)
-cas = CAS(app)
 app.secret_key = settings.CAS_SECRET_KEY
 logging_conf_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '../logging.conf'))
 logging.config.fileConfig(logging_conf_path)
@@ -31,13 +29,10 @@ app.register_blueprint(blueprint)
 
 app.config['CAS_SERVER'] = settings.CAS_SERVER_NAME
 app.config['CAS_AFTER_LOGIN'] = settings.CAS_AFTER_LOGIN
-app.config['CAS_VALIDATE_ROUTE'] = '/cas/p3/serviceValidate'
+app.config['SQLALCHEMY_DATABASE_URI'] = settings.DATABASE_URL
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-
-@app.route('/test')
-@login_required
-def route_root():
-    return cas.username# json.dumps(cas.attributes)
+db.init_app(app)
 
 
 @app.route('/')

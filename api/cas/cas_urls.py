@@ -51,7 +51,7 @@ def create_cas_login_url(cas_url, cas_route, service, renew=None, gateway=None):
     """ Create a CAS login URL .
 
     Keyword arguments:
-    cas_url -- The url to the CAS (ex. http://sso.pdx.edu)
+    cas_url -- The url to the CAS (ex. https://auth.maap.gov)
     cas_route -- The route where the CAS lives on server (ex. /cas)
     service -- (ex.  http://localhost:5000/login)
     renew -- "true" or "false"
@@ -59,11 +59,11 @@ def create_cas_login_url(cas_url, cas_route, service, renew=None, gateway=None):
 
     Example usage:
     >>> create_cas_login_url(
-    ...     'http://sso.pdx.edu',
+    ...     'https://auth.maap.gov',
     ...     '/cas',
     ...     'http://localhost:5000',
     ... )
-    'http://sso.pdx.edu/cas?service=http%3A%2F%2Flocalhost%3A5000'
+    'https://auth.maap.govcas?service=http%3A%2F%2Flocalhost%3A5000'
     """
     return create_url(
         cas_url,
@@ -78,17 +78,17 @@ def create_cas_proxy_url(cas_url, service, pgt):
     """ Create a CAS proxy URL .
 
     Keyword arguments:
-    cas_url -- The url to the CAS (ex. http://sso.pdx.edu)
+    cas_url -- The url to the CAS (ex. https://auth.maap.gov)
     service -- (ex.  http://localhost:5000/login)
     pgt -- Proxy Granting Ticket (ex.  PGT-25-0PsmxLE116FbmfZEAO2UV0Wxu4Bb5rz1BCWOoidCKa-nkUTcjfVVbyCOc...)
 
     Example usage:
     >>> create_cas_proxy_url(
-    ...     'http://sso.pdx.edu/cas',
+    ...     'https://auth.maap.gov',
     ...     'http://localhost:5000',
     ...     'PGT-25-0PsmxLE116FbmfZEAO2UV0Wxu4Bb5rz1BCWOoidCKa-nkUTcjfVVbyCOc',
     ... )
-    'http://sso.pdx.edu/cas/proxy?targetService=http%3A%2F%2Flocalhost%3A5000&pgt=PGT-25-0PsmxLE116FbmfZEAO2UV0Wxu4Bb5rz1BCWOoidCKa-nkUTcjfVVbyCOc'
+    'https://auth.maap.gov/cas/proxy?targetService=http%3A%2F%2Flocalhost%3A5000&pgt=PGT-25-0PsmxLE116FbmfZEAO2UV0Wxu4Bb5rz1BCWOoidCKa-nkUTcjfVVbyCOc'
     """
     return create_url(
         cas_url,
@@ -102,17 +102,17 @@ def create_cas_proxy_validate_url(cas_url, service, ticket):
     """ Create a CAS proxy Validate URL .
 
     Keyword arguments:
-    cas_url -- The url to the CAS (ex. http://sso.pdx.edu)
+    cas_url -- The url to the CAS (ex. https://auth.maap.gov)
     service -- (ex.  http://localhost:5000/login)
     ticket -- Proxy Ticket (ex.  PT-32-GHExXMJ6XGrE-qF21...)
 
     Example usage:
     >>> create_cas_proxy_validate_url(
-    ...     'http://sso.pdx.edu/cas',
+    ...     'https://auth.maap.gov',
     ...     'http://localhost:5000',
     ...     'PT-32-GHExXMJ6XGrE-qF21',
     ... )
-    'http://sso.pdx.edu/cas/p3/proxyValidate?service=http%3A%2F%2Flocalhost%3A5000&ticket=PT-32-GHExXMJ6XGrE-qF21'
+    'https://auth.maap.gov/cas/p3/proxyValidate?service=http%3A%2F%2Flocalhost%3A5000&ticket=PT-32-GHExXMJ6XGrE-qF21'
     """
     return create_url(
         cas_url,

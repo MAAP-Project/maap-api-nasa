@@ -59,3 +59,6 @@ QS_RESULT_BUCKET = "maap-api-query-service-dev-query-results"
 
 # AWS
 AWS_REGION = "us-east-1"
+
+# DB
+DATABASE_URL="postgresql://localhost/maap_dev"
