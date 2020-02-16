@@ -21,7 +21,7 @@ RESTPLUS_ERROR_404_HELP = False
 CMR_TOKEN_SERVICE_URL = 'https://cmr.earthdata.nasa.gov/legacy-services/rest/tokens'
 
 # MAAP DEV
-CMR_URL = 'https://maap-project.org'
+CMR_URL = 'https://cmr.maap-project.org'
 CMR_API_TOKEN = ''
 CMR_CLIENT_ID = ''
 
