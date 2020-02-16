@@ -67,6 +67,7 @@ def initialize_app(flask_app):
     api.add_namespace(query_service_namespace)
     flask_app.register_blueprint(blueprint)
     db.create_all()
+    db.session.commit()
 
 
 def main():
