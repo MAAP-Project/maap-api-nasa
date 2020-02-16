@@ -33,6 +33,8 @@ app.config['SQLALCHEMY_DATABASE_URI'] = settings.DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
+db.create_all()
+db.session.commit()
 
 
 @app.route('/')
@@ -66,8 +68,6 @@ def initialize_app(flask_app):
     api.add_namespace(members_namespace)
     api.add_namespace(query_service_namespace)
     flask_app.register_blueprint(blueprint)
-    db.create_all()
-    db.session.commit()
 
 
 def main():
