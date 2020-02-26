@@ -34,6 +34,7 @@ class Submit(Resource):
             job_id = response.get("result")
             response = hysds.mozart_job_status(job_id=job_id)
             job_status = response.get("status")
+
             if job_id is not None:
                 logging.info("Submitted Job with HySDS ID: {}".format(job_id))
                 return Response(ogc.status_response(job_id=job_id, job_status=job_status), mimetype='text/xml')

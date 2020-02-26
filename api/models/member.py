@@ -1,5 +1,6 @@
 from api.maap_database import db
 from datetime import datetime
+import json
 
 
 class Member(db.Model):
@@ -27,12 +28,11 @@ class Member(db.Model):
 
     @property
     def serialize(self):
-        return {
-            'id': self.id,
-            'username': self.username,
-            'email': self.email,
-            'first_name': self.first_name,
-            'last_name': self.last_name,
-            'organization': self.organization,
-            'public_ssh_key': self.public_ssh_key,
-        }
+        json_data = json.dumps(self, default=lambda o: o.__dict__)
+        return json_data
+
+    @property
+    def deserialize(self, json_data):
+        decoded_obj = Member(**json.loads(json_data))
+        return decoded_obj
+
