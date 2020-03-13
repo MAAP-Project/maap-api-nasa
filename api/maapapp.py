@@ -14,6 +14,7 @@ from api.endpoints.members import ns as members_namespace
 from api.endpoints.query_service import ns as query_service_namespace
 from api.restplus import api
 from api.maap_database import db
+from api.models import initialize_sql
 
 app = Flask(__name__)
 app.secret_key = settings.CAS_SECRET_KEY
@@ -34,8 +35,10 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 app.app_context().push()
 db.init_app(app)
-db.create_all()
-db.session.commit()
+initialize_sql(db.engine)
+#Base.ini .metadata.create_all(db.engine)
+# db.create_all()
+# db.session.commit()
 
 
 @app.route('/')

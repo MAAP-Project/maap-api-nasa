@@ -30,7 +30,7 @@ def validate_proxy(ticket):
 
     current_app.logger.debug("validating token {0}".format(ticket))
 
-    cas_session = MemberSession.query.filter_by(session_key=ticket).first()
+    cas_session = db.session.query(MemberSession).filter_by(session_key=ticket).first()
 
     # Check for session created timestamp < 2 hours old
     if cas_session is not None and cas_session.creation_date + timedelta(hours=2) > datetime.utcnow():
@@ -90,7 +90,7 @@ def start_member_session(cas_response, ticket):
     attributes = xml_from_dict.get("cas:attributes", {})
     usr = get_cas_attribute_value(attributes, 'preferred_username')
 
-    member = Member.query.filter_by(username=usr).first()
+    member = db.session.query(Member).filter_by(username=usr).first()
 
     if member is None:
         member = Member(first_name=get_cas_attribute_value(attributes, 'given_name'),
@@ -101,7 +101,7 @@ def start_member_session(cas_response, ticket):
         db.session.add(member)
         db.session.commit()
 
-    member_session = MemberSession(member_id=member.id, session_key=ticket)
+    member_session = MemberSession(member_id=member.id, session_key=ticket, creation_date=datetime.utcnow())
     db.session.add(member_session)
     db.session.commit()
 
@@ -121,7 +121,7 @@ def get_authorized_user():
         member_session = validate_proxy(request.headers['proxy-ticket'])
 
         if member_session is not None:
-            return member_session.member.serialize
+            return member_session.member
 
     return None
 
