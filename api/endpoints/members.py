@@ -50,6 +50,20 @@ class PublicSshKeyUpload(Resource):
         member_schema = MemberSchema()
         return member_schema.dumps(member)
 
+    @login_required
+    def delete(self):
+        member = get_authorized_user()
+
+        db.session.query(Member).filter(Member.id == member.id). \
+            update({Member.public_ssh_key: '',
+                    Member.public_ssh_key_name: '',
+                    Member.public_ssh_key_modified_date: datetime.utcnow()})
+
+        db.session.commit()
+
+        member_schema = MemberSchema()
+        return member_schema.dumps(member)
+
 
 # @ns.route('/self/project')
 # class ProjectData(Resource):
