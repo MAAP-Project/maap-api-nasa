@@ -7,6 +7,7 @@ from api.maap_database import db
 #from api.models.member_cmr_collection import MemberCmrCollection
 from api.models.member import Member, MemberSchema
 from datetime import datetime
+import json
 
 
 log = logging.getLogger(__name__)
@@ -22,7 +23,18 @@ class Self(Resource):
         member = get_authorized_user()
         member_schema = MemberSchema()
 
-        return member_schema.dumps(member)
+        return json.loads(member_schema.dumps(member))
+
+
+@ns.route('/selfTest')
+class Self(Resource):
+
+    @login_required
+    def get(self):
+        member = get_authorized_user()
+        member_schema = MemberSchema()
+
+        return json.loads(member_schema.dumps(member))
 
 
 @ns.route('/self/sshKey')
@@ -48,7 +60,7 @@ class PublicSshKeyUpload(Resource):
         db.session.commit()
 
         member_schema = MemberSchema()
-        return member_schema.dumps(member)
+        return json.loads(member_schema.dumps(member))
 
     @login_required
     def delete(self):
@@ -62,7 +74,7 @@ class PublicSshKeyUpload(Resource):
         db.session.commit()
 
         member_schema = MemberSchema()
-        return member_schema.dumps(member)
+        return json.loads(member_schema.dumps(member))
 
 
 # @ns.route('/self/project')
