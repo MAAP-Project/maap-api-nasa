@@ -189,6 +189,54 @@ class Status(Resource):
                                               "of DPS".format(job_id)), mimetype='text/xml', status=500)
 
 
+@ns.route('/job/<string:job_id>/metrics')
+class Metrics(Resource):
+
+    def get(self, job_id):
+        """
+        This will return the result of the job that successfully completed
+        :return:
+        """
+        metrics = dict()
+        try:
+            logging.info("Finding result of job with id {}".format(job_id))
+            logging.info("Retrieved Mozart job id: {}".format(job_id))
+            response = hysds.get_mozart_job_info(job_id)
+
+            # get all the relevant metrics information
+            job_info = response.get("job").get("job_info")
+            job_facts = job_info.get("facts")
+            architecture = job_facts.get("architecture")
+            os = job_facts.get("operatingsystem")
+            memoryfree = job_facts.get("memoryfree")
+            memorysize = job_facts.get("memorysize")
+            instance_typ = job_facts.get("ec2_instance_type")
+            time_start = job_info.get("cmd_start")
+            time_end = job_info.get("cmd_end")
+            time_duration = job_info.get("cmd_duration")
+
+            # build the metrics object
+            metrics["machine_type"] = instance_typ
+            metrics["architecture"] = architecture
+            metrics["operating_system"] = os
+            metrics["machine_memory_size"] = memorysize
+            metrics["machine_memory_free"] = memoryfree
+            metrics["job_start_time"] = time_start
+            metrics["job_end_time"] = time_end
+            metrics["job_duration_seconds"] = time_duration
+
+
+            response["code"] = 200
+            response["metrics"] = metrics
+            response["message"] = "success"
+            return response
+        except Exception as ex:
+            return Response(ogc.get_exception(type="FailedGetMetrics", origin_process="GetMetrics",
+                                              ex_message="Failed to get metrics of job {}. " \
+                                              " please contact administrator " \
+                                              "of DPS".format(job_id)), mimetype='text/xml', status=500)
+
+
 @ns.route('/job/<string:username>/list')
 class Jobs(Resource):
 
