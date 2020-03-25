@@ -198,13 +198,14 @@ class Metrics(Resource):
         :return:
         """
         metrics = dict()
+        response = dict()
         try:
             logging.info("Finding result of job with id {}".format(job_id))
             logging.info("Retrieved Mozart job id: {}".format(job_id))
-            response = hysds.get_mozart_job_info(job_id)
+            mozart_response = hysds.get_mozart_job_info(job_id)
 
             # get all the relevant metrics information
-            job_info = response.get("job").get("job_info")
+            job_info = mozart_response.get("job").get("job_info")
             job_facts = job_info.get("facts")
             architecture = job_facts.get("architecture")
             os = job_facts.get("operatingsystem")
@@ -224,7 +225,6 @@ class Metrics(Resource):
             metrics["job_start_time"] = time_start
             metrics["job_end_time"] = time_end
             metrics["job_duration_seconds"] = time_duration
-
 
             response["code"] = 200
             response["metrics"] = metrics
