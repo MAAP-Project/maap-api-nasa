@@ -7,6 +7,11 @@ import api.utils.github_util as git
 import api.utils.hysds_util as hysds
 import api.settings as settings
 import api.utils.ogc_translate as ogc
+from api.cas.cas_auth import get_authorized_user, login_required
+from api.maap_database import db
+from api.models.member_algorithm import MemberAlgorithm
+from sqlalchemy import or_
+from datetime import datetime
 
 log = logging.getLogger(__name__)
 
@@ -200,6 +205,7 @@ class Register(Resource):
         try:
             job_list = hysds.get_algorithms()
             algo_list = list()
+            member_algo_list = self._get_member_algorithms()
             for job_type in job_list:
                 algo = dict()
                 algo["type"] = job_type.strip("job-").split(":")[0]
@@ -215,6 +221,15 @@ class Register(Resource):
                             ex_message="Failed to get list of jobs. {}. {}".format(ex.message, tb)),
                             status=500,
                             mimetype='text/xml')
+
+    def _get_member_algorithms(self):
+        member = get_authorized_user()
+
+        if member is None:
+            return db.query(MemberAlgorithm).filter(MemberAlgorithm.is_public).all()
+        else:
+            return db.query(MemberAlgorithm).filter(or_(MemberAlgorithm.member_id == member.id,
+                                                        MemberAlgorithm.is_public)).all()
 
 
 @ns.route('/algorithm/<string:algo_id>')
@@ -273,6 +288,32 @@ class Build(Resource):
         response_body["success"] = True
 
         # add endpoint call to front end
+
+        return response_body
+
+
+@ns.route('/publish')
+class Build(Resource):
+
+    @login_required
+    def post(self):
+        """
+        This endpoint is called by a logged-in user to make an algorithm public
+        :return:
+        """
+        req_data = request.get_json()
+        algo_id = req_data["algo_id"]
+        m = get_authorized_user()
+
+        ma = MemberAlgorithm(member_id=m.id, algorithm_key=algo_id, is_public=True,
+                             creation_date=datetime.utcnow())
+        db.session.add(ma)
+        db.session.commit()
+
+        response_body = dict()
+        response_body["message"] = "Successfully published algorithm {}".format(algo_id)
+        response_body["code"] = 200
+        response_body["success"] = True
 
         return response_body
 
