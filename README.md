@@ -12,6 +12,28 @@ To run the MAAP API locally using PyCharm, create a Python Configuration with th
 - Python interpreter: `Python 3.7`
 - Working directory: `./api`
 
+## Local development using python virtualenv
+
+Pre-requisites: pip, python3.7 and virtualenv
+
+```
+python3 -m venv maap-api-nasa # or whatever environment name you choose
+source maap-api-nasa/bin/activate
+pip3 install -r requirements.txt
+```
+
+You can run the app:
+
+```
+FLASK_APP=api/maapapp.py flask run --host=0.0.0.0
+```
+
+And run a test:
+
+```
+python3 -m unittest test/api/endpoints/test_wmts_get_tile.py
+```
+
 ## User Accounts
 
 A valid MAAP API token must be included in the header for any API request. An [Earthdata account](https://uat.urs.earthdata.nasa.gov) is required to access the MAAP API. To obtain a token, URS credentials must be provided as shown below:

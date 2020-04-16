@@ -5,8 +5,8 @@ default_collections = {
     "color_map": "schwarzwald",
     "rescale": "-1,1"
   },
-  "lvis_collection_level_2": {
-    "short_name": "lvis_collection_level_2",
+  "AFLVIS2": {
+    "short_name": "AFLVIS2",
     "version": "2.0.1",
     "rescale": "0,70",
     "color_map": "schwarzwald",
