@@ -52,7 +52,7 @@ def get_cog_urls_string(params={}):
     for granule in cmr_response_feed:
         granule = Granule(granule, 'aws_access_key_id', 'aws_secret_access_key')
         urls = granule['links']
-        browse_file = list(filter(lambda x: "(BROWSE)" in x['title'], urls))
+        browse_file = list(filter(lambda x: x.get('title') and "(BROWSE)" in x.get('title'), urls))
         if browse_file:
             browse_urls.append(browse_file[0]['href'])
     browse_urls_query_string = ','.join(browse_urls)
@@ -60,14 +60,17 @@ def get_cog_urls_string(params={}):
 
 
 def gen_mosaic_url(params={}):
+    ext = params.get('ext') if params.get('ext') else 'png'
+    color_map = params.get('color_map') if params.get('color_map') else 'schwarzwald'
+    rescale = params.get('rescale') if params.get('rescale') else '-1,1'
     return settings.TILER_ENDPOINT + '/mosaic/' + \
            str(params['z']) + '/' + \
            str(params['x']) + '/' + \
            str(params['y']) + '.' + \
-           params['ext'] + '?urls=' + \
+           ext + '?urls=' + \
            params['urls'] + '&color_map=' + \
-           params['color_map'] + '&rescale=' + \
-           params['rescale']
+           color_map + '&rescale=' + \
+           rescale
 
 
 def get_tiles(tiler_url=''):

@@ -42,13 +42,24 @@ class GetMap(Resource):
             # TODO(Aimee): Permitted parameters should be consistent with the
             # OGC WMS spec. There are other args which could be supported such
             # as STYLE. Also, multiple layers could be passed.
-            bbox = tuple(map(float, request.args['BBOX'].split(',')))
-            size = (int(request.args['HEIGHT']), int(request.args['WIDTH']))
+            if request.args.get('BBOX'):
+                bbox = tuple(map(float, request.args.get('BBOX').split(',')))
+            else:
+                bbox = (-90, -180, 90, 180)
+            if request.args.get('HEIGHT') and request.args.get('WIDTH'):
+                size = (int(request.args.get('HEIGHT')),
+                        int(request.args.get('WIDTH')))
+            else:
+                size = (256, 256)
+
             # FIXME: One collection (AFLVIS2) has granule urs which include
             # a colon, which causes a mapproxy configuration error.
             # Example: SC:AFLVIS2.001:138348873. This also shows up in wmts.py.
             layer = request.args['LAYERS'].replace(':', '')
-            img_format = request.args['FORMAT']
+            if request.args.get('FORMAT'):
+                img_format = request.args.get('FORMAT')
+            else:
+                img_format = 'image/png'
 
             # Create the image
             img_data = mapit(wmts_confs, layer, img_format, bbox, size)

@@ -1,0 +1,172 @@
+<?xml version="1.0"?>
+<!DOCTYPE WMT_MS_Capabilities SYSTEM "http://schemas.opengis.net/wms/1.1.1/WMS_MS_Capabilities.dtd"
+ [
+ {{if tile_layers}}
+ <!ELEMENT VendorSpecificCapabilities (TileSet*) >
+ <!ELEMENT TileSet (SRS, BoundingBox?, Resolutions, Width, Height, Format, Layers*, Styles*) >
+ <!ELEMENT Resolutions (#PCDATA) >
+ <!ELEMENT Width (#PCDATA) >
+ <!ELEMENT Height (#PCDATA) >
+ <!ELEMENT Layers (#PCDATA) >
+ <!ELEMENT Styles (#PCDATA) >
+ {{else}}
+ <!ELEMENT VendorSpecificCapabilities EMPTY>
+ {{endif}}
+ ]>  <!-- end of DOCTYPE declaration -->
+<WMT_MS_Capabilities version="1.1.1">
+<Service>
+  <Name>OGC:WMS</Name>
+  <Title>{{service.title}}</Title>
+  <Abstract>{{service.abstract}}</Abstract>
+{{if service.online_resource}}
+  <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="{{service.online_resource}}"/>
+{{else}}
+  <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="{{service.url}}"/>
+{{endif}}
+{{if service.contact}}
+{{py:service.contact = bunch(default='', **service.contact)}}
+  <ContactInformation>
+      <ContactPersonPrimary>
+        <ContactPerson>{{service.contact.person}}</ContactPerson>
+        <ContactOrganization>{{service.contact.organization}}</ContactOrganization>
+      </ContactPersonPrimary>
+      <ContactPosition>{{service.contact.position}}</ContactPosition>
+      <ContactAddress>
+        <AddressType>{{service.contact.get('address_type', 'postal')}}</AddressType>
+        <Address>{{service.contact.address}}</Address>
+        <City>{{service.contact.city}}</City>
+        <StateOrProvince>{{service.contact.state}}</StateOrProvince>
+        <PostCode>{{service.contact.postcode}}</PostCode>
+        <Country>{{service.contact.country}}</Country>
+      </ContactAddress>
+      <ContactVoiceTelephone>{{service.contact.phone}}</ContactVoiceTelephone>
+      <ContactFacsimileTelephone>{{service.contact.fax}}</ContactFacsimileTelephone>
+      <ContactElectronicMailAddress>{{service.contact.email}}</ContactElectronicMailAddress>
+  </ContactInformation>
+{{endif}}
+  <Fees>{{service.get('fees', 'none')}}</Fees>
+  <AccessConstraints>{{service.get('access_constraints', 'none')}}</AccessConstraints>
+</Service>
+
+<Capability>
+  <Request>
+    <GetCapabilities>
+      <Format>application/vnd.ogc.wms_xml</Format>
+      <DCPType>
+        <HTTP>
+          <Get><OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="{{service.url}}?"/></Get>
+        </HTTP>
+      </DCPType>
+    </GetCapabilities>
+    <GetMap>
+{{for format in formats}}
+        <Format>{{format}}</Format>
+{{endfor}}
+      <DCPType>
+        <HTTP>
+          <Get><OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="{{service.url}}?"/></Get>
+        </HTTP>
+      </DCPType>
+    </GetMap>
+    <GetFeatureInfo>
+{{for format in info_formats}}
+      <Format>{{format}}</Format>
+{{endfor}}
+      <DCPType>
+        <HTTP>
+          <Get><OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="{{service.url}}?"/></Get>
+        </HTTP>
+      </DCPType>
+    </GetFeatureInfo>
+{{if service.has_legend}}
+    <GetLegendGraphic>
+{{for format in formats}}
+        <Format>{{format}}</Format>
+{{endfor}}
+        <DCPType>
+            <HTTP>
+                <Get><OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="{{service.url}}?"/></Get>
+            </HTTP>
+        </DCPType>
+    </GetLegendGraphic>
+{{endif}}
+  </Request>
+  <Exception>
+    <Format>application/vnd.ogc.se_xml</Format>
+    <Format>application/vnd.ogc.se_inimage</Format>
+    <Format>application/vnd.ogc.se_blank</Format>
+  </Exception>
+{{if tile_layers}}
+  <VendorSpecificCapabilities>
+{{for layer in tile_layers}}
+    <TileSet>
+      <SRS>{{layer.grid.srs.srs_code}}</SRS>
+      <BoundingBox SRS="{{layer.grid.srs.srs_code}}" minx="{{ layer.extent.bbox[0] }}" miny="{{ layer.extent.bbox[1] }}" maxx="{{ layer.extent.bbox[2] }}" maxy="{{ layer.extent.bbox[3] }}" />
+      <Resolutions>{{for level, res in layer.grid.tile_sets}}{{res}} {{endfor}}</Resolutions>
+      <Width>{{layer.grid.tile_size[0]}}</Width>
+      <Height>{{layer.grid.tile_size[1]}}</Height>
+      <Format>{{layer.md['format']}}</Format>
+      <Layers>{{layer.name}}</Layers>
+      <Styles></Styles>
+    </TileSet>
+{{endfor}}
+  </VendorSpecificCapabilities>
+{{endif}}
+
+{{def layer_capabilities(layer, with_srs=False)}}
+  <Layer{{if layer.queryable}} queryable="1"{{endif}}>
+    {{if layer.name}}
+    <Name>{{ layer.name }}</Name>
+    {{endif}}
+    <Title>{{ layer.title }}</Title>
+    {{if layer.md and 'abstract' in layer.md}}
+    <Abstract>{{ layer.md['abstract'] }}</Abstract>
+    {{endif}}
+    {{if with_srs}}
+    {{for s in srs}}
+    <SRS>{{s}}</SRS>
+    {{endfor}}
+    {{endif}}
+    {{py: extent = layer_llbbox(layer)}}
+    <LatLonBoundingBox minx="{{ extent[0] }}" miny="{{ extent[1] }}" maxx="{{ extent[2] }}" maxy="{{ extent[3] }}" />
+    {{for srs_code, bbox in layer_srs_bbox(layer)}}
+    <BoundingBox SRS="{{srs_code}}" minx="{{ bbox[0] }}" miny="{{ bbox[1] }}" maxx="{{ bbox[2] }}" maxy="{{ bbox[3] }}" />
+    {{endfor}}
+    {{py: md = bunch(default='', **layer.md)}}
+    {{if md.metadata}}
+      {{for data in md.metadata}}
+          {{py: data = bunch(default='', **data)}}
+          {{if wms111metadatatype(data.type)}}
+    <MetadataURL type="{{wms111metadatatype(data.type)|escape}}">
+      {{if data.format}}
+      <Format>{{data.format}}</Format>
+      {{endif}}
+      <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="{{data.url|escape}}"/>
+    </MetadataURL>
+          {{endif}}
+      {{endfor}}
+    {{endif}}
+    {{if layer.is_active and layer.has_legend and layer.legend_url}}
+    <Style>
+        <Name>default</Name>
+        <Title>default</Title>
+        <LegendURL width="{{layer.legend_size[0]}}" height="{{layer.legend_size[1]}}">
+            <Format>image/png</Format>
+            <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="{{service.url}}{{layer.legend_url|escape}}"/>
+        </LegendURL>
+    </Style>
+    {{endif}}
+    {{if layer.res_range}}
+    {{py: max_scale, min_scale = layer.res_range.scale_hint()}}
+    <ScaleHint {{if min_scale}}min="{{min_scale}}"{{endif}} {{if max_scale}}max="{{max_scale}}"{{endif}} />
+    {{endif}}
+    {{for layer in layer.layers}}
+{{layer_capabilities(layer, False)|indent}}
+    {{endfor}}
+  </Layer>
+{{enddef}}
+
+{{layer_capabilities(layers, True)}}
+
+</Capability>
+</WMT_MS_Capabilities>
