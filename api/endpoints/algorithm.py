@@ -187,6 +187,10 @@ class Register(Resource):
 
         response_body["code"] = 200
         response_body["message"] = "Successfully registered {}:{}".format(algorithm_name, req_data.get("code_version"))
+        """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <AlgorithmName></AlgorithmName>
+        """
 
         return response_body
 
@@ -208,6 +212,14 @@ class Register(Resource):
             response_body["code"] = 200
             response_body["algorithms"] = algo_list
             response_body["message"] = "success"
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <Algorithms>
+            <AlgorithmName></AlgorithmName>
+            <AlgorithmName></AlgorithmName>
+            ....
+            </Algorithms>
+            """
             return response_body
         except Exception as ex:
             tb = traceback.format_exc()
@@ -247,6 +259,10 @@ class Describe(Resource):
             hysds.delete_mozart_job_type(algo_id)
             response_body["code"] = 200
             response_body["message"] = "successfully deleted {}".format(algo_id)
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <DeletedAlgorithm></DeletedAlgorithm>
+            """
             return response_body
         except Exception as ex:
             tb = traceback.format_exc()

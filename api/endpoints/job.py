@@ -6,6 +6,7 @@ import api.utils.hysds_util as hysds
 import api.utils.ogc_translate as ogc
 import json
 import traceback
+from xml.etree.ElementTree import Element, SubElement, Comment, tostring
 import uuid
 
 log = logging.getLogger(__name__)
@@ -217,19 +218,37 @@ class Metrics(Resource):
             time_duration = job_info.get("cmd_duration")
 
             # build the metrics object
-            metrics["machine_type"] = instance_typ
-            metrics["architecture"] = architecture
-            metrics["operating_system"] = os
-            metrics["machine_memory_size"] = memorysize
-            metrics["machine_memory_free"] = memoryfree
-            metrics["job_start_time"] = time_start
-            metrics["job_end_time"] = time_end
-            metrics["job_duration_seconds"] = time_duration
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <Metrics>
+            <machine_type></machine_type>
+            <architecture></architecture>
+            <machine_memory_size></machine_memory_size>
+            <machine_memory_free></machine_memory_free>
+            <job_start_time></job_start_time>
+            <job_end_time></job_end_time>
+            <job_duration_seconds></job_duration_seconds>
+            <Metrics>
+            """
+            xml_response = Element("metrics")
+            machine_type = SubElement(xml_response, "machine_type")
+            machine_type.text = instance_typ
+            architecture = SubElement(xml_response, "architecture")
+            architecture.text = architecture
+            machine_memory_size = SubElement(xml_response, "machine_memory_size")
+            machine_memory_size.text = memorysize
+            machine_memory_free = SubElement(xml_response, "machine_memory_free")
+            machine_memory_free.text = memoryfree
+            operating_system = SubElement(xml_response, "operating_system")
+            operating_system.text = os
+            job_start_time = SubElement(xml_response, "job_start_time")
+            job_start_time.text = time_start
+            job_end_time = SubElement(xml_response, "job_end_time")
+            job_end_time.text = time_end
+            job_duration_seconds = SubElement(xml_response, "job_duration_seconds")
+            job_duration_seconds.text = time_duration
 
-            response["code"] = 200
-            response["metrics"] = metrics
-            response["message"] = "success"
-            return response
+            return Response(xml_response, mimetype="text/xml", status=200)
         except Exception as ex:
             return Response(ogc.get_exception(type="FailedGetMetrics", origin_process="GetMetrics",
                                               ex_message="Failed to get metrics of job {}. " \
@@ -256,6 +275,20 @@ class Jobs(Resource):
             response_body["code"] = 200
             response_body["jobs"] = job_list
             response_body["message"] = "success"
+            """
+                        <?xml version="1.0" encoding="UTF-8"?>
+                        <Jobs>
+                        <Job>
+                            <JobID></JobID>
+                            <JobStatus></JobStatus>
+                            <JobType></JobType>
+                            <JobParams></JobParams>
+                        </Job>
+                        <Job>...</Job>
+                        <Job>...</Job>
+                        ...
+                        <Jobs>
+            """
             return response_body
         except Exception as ex:
             return Response(ogc.get_exception(type="FailedGetJobs", origin_process="GetJobs",
