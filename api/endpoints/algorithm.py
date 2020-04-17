@@ -209,13 +209,18 @@ class Register(Resource):
         try:
             job_list = hysds.get_algorithms()
             algo_list = list()
-            member_algo_list = self._get_member_algorithms()
+            member_algo_list = list(map(lambda a: a.algorithm_key, self._get_member_algorithms()))
 
             for job_type in job_list:
                 algo = dict()
-                algo["type"] = job_type.strip("job-").split(":")[0]
-                algo["version"] = job_type.strip("job-").split(":")[1]
-                algo_list.append(algo)
+                algo_segments = job_type.strip("job-").split(":")
+                algo_string = "{}:{}".format(algo_segments[0], algo_segments[1])
+
+                if algo_string in member_algo_list:
+                    algo["type"] = algo_segments[0]
+                    algo["version"] = algo_segments[1]
+                    algo_list.append(algo)
+
             response_body["code"] = 200
             response_body["algorithms"] = algo_list
             response_body["message"] = "success"
