@@ -210,6 +210,7 @@ class Register(Resource):
             job_list = hysds.get_algorithms()
             algo_list = list()
             member_algo_list = self._get_member_algorithms()
+
             for job_type in job_list:
                 algo = dict()
                 algo["type"] = job_type.strip("job-").split(":")[0]
@@ -238,9 +239,9 @@ class Register(Resource):
         member = get_authorized_user()
 
         if member is None:
-            return db.query(MemberAlgorithm).filter(MemberAlgorithm.is_public).all()
+            return db.session.query(MemberAlgorithm).filter(MemberAlgorithm.is_public).all()
         else:
-            return db.query(MemberAlgorithm).filter(or_(MemberAlgorithm.member_id == member.id,
+            return db.session.query(MemberAlgorithm).filter(or_(MemberAlgorithm.member_id == member.id,
                                                         MemberAlgorithm.is_public)).all()
 
 
