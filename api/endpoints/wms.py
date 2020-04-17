@@ -8,6 +8,7 @@ from flask_restplus import Resource
 from api.restplus import api
 from api.utils.mapproxy_snap import create_config_wmts, mapit
 from api.endpoints.wmts import GetCapabilities
+from api import settings
 
 log = logging.getLogger(__name__)
 
@@ -22,8 +23,6 @@ class GetMap(Resource):
         :return:
         """
         try:
-            wmts_getcapabilities_filename = 'maap.wmts.xml'
-
             # Pass param which can be used to generate GetCapabilities dynamically
             cmr_search_params = {'granule_ur': request.args['LAYERS']}
 
@@ -33,10 +32,10 @@ class GetMap(Resource):
             # run the same code to generate the XML so the tradeoff is making a
             # network call vs writing to the local filesystem.
             get_capabilities_string = GetCapabilities().generate_capabilities(cmr_search_params)
-            wmts_capabilities_file = open(wmts_getcapabilities_filename, 'w')
+            wmts_capabilities_file = open(settings.MAAP_WMTS_XML, 'w')
             wmts_capabilities_file.write(get_capabilities_string)
             wmts_capabilities_file.close()
-            wmts_confs = create_config_wmts(["file://" + os.path.abspath(wmts_getcapabilities_filename)])
+            wmts_confs = create_config_wmts(["file://" + settings.MAAP_WMTS_XML])
 
             # Get args from request
             # TODO(Aimee): Permitted parameters should be consistent with the
