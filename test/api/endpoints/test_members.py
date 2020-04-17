@@ -5,10 +5,12 @@ from api.models import DBSession
 from api.models.member import Member
 from datetime import datetime
 from api.models.member_session import MemberSession
+from api.models.member_algorithm import MemberAlgorithm
 # from api.models.member_cmr_collection import MemberCmrCollection
 # from api.models.member_cmr_granule import MemberCmrGranule
 import os
 from api.models import initialize_sql
+from sqlalchemy import or_
 
 MOCK_RESPONSES = False if os.environ.get('MOCK_RESPONSES') == 'false' else True
 
@@ -57,6 +59,28 @@ class MembersCase(unittest.TestCase):
 
             self.assertTrue(session is not None)
             self.assertTrue(session_member is not None)
+
+    def test_create_member_algorithm(self):
+        with app.app_context():
+            m = DBSession.query(Member)[1]
+
+            ma = MemberAlgorithm(member_id=m.id, algorithm_key="test_algo_key", is_public=False, creation_date=datetime.utcnow())
+            db.session.add(ma)
+            db.session.commit()
+
+            algo = DBSession.query(MemberAlgorithm).first()
+            algo_member = algo.member
+
+            self.assertTrue(algo is not None)
+            self.assertTrue(algo_member is not None)
+
+    def test_query_member_algorithm(self):
+        with app.app_context():
+            m = DBSession.query(Member)[1]
+
+            ma = DBSession.query(MemberAlgorithm).filter(or_(MemberAlgorithm.member_id == m.id, MemberAlgorithm.is_public == True)).all()
+
+            self.assertTrue(ma is not None)
 
     # def test_create_member_cmr_collection(self):
     #     with app.app_context():
