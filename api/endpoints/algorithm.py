@@ -262,7 +262,7 @@ class Register(Resource):
             return db.session.query(MemberAlgorithm).filter(MemberAlgorithm.is_public).all()
         else:
             return db.session.query(MemberAlgorithm).filter(or_(MemberAlgorithm.member_id == member.id,
-                                                        MemberAlgorithm.is_public)).all()
+                                                                MemberAlgorithm.is_public)).all()
 
 
 @ns.route('/algorithm/<string:algo_id>')
