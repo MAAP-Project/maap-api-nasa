@@ -190,8 +190,23 @@ class Register(Resource):
             response_body["error"] = "{} Traceback: {}".format(ex.message, tb)
             return response_body, 500
 
+        algorithm_id = "{}:{}".format(algorithm_name, req_data.get("code_version"))
+
+        try:
+            # add algorithm to maap db if authenticated
+            m = get_authorized_user()
+
+            if m is not None:
+                ma = MemberAlgorithm(member_id=m.id, algorithm_key=algorithm_id, is_public=False,
+                                     creation_date=datetime.utcnow())
+                db.session.add(ma)
+                db.session.commit()
+
+        except Exception as ex:
+            log.debug(ex)
+
         response_body["code"] = 200
-        response_body["message"] = "Successfully registered {}:{}".format(algorithm_name, req_data.get("code_version"))
+        response_body["message"] = "Successfully registered {}".format(algorithm_id)
         """
         <?xml version="1.0" encoding="UTF-8"?>
         <AlgorithmName></AlgorithmName>
