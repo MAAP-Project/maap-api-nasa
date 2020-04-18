@@ -252,7 +252,7 @@ class Register(Resource):
         if visibility == 'private':
             return [] if member is None else db.session.query(MemberAlgorithm).filter(MemberAlgorithm.member_id == member.id).all()
         elif visibility == 'all':
-            return list(map(lambda a: {'algorithm_key': a.strip("job-")}, hysds.get_algorithms()))
+            return list(map(lambda a: MemberAlgorithm(algorithm_key=a.strip("job-")), hysds.get_algorithms()))
         else:
             if member is None:
                 return db.session.query(MemberAlgorithm).filter(MemberAlgorithm.is_public).all()
