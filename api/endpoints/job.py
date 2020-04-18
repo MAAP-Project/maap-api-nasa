@@ -248,7 +248,7 @@ class Metrics(Resource):
             job_duration_seconds = SubElement(xml_response, "job_duration_seconds")
             job_duration_seconds.text = time_duration
 
-            return Response(xml_response, mimetype="text/xml", status=200)
+            return Response(tostring(xml_response), mimetype="text/xml", status=200)
         except Exception as ex:
             return Response(ogc.get_exception(type="FailedGetMetrics", origin_process="GetMetrics",
                                               ex_message="Failed to get metrics of job {}. " \
