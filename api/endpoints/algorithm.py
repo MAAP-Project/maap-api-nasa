@@ -220,7 +220,7 @@ class Register(Resource):
         :return:
         """
         response_body = {"code": None, "message": None}
-        vis = request.args['visibility']
+        vis = request.args.get('visibility', None)
 
         try:
             member_algorithms = self._get_algorithms(vis if vis is not None else 'public')
@@ -303,6 +303,7 @@ class Describe(Resource):
             response_body["message"] = "Failed to process request to delete {}".format(algo_id)
             response_body["error"] = "{} Traceback: {}".format(ex, tb)
             return response_body, 404
+
 
 @ns.route('/build')
 class Build(Resource):
