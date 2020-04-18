@@ -220,21 +220,12 @@ class Register(Resource):
         :return:
         """
         response_body = {"code": None, "message": None}
+        vis = request.args['visibility']
 
         try:
-            job_list = hysds.get_algorithms()
-            algo_list = list()
-            member_algo_list = list(map(lambda a: a.algorithm_key, self._get_member_algorithms()))
-
-            for job_type in job_list:
-                algo = dict()
-                algo_segments = job_type.strip("job-").split(":")
-                algo_string = "{}:{}".format(algo_segments[0], algo_segments[1])
-
-                if algo_string in member_algo_list:
-                    algo["type"] = algo_segments[0]
-                    algo["version"] = algo_segments[1]
-                    algo_list.append(algo)
+            member_algorithms = self._get_algorithms(vis if vis is not None else 'public')
+            algo_list = list(map(lambda a: {'type': a.algorithm_key.split(":")[0],
+                                            'version': a.algorithm_key.split(":")[1]}, member_algorithms))
 
             response_body["code"] = 200
             response_body["algorithms"] = algo_list
@@ -255,14 +246,19 @@ class Register(Resource):
                             status=500,
                             mimetype='text/xml')
 
-    def _get_member_algorithms(self):
+    def _get_algorithms(self, visibility):
         member = get_authorized_user()
 
-        if member is None:
-            return db.session.query(MemberAlgorithm).filter(MemberAlgorithm.is_public).all()
+        if visibility == 'private':
+            return [] if member is None else db.session.query(MemberAlgorithm).filter(MemberAlgorithm.member_id == member.id).all()
+        elif visibility == 'all':
+            return list(map(lambda a: {'algorithm_key': a.strip("job-")}, hysds.get_algorithms()))
         else:
-            return db.session.query(MemberAlgorithm).filter(or_(MemberAlgorithm.member_id == member.id,
-                                                                MemberAlgorithm.is_public)).all()
+            if member is None:
+                return db.session.query(MemberAlgorithm).filter(MemberAlgorithm.is_public).all()
+            else:
+                return db.session.query(MemberAlgorithm).filter(or_(MemberAlgorithm.member_id == member.id,
+                                                                    MemberAlgorithm.is_public)).all()
 
 
 @ns.route('/algorithm/<string:algo_id>')
@@ -280,9 +276,10 @@ class Describe(Resource):
             return Response(response_body, mimetype='text/xml')
         except Exception as ex:
             tb = traceback.format_exc()
-            return Response(ogc.get_exception(type="FailedDescribeAlgo", origin_process="DescribeProcess",
-                                              ex_message="Failed to get parameters for algorithm. {} Traceback: {}"
-                                              .format(ex, tb)), status=500, mimetype='text/xml')
+            return Response(
+                ogc.get_exception(type="FailedDescribeAlgo", origin_process="DescribeProcess",
+                                  ex_message="Failed to get parameters for algorithm. {} Traceback: {}"
+                                  .format(ex, tb)), status=500, mimetype='text/xml')
 
     def delete(self, algo_id):
         """
@@ -307,7 +304,6 @@ class Describe(Resource):
             response_body["error"] = "{} Traceback: {}".format(ex, tb)
             return response_body, 404
 
-
 @ns.route('/build')
 class Build(Resource):
 
@@ -330,7 +326,7 @@ class Build(Resource):
 
 
 @ns.route('/publish')
-class Build(Resource):
+class Publish(Resource):
 
     @login_required
     def post(self):
