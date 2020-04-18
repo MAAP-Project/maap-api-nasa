@@ -10,8 +10,9 @@ import api.utils.ogc_translate as ogc
 from api.cas.cas_auth import get_authorized_user, login_required
 from api.maap_database import db
 from api.models.member_algorithm import MemberAlgorithm
-from sqlalchemy import or_
+from sqlalchemy import or_, and_
 from datetime import datetime
+from flask_restplus import reqparse
 
 log = logging.getLogger(__name__)
 
@@ -32,6 +33,11 @@ def validate_register_inputs(script_command, algorithm_name, environment_name):
         raise Exception("Algorithm Name is required")
     if is_empty(environment_name):
         raise Exception("Environment Name is required")
+
+
+algorithm_visibility_param = reqparse.RequestParser()
+algorithm_visibility_param.add_argument('visibility', type=str, required=False,
+                                        choices=['private', 'public', 'all'], default='public')
 
 
 @ns.route('/algorithm')
@@ -214,6 +220,7 @@ class Register(Resource):
 
         return response_body
 
+    @api.expect(algorithm_visibility_param)
     def get(self):
         """
         search algorithms
@@ -250,7 +257,8 @@ class Register(Resource):
         member = get_authorized_user()
 
         if visibility == 'private':
-            return [] if member is None else db.session.query(MemberAlgorithm).filter(MemberAlgorithm.member_id == member.id).all()
+            return [] if member is None else db.session.query(MemberAlgorithm).filter(and_(MemberAlgorithm.member_id == member.id,
+                                                                                           not MemberAlgorithm.is_public)).all()
         elif visibility == 'all':
             return list(map(lambda a: MemberAlgorithm(algorithm_key=a.strip("job-")), hysds.get_algorithms()))
         else:
