@@ -32,8 +32,8 @@ def validate_proxy(ticket):
 
     cas_session = db.session.query(MemberSession).filter_by(session_key=ticket).first()
 
-    # Check for session created timestamp < 2 hours old
-    if cas_session is not None and cas_session.creation_date + timedelta(hours=2) > datetime.utcnow():
+    # Check for session created timestamp < 24 hours old
+    if cas_session is not None and cas_session.creation_date + timedelta(hours=24) > datetime.utcnow():
         return cas_session
     else:
         cas_validate_proxy_url = create_cas_proxy_url(
