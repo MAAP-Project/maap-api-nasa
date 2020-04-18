@@ -233,8 +233,8 @@ class Metrics(Resource):
             xml_response = Element("metrics")
             machine_type = SubElement(xml_response, "machine_type")
             machine_type.text = instance_typ
-            architecture = SubElement(xml_response, "architecture")
-            architecture.text = architecture
+            arch = SubElement(xml_response, "architecture")
+            arch.text = architecture
             machine_memory_size = SubElement(xml_response, "machine_memory_size")
             machine_memory_size.text = memorysize
             machine_memory_free = SubElement(xml_response, "machine_memory_free")
