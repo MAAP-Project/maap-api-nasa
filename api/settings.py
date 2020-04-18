@@ -24,6 +24,7 @@ CMR_TOKEN_SERVICE_URL = 'https://cmr.earthdata.nasa.gov/legacy-services/rest/tok
 CMR_URL = 'https://cmr.maap-project.org'
 CMR_API_TOKEN = ''
 CMR_CLIENT_ID = ''
+MAAP_WMTS_XML = "/maap-api-nasa/api/maap.wmts.xml"
 
 # GIT settings
 GIT_REPO_URL = "https://gitlab-ci-token:$TOKEN@repo.nasa.maap.xyz/root/register-job.git"
