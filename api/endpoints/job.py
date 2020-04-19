@@ -250,7 +250,7 @@ class Metrics(Resource):
 
             return Response(tostring(xml_response), mimetype="text/xml", status=200)
         except Exception as ex:
-            print("Metrics Exception: {}".format(ex.message))
+            print("Metrics Exception: {}".format(ex))
             return Response(ogc.get_exception(type="FailedGetMetrics", origin_process="GetMetrics",
                                               ex_message="Failed to get metrics of job {}. {}." \
                                               " please contact administrator " \
