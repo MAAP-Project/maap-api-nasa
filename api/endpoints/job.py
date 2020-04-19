@@ -250,10 +250,11 @@ class Metrics(Resource):
 
             return Response(tostring(xml_response), mimetype="text/xml", status=200)
         except Exception as ex:
+            print("Metrics Exception: {}".format(ex.message))
             return Response(ogc.get_exception(type="FailedGetMetrics", origin_process="GetMetrics",
-                                              ex_message="Failed to get metrics of job {}. " \
+                                              ex_message="Failed to get metrics of job {}. {}." \
                                               " please contact administrator " \
-                                              "of DPS".format(job_id)), mimetype='text/xml', status=500)
+                                              "of DPS".format(job_id, ex.message)), mimetype='text/xml', status=500)
 
 
 @ns.route('/job/<string:username>/list')
