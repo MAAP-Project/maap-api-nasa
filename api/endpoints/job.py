@@ -203,7 +203,11 @@ class Metrics(Resource):
         try:
             logging.info("Finding result of job with id {}".format(job_id))
             logging.info("Retrieved Mozart job id: {}".format(job_id))
-            mozart_response = hysds.get_mozart_job_info(job_id)
+            try:
+                mozart_response = hysds.get_mozart_job_info(job_id)
+            except Exception:
+                raise Exception("No job information found for {}. Please make sure you have the correct Job ID."
+                                .format(job_id))
 
             # get all the relevant metrics information
             job_info = mozart_response.get("job").get("job_info")
