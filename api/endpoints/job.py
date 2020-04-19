@@ -242,8 +242,6 @@ class Metrics(Resource):
             arch.text = architecture
             machine_memory_size = SubElement(xml_response, "machine_memory_size")
             machine_memory_size.text = str(memorysize)
-            machine_memory_free = SubElement(xml_response, "machine_memory_free")
-            machine_memory_free.text = str(memoryfree)
             operating_system = SubElement(xml_response, "operating_system")
             operating_system.text = os
             job_start_time = SubElement(xml_response, "job_start_time")
