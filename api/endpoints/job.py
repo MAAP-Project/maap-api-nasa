@@ -236,9 +236,9 @@ class Metrics(Resource):
             arch = SubElement(xml_response, "architecture")
             arch.text = architecture
             machine_memory_size = SubElement(xml_response, "machine_memory_size")
-            machine_memory_size.text = memorysize
+            machine_memory_size.text = str(memorysize)
             machine_memory_free = SubElement(xml_response, "machine_memory_free")
-            machine_memory_free.text = memoryfree
+            machine_memory_free.text = str(memoryfree)
             operating_system = SubElement(xml_response, "operating_system")
             operating_system.text = os
             job_start_time = SubElement(xml_response, "job_start_time")
@@ -246,7 +246,7 @@ class Metrics(Resource):
             job_end_time = SubElement(xml_response, "job_end_time")
             job_end_time.text = time_end
             job_duration_seconds = SubElement(xml_response, "job_duration_seconds")
-            job_duration_seconds.text = time_duration
+            job_duration_seconds.text = str(time_duration)
 
             return Response(tostring(xml_response), mimetype="text/xml", status=200)
         except Exception as ex:
@@ -254,7 +254,7 @@ class Metrics(Resource):
             return Response(ogc.get_exception(type="FailedGetMetrics", origin_process="GetMetrics",
                                               ex_message="Failed to get metrics of job {}. {}." \
                                               " please contact administrator " \
-                                              "of DPS".format(job_id, ex.message)), mimetype='text/xml', status=500)
+                                              "of DPS".format(job_id, ex)), mimetype='text/xml', status=500)
 
 
 @ns.route('/job/<string:username>/list')
