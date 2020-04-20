@@ -345,9 +345,10 @@ class Publish(Resource):
         """
         req_data = request.get_json()
         algo_id = req_data["algo_id"]
+        version = req_data["version"]
         m = get_authorized_user()
 
-        ma = MemberAlgorithm(member_id=m.id, algorithm_key=algo_id, is_public=True,
+        ma = MemberAlgorithm(member_id=m.id, algorithm_key="{}:{}".format(algo_id, version), is_public=True,
                              creation_date=datetime.utcnow())
         db.session.add(ma)
         db.session.commit()
