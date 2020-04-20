@@ -212,6 +212,7 @@ class Metrics(Resource):
 
             # get all the relevant metrics information
             job_info = mozart_response.get("job").get("job_info")
+            dir_size = job_info.get("metrics").get("job_dir_size")
             job_facts = job_info.get("facts")
             architecture = job_facts.get("architecture")
             os = job_facts.get("operatingsystem")
@@ -242,6 +243,8 @@ class Metrics(Resource):
             arch.text = architecture
             machine_memory_size = SubElement(xml_response, "machine_memory_size")
             machine_memory_size.text = str(memorysize)
+            directory_size = SubElement(xml_response, "directory_size")
+            directory_size.text = str(dir_size)
             operating_system = SubElement(xml_response, "operating_system")
             operating_system.text = os
             job_start_time = SubElement(xml_response, "job_start_time")
