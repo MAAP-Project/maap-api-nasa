@@ -37,7 +37,7 @@ def validate_register_inputs(script_command, algorithm_name, environment_name):
 
 algorithm_visibility_param = reqparse.RequestParser()
 algorithm_visibility_param.add_argument('visibility', type=str, required=False,
-                                        choices=['private', 'public', 'all'], default='public')
+                                        choices=['private', 'public', 'all'], default='all')
 
 
 @ns.route('/algorithm')
