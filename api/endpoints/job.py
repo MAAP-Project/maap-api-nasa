@@ -203,7 +203,12 @@ class Metrics(Resource):
         try:
             logging.info("Finding result of job with id {}".format(job_id))
             logging.info("Retrieved Mozart job id: {}".format(job_id))
-            mozart_response = hysds.get_mozart_job_info(job_id)
+            try:
+                mozart_response = hysds.get_mozart_job_info(job_id)
+            except Exception:
+                raise Exception("No job information found for {}. Maybe the job is currently queued or you entered the"
+                                "incorrect Job ID."
+                                .format(job_id))
 
             # get all the relevant metrics information
             job_info = mozart_response.get("job").get("job_info")
@@ -233,12 +238,10 @@ class Metrics(Resource):
             xml_response = Element("metrics")
             machine_type = SubElement(xml_response, "machine_type")
             machine_type.text = instance_typ
-            architecture = SubElement(xml_response, "architecture")
-            architecture.text = architecture
+            arch = SubElement(xml_response, "architecture")
+            arch.text = architecture
             machine_memory_size = SubElement(xml_response, "machine_memory_size")
-            machine_memory_size.text = memorysize
-            machine_memory_free = SubElement(xml_response, "machine_memory_free")
-            machine_memory_free.text = memoryfree
+            machine_memory_size.text = str(memorysize)
             operating_system = SubElement(xml_response, "operating_system")
             operating_system.text = os
             job_start_time = SubElement(xml_response, "job_start_time")
@@ -246,14 +249,15 @@ class Metrics(Resource):
             job_end_time = SubElement(xml_response, "job_end_time")
             job_end_time.text = time_end
             job_duration_seconds = SubElement(xml_response, "job_duration_seconds")
-            job_duration_seconds.text = time_duration
+            job_duration_seconds.text = str(time_duration)
 
-            return Response(xml_response, mimetype="text/xml", status=200)
+            return Response(tostring(xml_response), mimetype="text/xml", status=200)
         except Exception as ex:
+            print("Metrics Exception: {}".format(ex))
             return Response(ogc.get_exception(type="FailedGetMetrics", origin_process="GetMetrics",
-                                              ex_message="Failed to get metrics of job {}. " \
+                                              ex_message="Failed to get metrics of job {}. {}." \
                                               " please contact administrator " \
-                                              "of DPS".format(job_id)), mimetype='text/xml', status=500)
+                                              "of DPS".format(job_id, ex)), mimetype='text/xml', status=500)
 
 
 @ns.route('/job/<string:username>/list')
