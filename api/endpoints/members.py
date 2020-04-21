@@ -4,7 +4,6 @@ from flask import request
 from api.restplus import api
 from api.cas.cas_auth import get_authorized_user, login_required
 from api.maap_database import db
-#from api.models.member_cmr_collection import MemberCmrCollection
 from api.models.member import Member, MemberSchema
 from datetime import datetime
 import json
