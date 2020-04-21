@@ -182,7 +182,7 @@ class Register(Resource):
             tb = traceback.format_exc()
             response_body["code"] = 500
             response_body["message"] = "Failed to create spec files"
-            response_body["error"] = "{} Traceback: {}".format(ex.message, tb)
+            response_body["error"] = "{} Traceback: {}".format(ex, tb)
             return response_body, 500
 
         try:
