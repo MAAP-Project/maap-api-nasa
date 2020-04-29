@@ -18,6 +18,9 @@ log = logging.getLogger(__name__)
 
 ns = api.namespace('mas', description='Operations to register an algorithm')
 
+visibility_private = "private"
+visibility_public = "public"
+visibility_all = "all"
 
 def is_empty(item):
     if item is None or len(item) == 0:
@@ -37,7 +40,8 @@ def validate_register_inputs(script_command, algorithm_name, environment_name):
 
 algorithm_visibility_param = reqparse.RequestParser()
 algorithm_visibility_param.add_argument('visibility', type=str, required=False,
-                                        choices=['private', 'public', 'all'], default='all')
+                                        choices=[visibility_private, visibility_public, visibility_all],
+                                        default=visibility_all)
 
 
 @ns.route('/algorithm')
@@ -256,10 +260,10 @@ class Register(Resource):
     def _get_algorithms(self, visibility):
         member = get_authorized_user()
 
-        if visibility == 'private':
+        if visibility == visibility_private:
             return [] if member is None else db.session.query(MemberAlgorithm).filter(and_(MemberAlgorithm.member_id == member.id,
                                                                                            not MemberAlgorithm.is_public)).all()
-        elif visibility == 'all':
+        elif visibility == visibility_all:
             return list(map(lambda a: MemberAlgorithm(algorithm_key=a.strip("job-")), hysds.get_algorithms()))
         else:
             if member is None:
