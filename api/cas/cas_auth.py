@@ -128,7 +128,7 @@ def get_cas_attribute_value(attributes, attribute_key):
 
 
 def decrypt_proxy_ticket(ticket):
-    if ticket.starts_with(PROXY_TICKET_PREFIX):
+    if ticket.startswith(PROXY_TICKET_PREFIX):
         return ticket
     else:
         key = RSA.import_key(settings.CAS_PROXY_DECRYPTION_TOKEN)
