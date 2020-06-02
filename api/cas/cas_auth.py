@@ -137,7 +137,7 @@ def decrypt_proxy_ticket(ticket):
         decryptor = PKCS1_v1_5.new(key)
         decrypted = decryptor.decrypt(ast.literal_eval(str(b64decode(ticket))), sentinel)
 
-        return decrypted
+        return decrypted.decode("utf-8")
 
 
 def get_authorized_user():
