@@ -9,7 +9,14 @@ from .cas_urls import create_cas_proxy_validate_url
 from api.maap_database import db
 from api.models.member import Member
 from api.models.member_session import MemberSession
+from api import settings
 from functools import wraps
+from Crypto.PublicKey import RSA
+from Crypto.Cipher import PKCS1_v1_5
+from Crypto import Random
+from Crypto.Hash import SHA
+from base64 import b64decode
+import ast
 
 
 try:
@@ -18,6 +25,8 @@ except ImportError:
     from urllib.request import urlopen
 
 blueprint = flask.Blueprint('cas', __name__)
+
+PROXY_TICKET_PREFIX = "PGT-"
 
 
 def validate_proxy(ticket):
@@ -30,7 +39,9 @@ def validate_proxy(ticket):
 
     current_app.logger.debug("validating token {0}".format(ticket))
 
-    cas_session = db.session.query(MemberSession).filter_by(session_key=ticket).first()
+    decrypted_ticket = decrypt_proxy_ticket(ticket)
+
+    cas_session = db.session.query(MemberSession).filter_by(session_key=decrypted_ticket).first()
 
     # Check for session created timestamp < 24 hours old
     if cas_session is not None and cas_session.creation_date + timedelta(hours=24) > datetime.utcnow():
@@ -39,7 +50,7 @@ def validate_proxy(ticket):
         cas_validate_proxy_url = create_cas_proxy_url(
             current_app.config['CAS_SERVER'],
             request.base_url,
-            ticket
+            decrypted_ticket
         )
 
         cas_response = validate_cas_request(cas_validate_proxy_url)
@@ -59,7 +70,7 @@ def validate_proxy(ticket):
             cas_proxy_response = validate_cas_request(proxy_validate_url)
 
             if cas_proxy_response[0]:
-                return start_member_session(cas_proxy_response, ticket)
+                return start_member_session(cas_proxy_response, decrypted_ticket)
 
     current_app.logger.debug("invalid proxy granting ticket")
     return None
@@ -114,6 +125,19 @@ def get_cas_attribute_value(attributes, attribute_key):
         return attributes["cas:" + attribute_key]
     else:
         return ''
+
+
+def decrypt_proxy_ticket(ticket):
+    if ticket.starts_with(PROXY_TICKET_PREFIX):
+        return ticket
+    else:
+        key = RSA.import_key(settings.CAS_PROXY_DECRYPTION_TOKEN)
+        dsize = SHA.digest_size
+        sentinel = Random.new().read(15 + dsize)
+        decryptor = PKCS1_v1_5.new(key)
+        decrypted = decryptor.decrypt(ast.literal_eval(str(b64decode(ticket))), sentinel)
+
+        return decrypted
 
 
 def get_authorized_user():

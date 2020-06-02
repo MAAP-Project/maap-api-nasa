@@ -16,3 +16,4 @@ flask_sqlalchemy
 Werkzeug==0.16.1
 marshmallow-sqlalchemy
 mapproxy~=1.12
+pycryptodome
