@@ -131,13 +131,18 @@ def decrypt_proxy_ticket(ticket):
     if ticket.startswith(PROXY_TICKET_PREFIX):
         return ticket
     else:
-        key = RSA.import_key(settings.CAS_PROXY_DECRYPTION_TOKEN)
-        dsize = SHA.digest_size
-        sentinel = Random.new().read(15 + dsize)
-        decryptor = PKCS1_v1_5.new(key)
-        decrypted = decryptor.decrypt(ast.literal_eval(str(b64decode(ticket))), sentinel)
+        try:
+            key = RSA.import_key(settings.CAS_PROXY_DECRYPTION_TOKEN)
+            dsize = SHA.digest_size
+            sentinel = Random.new().read(15 + dsize)
+            decryptor = PKCS1_v1_5.new(key)
+            decrypted = decryptor.decrypt(ast.literal_eval(str(b64decode(ticket))), sentinel)
 
-        return decrypted.decode("utf-8")
+            return decrypted.decode("utf-8")
+        except:
+            current_app.logger.debug("invalid proxy granting ticket")
+            return ''
+
 
 
 def get_authorized_user():
