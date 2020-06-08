@@ -252,8 +252,9 @@ class Register(Resource):
             return response_body
         except Exception as ex:
             tb = traceback.format_exc()
+            msg = str(ex) if ex.message is None else ex.message
             return Response(ogc.get_exception(type="FailedSearch", origin_process="GetAlgorithms",
-                            ex_message="Failed to get list of jobs. {}. {}".format(ex.message, tb)),
+                            ex_message="Failed to get list of jobs. {}. {}".format(msg, tb)),
                             status=500,
                             mimetype='text/xml')
 
