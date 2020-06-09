@@ -1,3 +1,5 @@
+MAAP_API_URL = "https://api.maap.xyz/api"
+
 # Auth
 APP_AUTH_KEY = "thisisthesecretkey"
 
@@ -45,6 +47,8 @@ MOZART_URL = "https://[MOZART_IP]/mozart/api/v0.2"
 DEFAULT_QUEUE = "test-job_worker-large"
 LW_QUEUE = "system-jobs-queue"
 HYSDS_LW_VERSION = "v0.0.5"
+GRQ_REST_URL = "http://[GRQ_IP]/api/v0.1"
+S3_CODE_BUCKET = "s3://[S3_BUCKET_NAME]"
 
 # FASTBROWSE API
 TILER_ENDPOINT = 'https://8e9mu91qr6.execute-api.us-east-1.amazonaws.com/production'

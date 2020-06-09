@@ -175,6 +175,10 @@ def create_config_file(repo_name, repo_url_w_token, repo_branch, docker_containe
     REPO_URL_WITH_TOKEN=https://<gitlab-token>@mas.maap-project.org/root/dps_plot.git
     REPO_NAME=dps_plot
     BRANCH=master
+    GRQ_REST_URL=<grq-ip>/api/v0.1
+    MAAP_API_URL=https:api.nasa.maap.xyz/api
+    MOZART_REST_URL=<mozart-ip>/mozart/api/v0.1
+    S3_CODE_BUCKET=s3://s3.amazon.aws.com/<bucket-name>
 
     :param repo_name:
     :param repo_url_w_token:
@@ -185,7 +189,11 @@ def create_config_file(repo_name, repo_url_w_token, repo_branch, docker_containe
     config_content = "BASE_IMAGE_NAME={}\n".format(docker_container_url)
     config_content += "REPO_URL_WITH_TOKEN={}\n".format(repo_url_w_token)
     config_content += "REPO_NAME={}\n".format(repo_name)
-    config_content += "BRANCH={}".format(repo_branch)
+    config_content += "BRANCH={}\n".format(repo_branch)
+    config_content += "GRQ_REST_URL={}\n".format(settings.GRQ_REST_URL)
+    config_content += "MAAP_API_URL={}\n".format(settings.MAAP_API_URL)
+    config_content += "MOZART_REST_URL={}\n".format(settings.MOZART_URL)
+    config_content += "S3_CODE_BUCKET={}".format(settings.S3_CODE_BUCKET)
 
     return config_content
 
