@@ -177,7 +177,7 @@ def create_config_file(repo_name, repo_url_w_token, repo_branch, docker_containe
     BRANCH=master
     GRQ_REST_URL=<grq-ip>/api/v0.1
     MAAP_API_URL=https:api.nasa.maap.xyz/api
-    MOZART_REST_URL=<mozart-ip>/mozart/api/v0.1
+    MOZART_URL=<mozart-ip>/mozart/api/v0.1
     S3_CODE_BUCKET=s3://s3.amazon.aws.com/<bucket-name>
 
     :param repo_name:
@@ -192,7 +192,7 @@ def create_config_file(repo_name, repo_url_w_token, repo_branch, docker_containe
     config_content += "BRANCH={}\n".format(repo_branch)
     config_content += "GRQ_REST_URL={}\n".format(settings.GRQ_REST_URL)
     config_content += "MAAP_API_URL={}\n".format(settings.MAAP_API_URL)
-    config_content += "MOZART_REST_URL={}\n".format(settings.MOZART_URL)
+    config_content += "MOZART_URL={}\n".format(settings.MOZART_URL)
     config_content += "S3_CODE_BUCKET={}".format(settings.S3_CODE_BUCKET)
 
     return config_content
