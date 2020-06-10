@@ -173,6 +173,12 @@ class Register(Resource):
                                                   repo_url_w_token=req_data.get("repo_url"),
                                                   repo_branch=req_data.get("code_version"))
                 hysds.write_file("{}/{}".format(settings.REPO_PATH, settings.REPO_NAME), "config.txt", config)
+            else:
+                response_body["code"] = 500
+                response_body["message"] = "Please include repo URL in the request"
+                response_body["error"] = "Missing key repo_url in request: {}".format(req_data)
+                return response_body, 500
+
 
             # creating file whose contents are returned on ci build success
             if req_data.get("code_version") is not None:
