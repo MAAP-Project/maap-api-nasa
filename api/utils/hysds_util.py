@@ -129,10 +129,6 @@ def create_job_spec(script_command, algorithm_params):
             if key != "download":
                 param_spec = dict()
                 param_spec["name"] = param[key]
-                if param[key] == "username":
-                    param_spec["destination"] = "context"
-                else:
-                    param_spec["destination"] = destination
                 params.append(param_spec)
         job_spec["params"] = params
 
@@ -308,10 +304,13 @@ def mozart_submit_job(job_type, params={}, queue=settings.DEFAULT_QUEUE, dedup="
     job_payload["queue"] = queue
     job_payload["priority"] = 0
     job_payload["tags"] = json.dumps(["maap-api_submit"])
-    job_payload["params"] = json.dumps(params)
-    job_payload["enable_dedup"] = dedup
+    # assign username to job
     if params.get("username") is not None:
         job_payload["username"] = params.get("username").strip()
+    # remove username from algo params if provided.
+    params.pop('username', None)
+    job_payload["params"] = json.dumps(params)
+    job_payload["enable_dedup"] = dedup
 
     logging.info("job payload: {}".format(json.dumps(job_payload)))
 
