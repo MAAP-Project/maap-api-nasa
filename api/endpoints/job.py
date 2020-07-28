@@ -206,7 +206,7 @@ class Metrics(Resource):
             try:
                 mozart_response = hysds.get_mozart_job_info(job_id)
             except Exception as ex:
-                raise Exception("Failed to get job information found for {}. {}."
+                raise Exception("Failed to get job information found for {}. Reason: {}"
                                 .format(job_id, ex))
 
             # get all the relevant metrics information
