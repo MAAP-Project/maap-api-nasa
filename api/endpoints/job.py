@@ -215,12 +215,36 @@ class Metrics(Resource):
             job_facts = job_info.get("facts")
             architecture = job_facts.get("architecture")
             os = job_facts.get("operatingsystem")
-            memoryfree = job_facts.get("memoryfree")
             memorysize = job_facts.get("memorysize")
             instance_typ = job_facts.get("ec2_instance_type")
             time_start = job_info.get("cmd_start")
             time_end = job_info.get("cmd_end")
             time_duration = job_info.get("cmd_duration")
+
+            docker_metrics = job_info.get("metrics").get("usage_stats").get("cgroups")
+            cpu_stats = docker_metrics.get("cpu_stats").get("cpu_usage").get("total_usage")
+            memory_stats = docker_metrics.get("memory_stats")
+            cache_stat = memory_stats.get("cache")
+            mem_usage = memory_stats.get("usage").get("usage")
+            max_mem_usage = memory_stats.get("usage").get("max_usage")
+            swap_usage = memory_stats.get("stats").get("swap")
+
+            # total bytes transferred during all the I/O operations performed by the container
+            io_stats = docker_metrics.get("blkio_stats").get("io_service_bytes_recursive")
+            for io in io_stats:
+                op = io.get("op")
+                if op == "Read":
+                    read_io_stats = io.get("value", 0)
+                elif op == "Write":
+                    write_io_stats = io.get("value", 0)
+                elif op == "Sync":
+                    sync_io_stats = io.get("value", 0)
+                elif op == "Async":
+                    async_io_stats = io.get("value", 0)
+                elif op == "Total":
+                    total_io_stats = io.get("value", 0)
+
+
 
             # build the metrics object
             """
@@ -229,7 +253,7 @@ class Metrics(Resource):
             <machine_type></machine_type>
             <architecture></architecture>
             <machine_memory_size></machine_memory_size>
-            <machine_memory_free></machine_memory_free>
+            <>
             <job_start_time></job_start_time>
             <job_end_time></job_end_time>
             <job_duration_seconds></job_duration_seconds>
@@ -252,6 +276,27 @@ class Metrics(Resource):
             job_end_time.text = time_end
             job_duration_seconds = SubElement(xml_response, "job_duration_seconds")
             job_duration_seconds.text = str(time_duration)
+            job_duration_seconds = SubElement(xml_response, "cpu_usage")
+            job_duration_seconds.text = str(cpu_stats)
+            job_duration_seconds = SubElement(xml_response, "cache_usage")
+            job_duration_seconds.text = str(cache_stat)
+            job_duration_seconds = SubElement(xml_response, "mem_usage")
+            job_duration_seconds.text = str(mem_usage)
+            job_duration_seconds = SubElement(xml_response, "max_mem_usage")
+            job_duration_seconds.text = str(max_mem_usage)
+            job_duration_seconds = SubElement(xml_response, "swap_usage")
+            job_duration_seconds.text = str(swap_usage)
+            job_duration_seconds = SubElement(xml_response, "read_io_stats")
+            job_duration_seconds.text = str(read_io_stats)
+            job_duration_seconds = SubElement(xml_response, "write_io_stats")
+            job_duration_seconds.text = str(write_io_stats)
+            job_duration_seconds = SubElement(xml_response, "sync_io_stats")
+            job_duration_seconds.text = str(sync_io_stats)
+            job_duration_seconds = SubElement(xml_response, "async_io_stats")
+            job_duration_seconds.text = str(async_io_stats)
+            job_duration_seconds = SubElement(xml_response, "total_io_stats")
+            job_duration_seconds.text = str(total_io_stats)
+
 
             return Response(tostring(xml_response), mimetype="text/xml", status=200)
         except Exception as ex:
