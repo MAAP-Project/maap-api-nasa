@@ -129,6 +129,7 @@ def create_job_spec(script_command, algorithm_params):
             if key != "download":
                 param_spec = dict()
                 param_spec["name"] = param[key]
+                param_spec["destination"] = destination
                 params.append(param_spec)
         job_spec["params"] = params
 
