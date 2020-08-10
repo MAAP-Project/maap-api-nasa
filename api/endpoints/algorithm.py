@@ -144,8 +144,6 @@ class Register(Resource):
             # clean up any old specs from the repo
             repo = git.clean_up_git_repo(repo, repo_name=settings.REPO_NAME)
             # creating hysds-io file
-            # adding a mandatory field - username to every spec
-            algorithm_params.append({"field": "username"})
             hysds_io = hysds.create_hysds_io(algorithm_description=algorithm_description,
                                              algorithm_params=algorithm_params)
             hysds.write_spec_file(spec_type="hysds-io", algorithm=algorithm_name, body=hysds_io)
