@@ -146,8 +146,10 @@ class Result(Resource):
                                 .format(job_id, purge_id))
             # verify if job is deleted
             job_response = hysds.mozart_job_status(job_id)
-            logging.info("Checkup on Deleted job. {}".format(job_response.get("success")))
-            if job_response.get("status") is None and job_response.get("success") is False:
+            logging.info("Checkup on Deleted job. {}".format(job_response))
+            if job_response.get("message") == "Internal Server Error" or (
+                    job_response.get("status") is None
+                    and job_response.get("success") is False):
                 # this means the job has been deleted.
                 logging.info("Job successfully deleted")
                 response = ogc.status_response(job_id=job_id, job_status="Deleted")
