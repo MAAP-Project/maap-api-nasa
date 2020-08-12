@@ -411,6 +411,7 @@ def get_mozart_jobs(username):
         """
     params = dict()
     params["username"] = username
+    params["detailed"] = True
 
     session = requests.Session()
     session.verify = False
