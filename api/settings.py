@@ -53,6 +53,10 @@ S3_CODE_BUCKET = "s3://[S3_BUCKET_NAME]"
 # FASTBROWSE API
 TILER_ENDPOINT = 'https://8e9mu91qr6.execute-api.us-east-1.amazonaws.com/production'
 
+# 3D Tiles API
+DATA_SYSTEM_SERVICES_API_BASE = 'https://jnz40d89g6.execute-api.us-east-1.amazonaws.com/test'
+DATA_SYSTEM_FILES_PATH = '/file-staging/nasa-map/'
+
 # CAS
 CAS_SECRET_KEY = '9c0d611c-04c5-4f36-b91c-8374b4410590'
 CAS_SERVER_NAME = 'https://auth.nasa.maap.xyz/cas'
