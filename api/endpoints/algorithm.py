@@ -60,6 +60,7 @@ class Register(Resource):
             "code_version": "master",
             "environment_name": "ubuntu",
             "docker_container_url": "http://url/to/container",
+            "disk_space": "minimum free disk usage required to run job specified as "\d+(GB|MB|KB)", e.g. "100GB", "20MB", "10KB""
             "algorithm_params": [
                 {
                 "field": "param_name1",
@@ -80,9 +81,7 @@ class Register(Resource):
          "environment_name": "ubuntu",
          "docker_container_url": "http://url/to/container",
          "repo_url": "http://url/to/repo",
-
-
-
+         "disk_space": "10GB"
          "algorithm_params" : [
               {
               "field": "localize_urls",
@@ -123,11 +122,13 @@ class Register(Resource):
             algorithm_name = "{}_{}".format(req_data.get("algorithm_name"), req_data.get("environment_name"))
             algorithm_description = req_data.get("algorithm_description")
             algorithm_params = req_data.get("algorithm_params")
+            disk_space = req_data.get("disk_space")
 
             log.debug("script_command: {}".format(script_command))
             log.debug("algorithm_name: {}".format(algorithm_name))
             log.debug("algorithm_description: {}".format(algorithm_description))
             log.debug("algorithm_params: {}".format(algorithm_params))
+            log.debug("disk_space: {}".format(disk_space))
         except Exception as ex:
             tb = traceback.format_exc()
             response_body["code"] = 500
@@ -148,7 +149,8 @@ class Register(Resource):
                                              algorithm_params=algorithm_params)
             hysds.write_spec_file(spec_type="hysds-io", algorithm=algorithm_name, body=hysds_io)
             # creating job spec file
-            job_spec = hysds.create_job_spec(script_command=script_command, algorithm_params=algorithm_params)
+            job_spec = hysds.create_job_spec(script_command=script_command, algorithm_params=algorithm_params,
+                                             disk_usage=disk_space)
             hysds.write_spec_file(spec_type="job-spec", algorithm=algorithm_name, body=job_spec)
 
             # creating JSON file with all code information

@@ -104,16 +104,17 @@ def create_hysds_io(algorithm_description, algorithm_params, submission_type="in
     return hysds_io
 
 
-def create_job_spec(script_command, algorithm_params):
+def create_job_spec(script_command, algorithm_params, disk_usage="10GB"):
     """
     Creates the contents of the job spec file
     :param script_command:
     :param algorithm_params:
+    :param disk_usage: minimum free disk usage required to run job specified as "\d+(GB|MB|KB)", e.g. "100GB", "20MB", "10KB"
     :return:
     """
     job_spec = dict()
     job_spec["command"] = "/app/dps_wrapper.sh '{}'".format(script_command)
-    job_spec["disk_usage"] = "10GB"
+    job_spec["disk_usage"] = disk_usage
     job_spec["imported_worker_files"] = {
         "$HOME/.netrc": "/home/ops/.netrc",
         "$HOME/.aws": "/home/ops/.aws",

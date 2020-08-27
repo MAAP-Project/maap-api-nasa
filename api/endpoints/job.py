@@ -374,7 +374,7 @@ class StopJobs(Resource):
                                 .format(job_id, purge_id))
             # verify if job is deleted
             job_response = hysds.mozart_job_status(job_id)
-            logging.info("Checkup on Revoked job. {}".format(job_response.get("success")))
+            logging.info("Checkup on Revoked job. {}".format(job_response))
             if job_response.get("status") == "job-revoked":
                 # this means the job has been revoked.
                 logging.info("Job successfully revoked")
