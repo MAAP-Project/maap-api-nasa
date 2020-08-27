@@ -36,7 +36,8 @@ class ThreeDimensionalTiles(Resource):
             r.content,
             r.status_code,
             {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
             })
         return response
 
