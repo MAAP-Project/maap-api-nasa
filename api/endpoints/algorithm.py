@@ -60,7 +60,8 @@ class Register(Resource):
             "code_version": "master",
             "environment_name": "ubuntu",
             "docker_container_url": "http://url/to/container",
-            "disk_space": "minimum free disk usage required to run job specified as "\d+(GB|MB|KB)", e.g. "100GB", "20MB", "10KB""
+            "disk_space": "minimum free disk usage required to run job specified as "\d+(GB|MB|KB)", e.g. "100GB", "20MB", "10KB"",
+            ""
             "algorithm_params": [
                 {
                 "field": "param_name1",
@@ -81,7 +82,8 @@ class Register(Resource):
          "environment_name": "ubuntu",
          "docker_container_url": "http://url/to/container",
          "repo_url": "http://url/to/repo",
-         "disk_space": "10GB"
+         "disk_space": "10GB",
+         "queue": "maap-worker-8gb",
          "algorithm_params" : [
               {
               "field": "localize_urls",
@@ -318,6 +320,23 @@ class Describe(Resource):
             response_body["message"] = "Failed to process request to delete {}".format(algo_id)
             response_body["error"] = "{} Traceback: {}".format(ex, tb)
             return response_body, 404
+
+
+@ns.route('/algorithm/queues')
+class ResourceList(Resource):
+    def get_queues(self):
+        try:
+            response_body = {"code": None, "message": None}
+            queues = hysds.get_mozart_queues()
+            response_body["code"] = 200
+            response_body["queues"] = queues
+            response_body["message"] = "success"
+            return response_body
+        except Exception as ex:
+            return Response(ogc.get_exception(type="FailedResource", origin_process="GetAlgorithmsQueues",
+                                              ex_message="Failed to get list of queues. {}.".format(ex)),
+                            status=500,
+                            mimetype='text/xml')
 
 
 @ns.route('/build')

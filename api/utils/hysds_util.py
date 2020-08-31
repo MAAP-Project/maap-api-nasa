@@ -404,6 +404,23 @@ def get_mozart_job_info(job_id):
         raise Exception("Aborting retrieving information of job because status is {}".format(job_status))
 
 
+def get_mozart_queues():
+    session = requests.Session()
+    session.verify = False
+
+    try:
+        mozart_response = session.get("{}/queue/list".format(settings.MOZART_URL)).json()
+        if mozart_response.get("success") is True:
+            try:
+                queues_list = mozart_response.get("result").get("queues")
+                result = [queue for queue in queues_list if queue.startswith("maap-worker")]
+                return result
+            except Exception as ex:
+                raise ex
+    except:
+        raise Exception("Couldn't get list of available queues")
+
+
 def get_mozart_jobs(username):
     """
         Returns mozart's job list
