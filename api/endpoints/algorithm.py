@@ -322,9 +322,14 @@ class Describe(Resource):
             return response_body, 404
 
 
-@ns.route('/algorithm/queues')
+@ns.route('/algorithm/resource')
 class ResourceList(Resource):
-    def get_queues(self):
+    def get(self):
+        """
+        This function would query DPS to see what resources (named based on memory space) are available for
+        algorithms to run on.
+        :return:
+        """
         try:
             response_body = {"code": None, "message": None}
             queues = hysds.get_mozart_queues()
