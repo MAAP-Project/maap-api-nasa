@@ -1,6 +1,6 @@
 import logging
 from flask import request, Response
-from flask_restplus import Resource
+from flask_restplus import Resource, reqparse
 from api.restplus import api
 import traceback
 import api.utils.github_util as git
@@ -12,7 +12,6 @@ from api.maap_database import db
 from api.models.member_algorithm import MemberAlgorithm
 from sqlalchemy import or_, and_
 from datetime import datetime
-from flask_restplus import reqparse
 
 log = logging.getLogger(__name__)
 

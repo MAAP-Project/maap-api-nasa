@@ -1,17 +1,20 @@
 import logging
-from flask_restplus import Resource
-from flask import request
+from flask_restplus import Resource, reqparse
+from flask import request, jsonify
 from api.restplus import api
+import api.settings as settings
 from api.cas.cas_auth import get_authorized_user, login_required
 from api.maap_database import db
 from api.models.member import Member, MemberSchema
 from datetime import datetime
 import json
+import boto3
+from urllib import parse
 
 
 log = logging.getLogger(__name__)
-
 ns = api.namespace('members', description='Operations for MAAP members')
+s3_client = boto3.client('s3', region_name=settings.AWS_REGION)
 
 
 @ns.route('/self')
@@ -76,26 +79,32 @@ class PublicSshKeyUpload(Resource):
         return json.loads(member_schema.dumps(member))
 
 
-# @ns.route('/self/project')
-# class ProjectData(Resource):
-#
-#     @login_required
-#     def get(self):
-#         member = get_authorized_user()
-#         project = MemberCmrCollection.query.filter_by(member_id=member.id)
-#
-#         return project
-#
-#     @login_required
-#     def post(self):
-#         member = get_authorized_user()
-#         # project = MemberCmrCollection.query.filter_by(member_id=member.id)
-#         test = Member()
-#         sample = test.deserialize(request.get_json())
-#         db.session.add(sample)
-#         db.session.commit()
-#
-#         #return project
+@ns.route('/self/presignedUrlS3/<string:bucket>/<string:key>')
+class PresignedUrlS3(Resource):
+
+    expiration_param = reqparse.RequestParser()
+    expiration_param.add_argument('exp', type=int, required=False, default=60 * 60 * 12)
+
+    @login_required
+    @api.expect(expiration_param)
+    def get(self, bucket, key):
+
+        expiration = request.args['exp']
+
+        url = s3_client.generate_presigned_url(
+            'get_object',
+            Params={
+                'Bucket': bucket,
+                'Key': parse.unquote(key)
+            },
+            ExpiresIn=expiration
+        )
+
+        return jsonify(url=url)
+
+
+
+
 
 
 
