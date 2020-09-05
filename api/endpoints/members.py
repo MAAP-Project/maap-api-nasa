@@ -85,7 +85,7 @@ class PresignedUrlS3(Resource):
     expiration_param = reqparse.RequestParser()
     expiration_param.add_argument('exp', type=int, required=False, default=60 * 60 * 12)
 
-    #@login_required
+    @login_required
     @api.expect(expiration_param)
     def get(self, bucket, key):
 
@@ -103,8 +103,6 @@ class PresignedUrlS3(Resource):
 
         response = jsonify(url=url)
         response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Headers', 'Origin, Content-Type, X-Auth-Token')
-        response.headers.add('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS')
 
         return response
 
