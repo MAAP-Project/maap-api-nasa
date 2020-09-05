@@ -103,6 +103,8 @@ class PresignedUrlS3(Resource):
 
         response = jsonify(url=url)
         response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Origin, Content-Type, X-Auth-Token')
+        response.headers.add('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS')
 
         return response
 
