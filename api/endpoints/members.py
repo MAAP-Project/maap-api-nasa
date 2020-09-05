@@ -101,11 +101,10 @@ class PresignedUrlS3(Resource):
 
         )
 
-        output = make_response(jsonify(url=url))
-        output.headers["Content-type"] = "application/json"
-        output.headers["Access-Control-Allow-Origin"] = "*"
+        response = jsonify(url=url)
+        response.headers.add('Access-Control-Allow-Origin', '*')
 
-        return output
+        return response
 
 
 
