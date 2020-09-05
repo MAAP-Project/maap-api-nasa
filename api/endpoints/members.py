@@ -102,7 +102,6 @@ class PresignedUrlS3(Resource):
         )
 
         output = make_response(jsonify(url=url))
-        output.headers["Content-Disposition"] = "attachment; filename=export.csv"
         output.headers["Content-type"] = "application/json"
         output.headers["Access-Control-Allow-Origin"] = "*"
 
