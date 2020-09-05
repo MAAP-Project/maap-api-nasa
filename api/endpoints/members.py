@@ -1,6 +1,6 @@
 import logging
 from flask_restplus import Resource, reqparse
-from flask import request, jsonify
+from flask import request, jsonify, Response
 from api.restplus import api
 import api.settings as settings
 from api.cas.cas_auth import get_authorized_user, login_required
@@ -98,9 +98,17 @@ class PresignedUrlS3(Resource):
                 'Key': parse.unquote(key)
             },
             ExpiresIn=expiration
+
         )
 
-        return jsonify(url=url)
+        response = Response(
+            jsonify(url=url),
+            200,
+            {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            })
+        return response
 
 
 
