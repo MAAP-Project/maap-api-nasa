@@ -1,6 +1,6 @@
 import logging
 from flask_restplus import Resource, reqparse
-from flask import request, jsonify, Response
+from flask import request, jsonify, make_response
 from api.restplus import api
 import api.settings as settings
 from api.cas.cas_auth import get_authorized_user, login_required
@@ -101,15 +101,12 @@ class PresignedUrlS3(Resource):
 
         )
 
-        response = Response(
-            jsonify(url=url),
-            200,
-            {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            })
+        output = make_response(jsonify(url=url))
+        output.headers["Content-Disposition"] = "attachment; filename=export.csv"
+        output.headers["Content-type"] = "application/json"
+        output.headers["Access-Control-Allow-Origin"] = "*"
 
-        return response
+        return output
 
 
 
