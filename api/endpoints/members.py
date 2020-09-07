@@ -79,7 +79,7 @@ class PublicSshKeyUpload(Resource):
         return json.loads(member_schema.dumps(member))
 
 
-@ns.route('/self/presignedUrlS3/<string:bucket>/<string:key>')
+@ns.route('/self/presignedUrlS3/<string:bucket>/<path:key>')
 class PresignedUrlS3(Resource):
 
     expiration_param = reqparse.RequestParser()
