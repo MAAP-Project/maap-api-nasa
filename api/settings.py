@@ -51,7 +51,7 @@ S3_CODE_BUCKET = "s3://[S3_BUCKET_NAME]"
 TILER_ENDPOINT = 'https://8e9mu91qr6.execute-api.us-east-1.amazonaws.com/production'
 
 # 3D Tiles API
-DATA_SYSTEM_SERVICES_API_BASE = 'https://jnz40d89g6.execute-api.us-east-1.amazonaws.com/test'
+DATA_SYSTEM_SERVICES_API_BASE = 'https://llxbmdibvf.execute-api.us-east-1.amazonaws.com/test'
 DATA_SYSTEM_FILES_PATH = '/file-staging/nasa-map/'
 
 # CAS
