@@ -104,12 +104,14 @@ def create_hysds_io(algorithm_description, algorithm_params, submission_type="in
     return hysds_io
 
 
-def create_job_spec(script_command, algorithm_params, disk_usage="10GB"):
+def create_job_spec(script_command, algorithm_params, disk_usage="10GB", queue_name=settings.DEFAULT_QUEUE):
     """
     Creates the contents of the job spec file
     :param script_command:
     :param algorithm_params:
-    :param disk_usage: minimum free disk usage required to run job specified as "\d+(GB|MB|KB)", e.g. "100GB", "20MB", "10KB"
+    :param disk_usage: minimum free disk usage required to run job specified as
+    "\d+(GB|MB|KB)", e.g. "100GB", "20MB", "10KB"
+    :param queue_name: set the recommended queue to run the algorithm on
     :return:
     """
     job_spec = dict()
@@ -120,7 +122,7 @@ def create_job_spec(script_command, algorithm_params, disk_usage="10GB"):
         "$HOME/.aws": "/home/ops/.aws",
         "/tmp": ["/tmp", "rw"]
     }
-    job_spec["recommended-queues"] = [settings.DEFAULT_QUEUE]
+    job_spec["recommended-queues"] = [queue_name]
     params = list()
     for param in algorithm_params:
         destination = "positional"

@@ -61,7 +61,7 @@ class Register(Resource):
             "environment_name": "ubuntu",
             "docker_container_url": "http://url/to/container",
             "disk_space": "minimum free disk usage required to run job specified as "\d+(GB|MB|KB)", e.g. "100GB", "20MB", "10KB"",
-            ""
+            "queue": "name of worker based on required memory for algorithm"
             "algorithm_params": [
                 {
                 "field": "param_name1",
@@ -98,8 +98,12 @@ class Register(Resource):
 
         response_body = {"code": None, "message": None}
 
+        """
+        First, clone the register-job repo from Gitlab
+        The CI/CD pipeline of this repo handles the registration of the algorithm specification in HySDS.
+        So we need to update the repo with the required files and push the algorithm specs of the one being registered.
+        """
         try:
-            req_data = request.get_json()
             repo = git.git_clone()
         except Exception as ex:
             tb = traceback.format_exc()
@@ -125,6 +129,7 @@ class Register(Resource):
             algorithm_description = req_data.get("algorithm_description")
             algorithm_params = req_data.get("algorithm_params")
             disk_space = req_data.get("disk_space")
+            resource = req_data.get("queue")
 
             log.debug("script_command: {}".format(script_command))
             log.debug("algorithm_name: {}".format(algorithm_name))
@@ -152,7 +157,8 @@ class Register(Resource):
             hysds.write_spec_file(spec_type="hysds-io", algorithm=algorithm_name, body=hysds_io)
             # creating job spec file
             job_spec = hysds.create_job_spec(script_command=script_command, algorithm_params=algorithm_params,
-                                             disk_usage=disk_space)
+                                             disk_usage=disk_space,
+                                             queue_name=resource)
             hysds.write_spec_file(spec_type="job-spec", algorithm=algorithm_name, body=job_spec)
 
             # creating JSON file with all code information
@@ -289,7 +295,8 @@ class Describe(Resource):
             job_type = "job-{}".format(algo_id)
             response = hysds.get_job_spec(job_type)
             params = response.get("result").get("params")
-            response_body = ogc.describe_process_response(algo_id, params)
+            queue = response.get("result").get("recommended-queues")[0]
+            response_body = ogc.describe_process_response(algo_id, params, queue)
             return Response(response_body, mimetype='text/xml')
         except Exception as ex:
             tb = traceback.format_exc()
