@@ -24,13 +24,20 @@ class Submit(Resource):
         :return:
         """
         request_xml = request.data
-        job_type, params, output, dedup = ogc.parse_execute_request(request_xml)
+        job_type, params, queue, output, dedup = ogc.parse_execute_request(request_xml)
 
         try:
             if dedup is None:
-                response = hysds.mozart_submit_job(job_type=job_type, params=params)
+                if queue is None:
+                    response = hysds.mozart_submit_job(job_type=job_type, params=params)
+                else:
+                    response = hysds.mozart_submit_job(job_type=job_type, params=params, queue=queue)
             else:
-                response = hysds.mozart_submit_job(job_type=job_type, params=params, dedup=dedup)
+                if queue is None:
+                    response = hysds.mozart_submit_job(job_type=job_type, params=params, dedup=dedup)
+                else:
+                    response = hysds.mozart_submit_job(job_type=job_type, params=params, dedup=dedup, queue=queue)
+
             logging.info("Mozart Response: {}".format(json.dumps(response)))
             job_id = response.get("result")
             response = hysds.mozart_job_status(job_id=job_id)
