@@ -10,6 +10,7 @@ import api.utils.ogc_translate as ogc
 from api.cas.cas_auth import get_authorized_user, login_required
 from api.maap_database import db
 from api.models.member_algorithm import MemberAlgorithm
+from api.models.member_algo_registration import MemberAlgorithmRegistration
 from sqlalchemy import or_, and_
 from datetime import datetime
 
@@ -60,7 +61,8 @@ class Register(Resource):
             "environment_name": "ubuntu",
             "docker_container_url": "http://url/to/container",
             "disk_space": "minimum free disk usage required to run job specified as "\d+(GB|MB|KB)", e.g. "100GB", "20MB", "10KB"",
-            "queue": "name of worker based on required memory for algorithm"
+            "queue": "name of worker based on required memory for algorithm",
+            "ade_webhook_url": "url to send algo registration updates to",
             "algorithm_params": [
                 {
                 "field": "param_name1",
@@ -83,6 +85,7 @@ class Register(Resource):
          "repo_url": "http://url/to/repo",
          "disk_space": "10GB",
          "queue": "maap-worker-8gb",
+         "ade_webhook_url": "http://ade/url/webhook",
          "algorithm_params" : [
               {
               "field": "localize_urls",
@@ -199,9 +202,9 @@ class Register(Resource):
             return response_body, 500
 
         try:
-            git.update_git_repo(repo, repo_name=settings.REPO_NAME,
-                                algorithm_name=hysds.get_algorithm_file_name(algorithm_name))
-            log.debug("Updated Git Repo")
+            commit_hash = git.update_git_repo(repo, repo_name=settings.REPO_NAME,
+                                              algorithm_name=hysds.get_algorithm_file_name(algorithm_name))
+            log.debug("Updated Git Repo with hash {}".format(commit_hash))
         except Exception as ex:
             tb = traceback.format_exc()
             response_body["code"] = 500
@@ -212,20 +215,23 @@ class Register(Resource):
         algorithm_id = "{}:{}".format(algorithm_name, req_data.get("code_version"))
 
         try:
-            # add algorithm to maap db if authenticated
+            # add algorithm registration record to maap db if authenticated
             m = get_authorized_user()
 
             if m is not None:
-                ma = MemberAlgorithm(member_id=m.id, algorithm_key=algorithm_id, is_public=False,
-                                     creation_date=datetime.utcnow())
-                db.session.add(ma)
+                ade_hook = req_data.get("ade_webhook_url", None)
+                mar = MemberAlgorithmRegistration(member_id=m.id, algorithm_key=algorithm_id,
+                                                  creation_date=datetime.utcnow(), commit_hash=commit_hash,
+                                                  ade_webhook=ade_hook)
+                db.session.add(mar)
                 db.session.commit()
 
         except Exception as ex:
             log.debug(ex)
 
         response_body["code"] = 200
-        response_body["message"] = "Successfully registered {}".format(algorithm_id)
+        response_body["message"] = "Successfully initiated registration of {} with commit hash {}. You will receive further notification " \
+                                   "regarding success or failure".format(algorithm_id, commit_hash)
         """
         <?xml version="1.0" encoding="UTF-8"?>
         <AlgorithmName></AlgorithmName>

@@ -26,8 +26,10 @@ def update_git_repo(repo, repo_name, algorithm_name):
     commit_message = 'Registering algorithm: {}'.format(algorithm_name)
     repo.index.add(file_list)
     repo.index.commit(commit_message)
+    commit_hash = repo.index.commit.hexsha
     origin = repo.remote('origin')
     origin.push()
+    return commit_hash
 
 
 def clean_up_git_repo(repo, repo_name):
