@@ -77,7 +77,6 @@ class Register(Resource):
         Sample JSON to post:
         { "script_command" : "python /app/plant.py",
          "algorithm_name" : "plant_test",
-         "label" : "test plant algorithm",
          "code_version": "master",
          "algorithm_description" : "Test Plant",
          "environment_name": "ubuntu",
@@ -92,7 +91,7 @@ class Register(Resource):
               "download": true
               },
               {
-              "field": "username"
+              "field": "parameter1"
               }
             ]
         }

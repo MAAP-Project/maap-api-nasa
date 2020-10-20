@@ -18,7 +18,7 @@ class MemberAlgorithmRegistration(Base):
     member = db.relationship('Member', backref=db.backref('algorithms'))
 
     def __repr__(self):
-        return "<MemberAlgorithmRegistration(algorithm_key={self.algorithm_key!r})>".format(self=self) # what does this mean?
+        return "<MemberAlgorithmRegistration(registration_key={self.registration_key!r})>".format(self=self)
 
 
 class MemberAlgorithmRegistrationSchema(SQLAlchemyAutoSchema):
