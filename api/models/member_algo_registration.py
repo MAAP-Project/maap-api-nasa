@@ -9,8 +9,8 @@ class MemberAlgorithmRegistration(Base):
 
     id = db.Column(db.Integer, primary_key=True)
     member_id = db.Column(db.Integer, db.ForeignKey('member.id'), nullable=False)
-    username = db.Column(db.String, db.ForeignKey('member.id'), nullable=False)
-    email_id = db.Column(db.String, db.ForeignKey('member.id'), nullable=False)
+    username = db.Column(db.String(), db.ForeignKey('member.username'), nullable=False)
+    email_id = db.Column(db.String(), db.ForeignKey('member.email'), nullable=False)
     algorithm_key = db.Column(db.String())
     creation_date = db.Column(db.DateTime())
     commit_hash = db.Column(db.String())
