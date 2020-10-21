@@ -1,7 +1,7 @@
 from api.models import Base
 from api.maap_database import db
 # from datetime import datetime
-from marshmallow_sqlalchemy import SQLAlchemyAutoSchema, ForeignKey
+from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 
 
 class MemberAlgorithmRegistration(Base):
