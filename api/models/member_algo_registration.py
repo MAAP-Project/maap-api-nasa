@@ -15,9 +15,9 @@ class MemberAlgorithmRegistration(Base):
     creation_date = db.Column(db.DateTime())
     commit_hash = db.Column(db.String())
     ade_webhook = db.Column(db.String())
-    member = db.relationship('Member', foreign_keys=[member_id],backref=db.backref('algorithms'))
-    user = db.relationship('Member', foreign_keys=[username], backref=db.backref('algorithms'))
-    email = db.relationship('Member', foreign_keys=[email_id], backref=db.backref('algorithms'))
+    member = db.relationship('Member', foreign_keys=[member_id])
+    user = db.relationship('Member', foreign_keys=[username])
+    email = db.relationship('Member', foreign_keys=[email_id])
 
     def __repr__(self):
         return "<MemberAlgorithmRegistration(registration_key={self.registration_key!r})>".format(self=self)
