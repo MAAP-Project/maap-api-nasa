@@ -135,6 +135,7 @@ class QueryServiceCreate(Resource):
             'src': src,
             'query': {
                 'fields': fields,
+                'where': where,
                 'bbox': bbox
             }
         }
