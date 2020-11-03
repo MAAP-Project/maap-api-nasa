@@ -25,10 +25,12 @@ def update_git_repo(repo, repo_name, algorithm_name):
     ]
     commit_message = 'Registering algorithm: {}'.format(algorithm_name)
     repo.index.add(file_list)
-    repo.index.commit(commit_message)
-    commit_hash = repo.index.commit.hexsha
+    commit_hash = repo.index.commit(commit_message)
+    print("Commit Hash: {}".format(commit_hash))
     origin = repo.remote('origin')
     origin.push()
+    commit_hash = repo.head.object.hexsha
+    print("Commit Hash: {}".format(commit_hash))
     return commit_hash
 
 
