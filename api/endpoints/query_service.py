@@ -43,9 +43,9 @@ class QueryServiceCreate(Resource):
     
     def _is_valid_table(self, table):
         if (table == "tree" or table == "plot"):
-            return true
+            return True
         else:
-            return false
+            return False
 
     def _is_valid_bbox(self, bbox):
         return all([
