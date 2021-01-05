@@ -84,7 +84,8 @@ class Describe(Resource):
             response = hysds.get_job_spec(job_type)
             print(json.dumps(response))
             params = response.get("result").get("params")
-            response_body = ogc.describe_process_response(algo_id, params)
+            queue = response.get("result").get("recommended-queues")[0]
+            response_body = ogc.describe_process_response(algo_id, params, queue)
             return Response(response_body, mimetype='text/xml')
         except Exception as ex:
             tb = traceback.format_exc()
