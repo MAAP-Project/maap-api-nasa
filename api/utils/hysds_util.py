@@ -104,7 +104,7 @@ def create_hysds_io(algorithm_description, algorithm_params, submission_type="in
     return hysds_io
 
 
-def create_job_spec(script_command, algorithm_params, disk_usage="10GB", queue_name=settings.DEFAULT_QUEUE):
+def create_job_spec(script_command, algorithm_params, disk_usage, queue_name=settings.DEFAULT_QUEUE):
     """
     Creates the contents of the job spec file
     :param script_command:

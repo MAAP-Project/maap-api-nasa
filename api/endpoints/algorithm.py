@@ -202,7 +202,7 @@ class Register(Resource):
 
         try:
             git.update_git_repo(repo, repo_name=settings.REPO_NAME,
-                                              algorithm_name=hysds.get_algorithm_file_name(algorithm_name))
+                                algorithm_name=hysds.get_algorithm_file_name(algorithm_name))
             # log.debug("Updated Git Repo with hash {}".format(commit_hash))
         except Exception as ex:
             tb = traceback.format_exc()
