@@ -29,12 +29,13 @@ def update_git_repo(repo, repo_name, algorithm_name):
     repo.index.commit(commit_message)
     origin = repo.remote('origin')
     origin.push()
-    head = repo.commits()[0]
-    commit_hash = head.id
-    commit_time = time.strftime("%a, %d %b %Y %H:%M", head.committed_date)
-    commit_message = head.message
-    print("Commit Hash: {} made at {} for {}".format(commit_hash, commit_time, commit_message))
-    return commit_hash
+    # head = repo.commits()[0]
+    # commit_hash = head.id
+    # commit_time = time.strftime("%a, %d %b %Y %H:%M", head.committed_date)
+    # commit_message = head.message
+    # print("Commit Hash: {} made at {} for {}".format(commit_hash, commit_time, commit_message))
+    # return commit_hash
+    return
 
 
 def clean_up_git_repo(repo, repo_name):

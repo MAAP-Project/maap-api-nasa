@@ -201,9 +201,9 @@ class Register(Resource):
             return response_body, 500
 
         try:
-            commit_hash = git.update_git_repo(repo, repo_name=settings.REPO_NAME,
+            git.update_git_repo(repo, repo_name=settings.REPO_NAME,
                                               algorithm_name=hysds.get_algorithm_file_name(algorithm_name))
-            log.debug("Updated Git Repo with hash {}".format(commit_hash))
+            # log.debug("Updated Git Repo with hash {}".format(commit_hash))
         except Exception as ex:
             tb = traceback.format_exc()
             response_body["code"] = 500
@@ -213,24 +213,24 @@ class Register(Resource):
 
         algorithm_id = "{}:{}".format(algorithm_name, req_data.get("code_version"))
 
-        try:
-            # add algorithm registration record to maap db if authenticated
-            m = get_authorized_user()
-
-            if m is not None:
-                ade_hook = req_data.get("ade_webhook_url", None)
-                mar = MemberAlgorithmRegistration(member_id=m.id, algorithm_key=algorithm_id,
-                                                  creation_date=datetime.utcnow(), commit_hash=commit_hash,
-                                                  ade_webhook=ade_hook)
-                db.session.add(mar)
-                db.session.commit()
-
-        except Exception as ex:
-            log.debug(ex)
+        # try:
+        #     # add algorithm registration record to maap db if authenticated
+        #     m = get_authorized_user()
+        #
+        #     if m is not None:
+        #         ade_hook = req_data.get("ade_webhook_url", None)
+        #         mar = MemberAlgorithmRegistration(member_id=m.id, algorithm_key=algorithm_id,
+        #                                           creation_date=datetime.utcnow(), commit_hash=commit_hash,
+        #                                           ade_webhook=ade_hook)
+        #         db.session.add(mar)
+        #         db.session.commit()
+        #
+        # except Exception as ex:
+        #     log.debug(ex)
 
         response_body["code"] = 200
-        response_body["message"] = "Successfully initiated registration of {} with commit hash {}. You will receive further notification " \
-                                   "regarding success or failure".format(algorithm_id, commit_hash)
+        response_body["message"] = "Successfully initiated registration of {}. You will receive further notification " \
+                                   "regarding success or failure".format(algorithm_id)
         """
         <?xml version="1.0" encoding="UTF-8"?>
         <AlgorithmName></AlgorithmName>
