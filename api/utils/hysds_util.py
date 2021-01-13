@@ -423,7 +423,7 @@ def get_mozart_queues():
         raise Exception("Couldn't get list of available queues")
 
 
-def get_mozart_jobs(username, page_size=10, offset=0):
+def get_mozart_jobs(username, page_size="10", offset="0"):
     """
         Returns mozart's job list
         :param username:
