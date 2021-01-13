@@ -329,12 +329,19 @@ class Jobs(Resource):
         # job_id = ogc.parse_status_request(request_xml)
         try:
             logging.info("Finding jobs for user: {}".format(username))
-            response = hysds.get_mozart_jobs(username=username)
-            job_list = response.get("result")
-            logging.info("Found Jobs: {}".format(job_list))
+
             response_body = dict()
             response_body["code"] = 200
-            response_body["jobs"] = job_list
+
+            # TODO: Remove this temp hack once this is resolved: https://github.com/MAAP-Project/ZenHub/issues/230
+            if username == 'rd2d':
+                response_body["jobs"] = []
+            else:
+                response = hysds.get_mozart_jobs(username=username)
+                job_list = response.get("result")
+                logging.info("Found Jobs: {}".format(job_list))
+                response_body["jobs"] = job_list
+
             response_body["message"] = "success"
             """
                         <?xml version="1.0" encoding="UTF-8"?>
