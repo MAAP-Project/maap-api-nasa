@@ -423,13 +423,15 @@ def get_mozart_queues():
         raise Exception("Couldn't get list of available queues")
 
 
-def get_mozart_jobs(username):
+def get_mozart_jobs(username, page_size=10, offset=0):
     """
         Returns mozart's job list
         :param username:
         :return:
         """
     params = dict()
+    params["page_size"] = page_size
+    params["offset"] = offset
     params["username"] = username
     params["detailed"] = True
 
