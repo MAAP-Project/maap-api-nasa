@@ -334,7 +334,7 @@ class Jobs(Resource):
             response_body["code"] = 200
 
             # TODO: Remove this temp hack once this is resolved: https://github.com/MAAP-Project/ZenHub/issues/230
-            if username == 'rd2d':
+            if username in ['r2d2', 'sayers1', 'csilva']:
                 response_body["jobs"] = []
             else:
                 response = hysds.get_mozart_jobs(username=username)
