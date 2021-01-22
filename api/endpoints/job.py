@@ -319,8 +319,15 @@ class Metrics(Resource):
 
 @ns.route('/job/<string:username>/list')
 class Jobs(Resource):
+    parser = api.parser()
+    parser.add_argument('page_size', required=False, type=str,
+                        help="Job Listing Pagination Size")
+    parser.add_argument('offset', required=False, type=str,
+                        help="Job Listing Pagination Offset")
+    parser.add_argument('username', required=False, type=str,
+                        help="Username")
 
-    def get(self, username):
+    def get(self, username, size, offset):
         """
         This will return run a list of jobs for a specified user
         :return:
@@ -329,7 +336,9 @@ class Jobs(Resource):
         # job_id = ogc.parse_status_request(request_xml)
         try:
             logging.info("Finding jobs for user: {}".format(username))
-            response = hysds.get_mozart_jobs(username=username)
+            size = request.form.get('page_size', request.args.get('page_size', 100))
+            offset = request.form.get('offset', request.args.get('offset', 0))
+            response = hysds.get_mozart_jobs(username=username, page_size=size, offset=offset)
             job_list = response.get("result")
             logging.info("Found Jobs: {}".format(job_list))
             response_body = dict()
