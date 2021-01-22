@@ -431,9 +431,10 @@ def get_mozart_jobs(username, page_size="10", offset="0"):
         """
     params = dict()
     params["page_size"] = page_size
-    params["offset"] = offset
+    params["id"] = offset  # this is specifies the offset
     params["username"] = username
     params["detailed"] = True
+    params["paginate"] = True
 
     session = requests.Session()
     session.verify = False
