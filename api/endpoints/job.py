@@ -324,10 +324,8 @@ class Jobs(Resource):
                         help="Job Listing Pagination Size")
     parser.add_argument('offset', required=False, type=str,
                         help="Job Listing Pagination Offset")
-    parser.add_argument('username', required=False, type=str,
-                        help="Username")
 
-    def get(self, username, size, offset):
+    def get(self, username):
         """
         This will return run a list of jobs for a specified user
         :return:
