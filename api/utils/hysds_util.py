@@ -423,7 +423,7 @@ def get_mozart_queues():
         raise Exception("Couldn't get list of available queues")
 
 
-def get_mozart_jobs(username, page_size="10", offset="0"):
+def get_mozart_jobs(username, page_size=10, offset=0):
     """
         Returns mozart's job list
         :param username:
@@ -440,7 +440,13 @@ def get_mozart_jobs(username, page_size="10", offset="0"):
     session.verify = False
 
     try:
-        mozart_response = session.get("{}/job/list".format(settings.MOZART_URL), params=params)
+        param_list = ""
+        for key, value in params:
+            param_list += "&{}={}".format(key, value)
+
+        url = "{}/job/list{}".format(settings.MOZART_URL, param_list)
+        print("GET request to: {}".format(url))
+        mozart_response = session.get(url)
 
     except Exception as ex:
         raise ex
