@@ -444,7 +444,7 @@ def get_mozart_jobs(username, page_size=10, offset=0):
         for key, value in params:
             param_list += "&{}={}".format(key, value)
 
-        url = "{}/job/list{}".format(settings.MOZART_URL, param_list)
+        url = "{}/job/list?{}".format(settings.MOZART_URL, param_list[1:])
         print("GET request to: {}".format(url))
         mozart_response = session.get(url)
 
