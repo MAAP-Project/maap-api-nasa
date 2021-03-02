@@ -415,7 +415,7 @@ def get_mozart_queues():
         if mozart_response.get("success") is True:
             try:
                 queues_list = mozart_response.get("result").get("queues")
-                result = [queue for queue in queues_list if queue.startswith("maap-worker")]
+                result = [queue for queue in queues_list if queue.startswith("maap")]
                 return result
             except Exception as ex:
                 raise ex
