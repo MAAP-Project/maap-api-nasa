@@ -1,7 +1,8 @@
 from datetime import timedelta, datetime
 
 import flask
-from flask import abort, request
+import requests
+from flask import abort, request, json
 from xmltodict import parse
 from flask import current_app
 from .cas_urls import create_cas_proxy_url
@@ -76,6 +77,26 @@ def validate_proxy(ticket):
     return None
 
 
+def validate_bearer(token):
+    """
+    Will attempt to validate the bearer token. If validation fails, then None
+    is returned. If validation is successful, then a Member object is returned
+    and the validated bearer token is saved in the session db table while the
+    validated attributes are saved under member db table.
+    """
+
+    current_app.logger.debug("validating token {0}".format(token))
+
+    resp = requests.get(current_app.config['CAS_SERVER'] + '/oauth2.0/profile',
+                        headers={'Authorization': 'Bearer ' + token})
+
+    if resp.status_code == 200:
+        return json.loads(resp.text)
+
+    current_app.logger.debug("invalid bearer token")
+    return None
+
+
 def validate_cas_request(cas_url):
 
     xml_from_dict = {}
@@ -144,13 +165,20 @@ def decrypt_proxy_ticket(ticket):
             return ''
 
 
-
 def get_authorized_user():
     if 'proxy-ticket' in request.headers:
         member_session = validate_proxy(request.headers['proxy-ticket'])
 
         if member_session is not None:
             return member_session.member
+
+    if 'Authorization' in request.headers:
+        bearer = request.headers.get('Authorization')
+        token = bearer.split()[1]
+        authorized = validate_bearer(token)
+
+        if authorized is not None:
+            return authorized
 
     return None
 
@@ -161,6 +189,14 @@ def login_required(wrapped_function):
 
         if 'proxy-ticket' in request.headers:
             authorized = validate_proxy(request.headers['proxy-ticket'])
+
+            if authorized is not None:
+                return wrapped_function(*args, **kwargs)
+
+        if 'Authorization' in request.headers:
+            bearer = request.headers.get('Authorization')
+            token = bearer.split()[1]
+            authorized = validate_bearer(token)
 
             if authorized is not None:
                 return wrapped_function(*args, **kwargs)

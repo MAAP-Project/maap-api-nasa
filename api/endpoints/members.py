@@ -23,9 +23,11 @@ class Self(Resource):
     @login_required
     def get(self):
         member = get_authorized_user()
-        member_schema = MemberSchema()
-
-        return json.loads(member_schema.dumps(member))
+        if 'Authorization' in request.headers:
+            return member
+        if 'proxy-ticket' in request.headers:
+            member_schema = MemberSchema()
+            return json.loads(member_schema.dumps(member))
 
 
 @ns.route('/selfTest')
