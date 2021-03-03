@@ -3,7 +3,7 @@ from flask_restplus import Resource, reqparse
 from flask import request, jsonify, make_response
 from api.restplus import api
 import api.settings as settings
-from api.cas.cas_auth import get_authorized_user, login_required
+from api.cas.cas_auth import get_authorized_user, login_required, get_urs_token
 from api.maap_database import db
 from api.models.member import Member, MemberSchema
 from datetime import datetime
@@ -23,12 +23,23 @@ class Self(Resource):
     @login_required
     def get(self):
         member = get_authorized_user()
-        if 'Authorization' in request.headers:
-            return member
+
         if 'proxy-ticket' in request.headers:
             member_schema = MemberSchema()
             return json.loads(member_schema.dumps(member))
 
+        if 'Authorization' in request.headers:
+            return member
+
+
+@ns.route('/selfUrsToken')
+class Self(Resource):
+
+    @login_required
+    def get(self):
+        urs_token = get_urs_token(request.headers['proxy-ticket'])
+
+        return jsonify({'access_token': urs_token})
 
 @ns.route('/selfTest')
 class Self(Resource):
