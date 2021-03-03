@@ -232,28 +232,28 @@ class Metrics(Resource):
             time_duration = job_info.get("cmd_duration")
 
             docker_metrics = job_info.get("metrics").get("usage_stats")[0].get("cgroups")
-            cpu_stats = docker_metrics.get("cpu_stats").get("cpu_usage").get("total_usage")
-            memory_stats = docker_metrics.get("memory_stats")
-            cache_stat = memory_stats.get("cache")
-            mem_usage = memory_stats.get("usage").get("usage")
-            max_mem_usage = memory_stats.get("usage").get("max_usage")
-            swap_usage = memory_stats.get("stats").get("swap")
+            if docker_metrics is not None:
+                cpu_stats = docker_metrics.get("cpu_stats").get("cpu_usage").get("total_usage")
+                memory_stats = docker_metrics.get("memory_stats")
+                cache_stat = memory_stats.get("cache")
+                mem_usage = memory_stats.get("usage").get("usage")
+                max_mem_usage = memory_stats.get("usage").get("max_usage")
+                swap_usage = memory_stats.get("stats").get("swap")
 
-            # total bytes transferred during all the I/O operations performed by the container
-            io_stats = docker_metrics.get("blkio_stats").get("io_service_bytes_recursive")
-            for io in io_stats:
-                op = io.get("op")
-                if op == "Read":
-                    read_io_stats = io.get("value", 0)
-                elif op == "Write":
-                    write_io_stats = io.get("value", 0)
-                elif op == "Sync":
-                    sync_io_stats = io.get("value", 0)
-                elif op == "Async":
-                    async_io_stats = io.get("value", 0)
-                elif op == "Total":
-                    total_io_stats = io.get("value", 0)
-
+                # total bytes transferred during all the I/O operations performed by the container
+                io_stats = docker_metrics.get("blkio_stats").get("io_service_bytes_recursive")
+                for io in io_stats:
+                    op = io.get("op")
+                    if op == "Read":
+                        read_io_stats = io.get("value", 0)
+                    elif op == "Write":
+                        write_io_stats = io.get("value", 0)
+                    elif op == "Sync":
+                        sync_io_stats = io.get("value", 0)
+                    elif op == "Async":
+                        async_io_stats = io.get("value", 0)
+                    elif op == "Total":
+                        total_io_stats = io.get("value", 0)
 
 
             # build the metrics object
@@ -286,26 +286,27 @@ class Metrics(Resource):
             job_end_time.text = time_end
             job_duration_seconds = SubElement(xml_response, "job_duration_seconds")
             job_duration_seconds.text = str(time_duration)
-            job_duration_seconds = SubElement(xml_response, "cpu_usage")
-            job_duration_seconds.text = str(cpu_stats)
-            job_duration_seconds = SubElement(xml_response, "cache_usage")
-            job_duration_seconds.text = str(cache_stat)
-            job_duration_seconds = SubElement(xml_response, "mem_usage")
-            job_duration_seconds.text = str(mem_usage)
-            job_duration_seconds = SubElement(xml_response, "max_mem_usage")
-            job_duration_seconds.text = str(max_mem_usage)
-            job_duration_seconds = SubElement(xml_response, "swap_usage")
-            job_duration_seconds.text = str(swap_usage)
-            job_duration_seconds = SubElement(xml_response, "read_io_stats")
-            job_duration_seconds.text = str(read_io_stats)
-            job_duration_seconds = SubElement(xml_response, "write_io_stats")
-            job_duration_seconds.text = str(write_io_stats)
-            job_duration_seconds = SubElement(xml_response, "sync_io_stats")
-            job_duration_seconds.text = str(sync_io_stats)
-            job_duration_seconds = SubElement(xml_response, "async_io_stats")
-            job_duration_seconds.text = str(async_io_stats)
-            job_duration_seconds = SubElement(xml_response, "total_io_stats")
-            job_duration_seconds.text = str(total_io_stats)
+            if docker_metrics is not None:
+                cpu_usage = SubElement(xml_response, "cpu_usage")
+                cpu_usage.text = str(cpu_stats)
+                cache_usage = SubElement(xml_response, "cache_usage")
+                cache_usage.text = str(cache_stat)
+                mem_usage = SubElement(xml_response, "mem_usage")
+                mem_usage.text = str(mem_usage)
+                max_mem_usage = SubElement(xml_response, "max_mem_usage")
+                max_mem_usage.text = str(max_mem_usage)
+                swap_usage = SubElement(xml_response, "swap_usage")
+                swap_usage.text = str(swap_usage)
+                read_io_stats = SubElement(xml_response, "read_io_stats")
+                read_io_stats.text = str(read_io_stats)
+                write_io_stats = SubElement(xml_response, "write_io_stats")
+                write_io_stats.text = str(write_io_stats)
+                sync_io_stats = SubElement(xml_response, "sync_io_stats")
+                sync_io_stats.text = str(sync_io_stats)
+                async_io_stats = SubElement(xml_response, "async_io_stats")
+                async_io_stats.text = str(async_io_stats)
+                total_io_stats = SubElement(xml_response, "total_io_stats")
+                total_io_stats.text = str(total_io_stats)
 
 
             return Response(tostring(xml_response), mimetype="text/xml", status=200)
