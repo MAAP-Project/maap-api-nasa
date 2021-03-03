@@ -40,8 +40,7 @@ class CmrCollection(Resource):
         For a comprehensive list of collection search examples, see: https://cmr.earthdata.nasa.gov/search/site/docs/search/api.html#collection-search-by-parameters
         """
 
-        url = os.path.join(settings.CMR_URL, 'search', 'collections')
-        resp = requests.get(url, headers=get_search_headers(), params=parse_query_string(request.query_string))
+        resp = req(request.query_string, 'collections')
 
         return respond(resp)
 
@@ -108,8 +107,7 @@ class CmrGranules(Resource):
         For a comprehensive list of granule search examples, see: https://cmr.earthdata.nasa.gov/search/site/docs/search/api.html#granule-search-by-parameters
         """
 
-        url = os.path.join(settings.CMR_URL, 'search', 'granules')
-        resp = requests.get(url, headers=get_search_headers(), params=parse_query_string(request.query_string))
+        resp = req(request.query_string, 'granules')
 
         return respond(resp)
 
@@ -127,6 +125,19 @@ def get_search_headers():
 # Preserves keys that occur more than once, as allowed for in CMR
 def parse_query_string(qs):
     return urlparse.parse_qs(qs)
+
+
+def req(query_string, search_type):
+    url = os.path.join(settings.CMR_URL, 'search', search_type)
+    parms = parse_query_string(query_string)
+
+    # If an alternate cmr_host is specified in a search request,
+    # use that in place of the default config 'CMR_URL' setting.
+    if 'cmr_host'.encode('utf-8') in parms.keys():
+        cmr_host = parms.pop('cmr_host'.encode('utf-8'))[0]
+        url = os.path.join('https://' + cmr_host.decode('utf-8'), 'search', search_type)
+
+    return requests.get(url, headers=get_search_headers(), params=parms)
 
 
 def respond(response):
