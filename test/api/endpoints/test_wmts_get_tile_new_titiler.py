@@ -58,8 +58,6 @@ class GetTileCase(unittest.TestCase):
     # Setup
     def setUp(self):
         app.config['TESTING'] = True
-        #print("Hai: test")
-        #print(settings.TILER_ENDPOINT)
         self.maxDiff = None # For seeing the whole redirect message
         self.app = app.test_client()
         if MOCK_RESPONSES:
