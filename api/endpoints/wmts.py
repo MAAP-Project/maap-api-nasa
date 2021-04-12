@@ -63,14 +63,23 @@ def gen_mosaic_url(params={}):
     ext = params.get('ext') if params.get('ext') else 'png'
     color_map = params.get('color_map') if params.get('color_map') else 'schwarzwald'
     rescale = params.get('rescale') if params.get('rescale') else '-1,1'
-    return settings.TILER_ENDPOINT + '/mosaic/' + \
+    bidx = params.get('bidx') if params.get('bidx') else '1'
+    #return settings.TILER_ENDPOINT + '/mosaic/' + \
+    #       str(params['z']) + '/' + \
+    #       str(params['x']) + '/' + \
+    #       str(params['y']) + '.' + \
+    #       ext + '?urls=' + \
+    #       params['urls'] + '&color_map=' + \
+    #       color_map + '&rescale=' + \
+    #       rescale
+    return settings.TILER_ENDPOINT + '/cog/tiles/' + \
            str(params['z']) + '/' + \
            str(params['x']) + '/' + \
            str(params['y']) + '.' + \
-           ext + '?urls=' + \
+           ext + '?url=' + \
            params['urls'] + '&color_map=' + \
            color_map + '&rescale=' + \
-           rescale
+           rescale + '&bidx=' + bidx
 
 
 def get_tiles(tiler_url=''):
@@ -92,6 +101,7 @@ class GetTile(Resource):
         color_map = request.args.get("color_map")
         rescale = request.args.get('rescale')
         ext = request.args.get('ext') or 'png'
+        bidx = request.args.get('bidx') or '1'
         response_body = dict()
 
         if not (granule_urs or urls or (short_name and version)):
@@ -127,16 +137,19 @@ class GetTile(Resource):
 
                 if not browse_urls_query_string:
                     raise AssertionError('No browse images')
+                links = browse_urls_query_string.split(',')
 
                 mosaic_url = gen_mosaic_url({
                     'z': z,
                     'x': x,
                     'y': y,
-                    'urls': browse_urls_query_string,
+                    'urls': links[0], #Current titiler does not handle multiple urls
                     'color_map': color_map,
                     'ext': ext,
-                    'rescale': rescale
+                    'rescale': rescale,
+                    'bidx': bidx
                 })
+                #print(mosaic_url)
                 tile_response = get_tiles(mosaic_url)
                 response = Response(
                     tile_response.content,
@@ -161,12 +174,18 @@ class GetTile(Resource):
 
 
 def get_mosaic_tilejson(urls_query_string=''):
-    mosaic_tilejson_url = settings.TILER_ENDPOINT + '/mosaic/tilejson.json?urls=' + urls_query_string
+    #mosaic_tilejson_url = settings.TILER_ENDPOINT + '/mosaic/tilejson.json?urls=' + urls_query_string
+    mosaic_tilejson_url = settings.TILER_ENDPOINT + '/cog/bounds?url=' + urls_query_string
+    print("HAI>>>>>>>>>>>>>")
+    print(mosaic_tilejson_url)
+    #print(urls_query_string)
     r = requests.get(mosaic_tilejson_url)
     return r.json()
 
 def get_stats(url, bbox):
-    stats_url = settings.TILER_ENDPOINT + '/bbox?url=' + url + '&bbox=' + bbox
+    #stats_url = settings.TILER_ENDPOINT + '/bbox?url=' + url + '&bbox=' + bbox
+    stats_url = settings.TILER_ENDPOINT + '/cog/metadata?url=' + url + '&bounds=' + bbox#[0] + ',' + bbox[1] + ',' + bbox[2] + ',' + bbox[3] 
+    print(stats_url)
     r = requests.get(stats_url)
     return r.json()
 
@@ -181,7 +200,8 @@ class GetCapabilities(Resource):
         if len(urls_query_string.split(',')) == 1:
             stats_resp = get_stats(urls_query_string, ','.join(map(str, bbox)))
             stats = stats_resp['statistics']['1']
-            rescale = ','.join([str(stats['pc'][0]), str(stats['pc'][1])])
+            #rescale = ','.join([str(stats['pc'][0]), str(stats['pc'][1])])
+            rescale = ','.join([str(stats['percentiles'][0]), str(stats['percentiles'][1])])
 
         layer_info = {
             'layer_title': key,
@@ -220,7 +240,8 @@ class GetCapabilities(Resource):
         else:
             for key, collection in default_collections.items():
                 browse_urls_query_string = get_cog_urls_string(collection_params(collection))
-                layer_info = self.generate_layer_info(key, browse_urls_query_string, collection)
+                links = browse_urls_query_string.split(',')
+                layer_info = self.generate_layer_info(key, links[0], collection)
                 layers.append(layer_info)
 
         context = {
