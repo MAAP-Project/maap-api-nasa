@@ -176,15 +176,12 @@ class GetTile(Resource):
 def get_mosaic_tilejson(urls_query_string=''):
     #mosaic_tilejson_url = settings.TILER_ENDPOINT + '/mosaic/tilejson.json?urls=' + urls_query_string
     mosaic_tilejson_url = settings.TILER_ENDPOINT + '/cog/bounds?url=' + urls_query_string
-    print("HAI>>>>>>>>>>>>>")
-    print(mosaic_tilejson_url)
-    #print(urls_query_string)
     r = requests.get(mosaic_tilejson_url)
     return r.json()
 
 def get_stats(url, bbox):
     #stats_url = settings.TILER_ENDPOINT + '/bbox?url=' + url + '&bbox=' + bbox
-    stats_url = settings.TILER_ENDPOINT + '/cog/metadata?url=' + url + '&bounds=' + bbox#[0] + ',' + bbox[1] + ',' + bbox[2] + ',' + bbox[3] 
+    stats_url = settings.TILER_ENDPOINT + '/cog/metadata?url=' + url + '&max_size=512&bounds=' + bbox
     print(stats_url)
     r = requests.get(stats_url)
     return r.json()
