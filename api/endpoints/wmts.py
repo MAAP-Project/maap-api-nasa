@@ -64,14 +64,6 @@ def gen_mosaic_url(params={}):
     color_map = params.get('color_map') if params.get('color_map') else 'schwarzwald'
     rescale = params.get('rescale') if params.get('rescale') else '-1,1'
     bidx = params.get('bidx') if params.get('bidx') else '1'
-    #return settings.TILER_ENDPOINT + '/mosaic/' + \
-    #       str(params['z']) + '/' + \
-    #       str(params['x']) + '/' + \
-    #       str(params['y']) + '.' + \
-    #       ext + '?urls=' + \
-    #       params['urls'] + '&color_map=' + \
-    #       color_map + '&rescale=' + \
-    #       rescale
     return settings.TILER_ENDPOINT + '/cog/tiles/' + \
            str(params['z']) + '/' + \
            str(params['x']) + '/' + \
@@ -149,7 +141,6 @@ class GetTile(Resource):
                     'rescale': rescale,
                     'bidx': bidx
                 })
-                #print(mosaic_url)
                 tile_response = get_tiles(mosaic_url)
                 response = Response(
                     tile_response.content,
@@ -174,13 +165,11 @@ class GetTile(Resource):
 
 
 def get_mosaic_tilejson(urls_query_string=''):
-    #mosaic_tilejson_url = settings.TILER_ENDPOINT + '/mosaic/tilejson.json?urls=' + urls_query_string
     mosaic_tilejson_url = settings.TILER_ENDPOINT + '/cog/bounds?url=' + urls_query_string
     r = requests.get(mosaic_tilejson_url)
     return r.json()
 
 def get_stats(url, bbox):
-    #stats_url = settings.TILER_ENDPOINT + '/bbox?url=' + url + '&bbox=' + bbox
     stats_url = settings.TILER_ENDPOINT + '/cog/metadata?url=' + url + '&max_size=512&bounds=' + bbox
     print(stats_url)
     r = requests.get(stats_url)
@@ -197,7 +186,6 @@ class GetCapabilities(Resource):
         if len(urls_query_string.split(',')) == 1:
             stats_resp = get_stats(urls_query_string, ','.join(map(str, bbox)))
             stats = stats_resp['statistics']['1']
-            #rescale = ','.join([str(stats['pc'][0]), str(stats['pc'][1])])
             rescale = ','.join([str(stats['percentiles'][0]), str(stats['percentiles'][1])])
 
         layer_info = {

@@ -94,7 +94,6 @@ class GetTileCase(unittest.TestCase):
             wmts.get_cog_urls_string = MagicMock(return_value = 'test.tif')
         tile_path = f"{self.get_tile_path(g1['zxy'])}?granule_urs={g1['granule_ur']}&color_map={g1['color_map']}&rescale={g1['rescale']}"
         print(tile_path)
-        #response = self.app.get(tile_path)
         url = settings.API_HOST_URL + str(tile_path)
         response = rq.get(url)
         return self.assert_image_response(response)
@@ -104,7 +103,6 @@ class GetTileCase(unittest.TestCase):
             wmts.get_cog_urls_string = MagicMock(return_value = 'test.tif')
         tile_path = f"{self.get_tile_path(g3['zxy'])}?granule_urs={g3['granule_ur']}&bidx={g3['indexes']}&rescale={g3['rescale']}"
         print(tile_path)
-        #response = self.app.get(tile_path)
         url = settings.API_HOST_URL + str(tile_path)
         response = rq.get(url)
         return self.assert_image_response(response)
@@ -114,32 +112,15 @@ class GetTileCase(unittest.TestCase):
             wmts.get_cog_urls_string = MagicMock(return_value = 'test.tif')
         tile_path = f"{self.get_tile_path(g4['zxy'])}?granule_urs={g4['granule_ur']}&bidx={g4['indexes']}&rescale={g4['rescale']}"
         print(tile_path)
-        #response = self.app.get(tile_path)
         url = settings.API_HOST_URL + str(tile_path)
         response = rq.get(url)
         return self.assert_image_response(response)
-    '''
-    New Titiler seems not support multiple granules
-    #def test_get_tile_multiple_granules_returns_image(self):
-        granule_urls = ','.join([g1['granule_ur'], g2['granule_ur']])
-        if MOCK_RESPONSES:
-            wmts.get_cog_urls_string = MagicMock(return_value = granule_urs)
-        tile_path = f"{self.get_tile_path(g1['zxy'])}?granule_urs={granule_urls}&color_map={g1['color_map']}&rescale={g1['rescale']}"
-        print(tile_path)
-        #response = self.app.get(tile_path)
-        url = settings.API_HOST_URL + str(tile_path)
-        #url = "https://api.maap.xyz/" + str(tile_path)
-        response = rq.get(url)
-        print(response)
-        return self.assert_image_response(response)
-    '''
-    
+        
     def test_get_tile_collection_returns_image(self):
         if MOCK_RESPONSES:
             wmts.get_cog_urls_string = MagicMock(return_value = 'mosaic.cog')
         tile_path = f"{self.get_tile_path(g1['zxy'])}?short_name={collection['short_name']}&version={collection['version']}&color_map={g1['color_map']}&rescale={g1['rescale']}"
         print(tile_path)
-        #response = self.app.get(tile_path)
         url = settings.API_HOST_URL + str(tile_path)
         response = rq.get(url)
         print(response)
