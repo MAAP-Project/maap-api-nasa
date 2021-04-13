@@ -3,7 +3,7 @@ The joint ESA-NASA Multi-Mission Algorithm and Analysis Platform (MAAP) focuses 
 
 Development server: https://api.maap.xyz/api
 
-## Getting Started
+## I. Getting Started
 
 To run the MAAP API locally using PyCharm, create a Python Configuration with the following settings:
 
@@ -17,7 +17,7 @@ To run the MAAP API locally using PyCharm, create a Python Configuration with th
 - Working directory is maap-api-nasa
 - export PYTHONUNBUFFERED=1
 
-## Local development using python virtualenv
+## II. Local development using python virtualenv
 
 Pre-requisites: pip, python3.7 and virtualenv
 
@@ -107,7 +107,7 @@ python3 -m unittest -v test/api/endpoints/test_wmts_get_tile_new_titiler.py
 python3 -m unittest -v test/api/endpoints/test_wmts_get_capabilities_new_titiler.py
 ```
 
-## User Accounts
+## III. User Accounts
 
 A valid MAAP API token must be included in the header for any API request. An [Earthdata account](https://uat.urs.earthdata.nasa.gov) is required to access the MAAP API. To obtain a token, URS credentials must be provided as shown below:
 
@@ -124,7 +124,7 @@ curl -X POST --header "Content-Type: application/json" -d "{ \"username\": \"urs
 curl -X POST --header "Content-Type: application/json" -d "{ \"username\": \"urs_username\", \"password\": \"urs_password\" }" http://0.0.0.0:5000/token
 ```
 
-## Deployment
+## VI. Deployment
 
 The MAAP API is written in [Flask](http://flask.pocoo.org/), and commonly deployed using [WSGI Middlewares](http://flask.pocoo.org/docs/1.0/quickstart/#hooking-in-wsgi-middlewares). This deployment guide targets Ubuntu 18.04 running Apache2 in AWS with [Let's Encrypt](https://letsencrypt.org/).
 
