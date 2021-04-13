@@ -71,20 +71,24 @@ def parse_execute_request(request_xml):
     root = fromstring(request_xml)
     params = dict()
     dedup = None
+    queue = None
     job_type = root.find('ows:Identifier', ns).text
     for input in root.findall('wps:Input', ns):
         for data in input.findall('wps:Data', ns):
             for value in data.findall('wps:LiteralValue', ns):
-                if input.attrib.get("id") != "dedup":
+                if input.attrib.get("id") == "dedup":
+                    dedup = value.text
+                if input.attrib.get("id") == "queue":
+                    queue = value.text
+                else:
                     try:
                         params[input.attrib.get("id")] = json.loads(value.text)
                     except ValueError:
                         params[input.attrib.get("id")] = value.text
-                else:
-                    dedup = value.text
+
     output = root.find('wps:Output', ns).attrib.get("id")
 
-    return job_type, params, output, dedup
+    return job_type, params, queue, output, dedup
 
 
 def execute_response(job_id, job_status, output):
@@ -310,19 +314,24 @@ def parse_describe_process(request_xml):
     return job_type
 
 
-def get_literal_data(input):
+def get_literal_data(input, value):
     literal_data = ET.SubElement(input, "ns:LiteralData")
     literal_data.set("xmlns:ns","http://www.opengis.net/wps/2.0")
     format_ele = ET.SubElement(literal_data, "ns:Format")
     format_ele.set("default","true")
     format_ele.set("mimeType","text/plain")
     domain = ET.SubElement(literal_data, "LiteralDataDomain")
-    ET.SubElement(domain, "ows:AnyValue")
-    ET.SubElement(domain, "ows:DataType").set("ows:reference", "xs:string")
+    if value is None:
+        ET.SubElement(domain, "ows:AnyValue")
+        ET.SubElement(domain, "ows:DataType").set("ows:reference", "xs:string")
+    else:
+        data = ET.SubElement(domain, "wps:Data")
+        ET.SubElement(data, "wps:LiteralValue").text = value
+
     return input
 
 
-def get_input(process_xml, field):
+def get_input(process_xml, field, value=None):
     """
     <wps:Input minOccurs="1" maxOccurs="1">
         <ows:Title>width</ows:Title>
@@ -344,11 +353,11 @@ def get_input(process_xml, field):
     input.set("maxOccurs","1")
     ET.SubElement(input, "ows:Title").text = field
     ET.SubElement(input, "ows:Identifier").text = field
-    input = get_literal_data(input)
+    get_literal_data(input, value)
     return process_xml
 
 
-def describe_process_response(label, params):
+def describe_process_response(label, params, queue):
     """
 
     :param label:
@@ -369,6 +378,8 @@ def describe_process_response(label, params):
 
     for param in params:
         process = get_input(process, param.get("name"))
+
+    process = get_input(process, "queue_name", queue)
 
     ET.SubElement(process, "wps:Output")
     return tostring(response)

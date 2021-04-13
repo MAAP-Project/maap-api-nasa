@@ -27,6 +27,7 @@ source maap-api-nasa/bin/activate
 pip3 install -r requirements.txt
 ```
 
+
 ### Note: if experiencing any issue while running the above lines, consider to do the following steps:
 
 - install post-gresql-server-dev-X.Y and libqp-dev:
@@ -42,6 +43,7 @@ You can run the app:
 ```
 FLASK_APP=api/maapapp.py flask run --host=0.0.0.0
 ```
+
 ### Some issues you may experience while running the above line:
 
 #### 1. Allowing using postgres without login (A fix for 'fe_sendauth: no password supplied'):

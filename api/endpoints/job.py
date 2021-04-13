@@ -24,13 +24,20 @@ class Submit(Resource):
         :return:
         """
         request_xml = request.data
-        job_type, params, output, dedup = ogc.parse_execute_request(request_xml)
+        job_type, params, queue, output, dedup = ogc.parse_execute_request(request_xml)
 
         try:
             if dedup is None:
-                response = hysds.mozart_submit_job(job_type=job_type, params=params)
+                if queue is None:
+                    response = hysds.mozart_submit_job(job_type=job_type, params=params)
+                else:
+                    response = hysds.mozart_submit_job(job_type=job_type, params=params, queue=queue)
             else:
-                response = hysds.mozart_submit_job(job_type=job_type, params=params, dedup=dedup)
+                if queue is None:
+                    response = hysds.mozart_submit_job(job_type=job_type, params=params, dedup=dedup)
+                else:
+                    response = hysds.mozart_submit_job(job_type=job_type, params=params, dedup=dedup, queue=queue)
+
             logging.info("Mozart Response: {}".format(json.dumps(response)))
             job_id = response.get("result")
             response = hysds.mozart_job_status(job_id=job_id)
@@ -77,7 +84,8 @@ class Describe(Resource):
             response = hysds.get_job_spec(job_type)
             print(json.dumps(response))
             params = response.get("result").get("params")
-            response_body = ogc.describe_process_response(algo_id, params)
+            queue = response.get("result").get("recommended-queues")[0]
+            response_body = ogc.describe_process_response(algo_id, params, queue)
             return Response(response_body, mimetype='text/xml')
         except Exception as ex:
             tb = traceback.format_exc()
@@ -224,28 +232,28 @@ class Metrics(Resource):
             time_duration = job_info.get("cmd_duration")
 
             docker_metrics = job_info.get("metrics").get("usage_stats")[0].get("cgroups")
-            cpu_stats = docker_metrics.get("cpu_stats").get("cpu_usage").get("total_usage")
-            memory_stats = docker_metrics.get("memory_stats")
-            cache_stat = memory_stats.get("cache")
-            mem_usage = memory_stats.get("usage").get("usage")
-            max_mem_usage = memory_stats.get("usage").get("max_usage")
-            swap_usage = memory_stats.get("stats").get("swap")
+            if docker_metrics is not None:
+                cpu_stats = docker_metrics.get("cpu_stats").get("cpu_usage").get("total_usage")
+                memory_stats = docker_metrics.get("memory_stats")
+                cache_stat = memory_stats.get("cache")
+                mem_usage = memory_stats.get("usage").get("usage")
+                max_mem_usage = memory_stats.get("usage").get("max_usage")
+                swap_usage = memory_stats.get("stats").get("swap")
 
-            # total bytes transferred during all the I/O operations performed by the container
-            io_stats = docker_metrics.get("blkio_stats").get("io_service_bytes_recursive")
-            for io in io_stats:
-                op = io.get("op")
-                if op == "Read":
-                    read_io_stats = io.get("value", 0)
-                elif op == "Write":
-                    write_io_stats = io.get("value", 0)
-                elif op == "Sync":
-                    sync_io_stats = io.get("value", 0)
-                elif op == "Async":
-                    async_io_stats = io.get("value", 0)
-                elif op == "Total":
-                    total_io_stats = io.get("value", 0)
-
+                # total bytes transferred during all the I/O operations performed by the container
+                io_stats = docker_metrics.get("blkio_stats").get("io_service_bytes_recursive")
+                for io in io_stats:
+                    op = io.get("op")
+                    if op == "Read":
+                        read_io_stats = io.get("value", 0)
+                    elif op == "Write":
+                        write_io_stats = io.get("value", 0)
+                    elif op == "Sync":
+                        sync_io_stats = io.get("value", 0)
+                    elif op == "Async":
+                        async_io_stats = io.get("value", 0)
+                    elif op == "Total":
+                        total_io_stats = io.get("value", 0)
 
 
             # build the metrics object
@@ -278,26 +286,27 @@ class Metrics(Resource):
             job_end_time.text = time_end
             job_duration_seconds = SubElement(xml_response, "job_duration_seconds")
             job_duration_seconds.text = str(time_duration)
-            job_duration_seconds = SubElement(xml_response, "cpu_usage")
-            job_duration_seconds.text = str(cpu_stats)
-            job_duration_seconds = SubElement(xml_response, "cache_usage")
-            job_duration_seconds.text = str(cache_stat)
-            job_duration_seconds = SubElement(xml_response, "mem_usage")
-            job_duration_seconds.text = str(mem_usage)
-            job_duration_seconds = SubElement(xml_response, "max_mem_usage")
-            job_duration_seconds.text = str(max_mem_usage)
-            job_duration_seconds = SubElement(xml_response, "swap_usage")
-            job_duration_seconds.text = str(swap_usage)
-            job_duration_seconds = SubElement(xml_response, "read_io_stats")
-            job_duration_seconds.text = str(read_io_stats)
-            job_duration_seconds = SubElement(xml_response, "write_io_stats")
-            job_duration_seconds.text = str(write_io_stats)
-            job_duration_seconds = SubElement(xml_response, "sync_io_stats")
-            job_duration_seconds.text = str(sync_io_stats)
-            job_duration_seconds = SubElement(xml_response, "async_io_stats")
-            job_duration_seconds.text = str(async_io_stats)
-            job_duration_seconds = SubElement(xml_response, "total_io_stats")
-            job_duration_seconds.text = str(total_io_stats)
+            if docker_metrics is not None:
+                cpu_usage = SubElement(xml_response, "cpu_usage")
+                cpu_usage.text = str(cpu_stats)
+                cache_usage = SubElement(xml_response, "cache_usage")
+                cache_usage.text = str(cache_stat)
+                mem_usage = SubElement(xml_response, "mem_usage")
+                mem_usage.text = str(mem_usage)
+                max_mem_usage = SubElement(xml_response, "max_mem_usage")
+                max_mem_usage.text = str(max_mem_usage)
+                swap_usage = SubElement(xml_response, "swap_usage")
+                swap_usage.text = str(swap_usage)
+                read_io_stats = SubElement(xml_response, "read_io_stats")
+                read_io_stats.text = str(read_io_stats)
+                write_io_stats = SubElement(xml_response, "write_io_stats")
+                write_io_stats.text = str(write_io_stats)
+                sync_io_stats = SubElement(xml_response, "sync_io_stats")
+                sync_io_stats.text = str(sync_io_stats)
+                async_io_stats = SubElement(xml_response, "async_io_stats")
+                async_io_stats.text = str(async_io_stats)
+                total_io_stats = SubElement(xml_response, "total_io_stats")
+                total_io_stats.text = str(total_io_stats)
 
 
             return Response(tostring(xml_response), mimetype="text/xml", status=200)
@@ -311,6 +320,11 @@ class Metrics(Resource):
 
 @ns.route('/job/<string:username>/list')
 class Jobs(Resource):
+    parser = api.parser()
+    parser.add_argument('page_size', required=False, type=str,
+                        help="Job Listing Pagination Size")
+    parser.add_argument('offset', required=False, type=str,
+                        help="Job Listing Pagination Offset")
 
     def get(self, username):
         """
@@ -321,7 +335,9 @@ class Jobs(Resource):
         # job_id = ogc.parse_status_request(request_xml)
         try:
             logging.info("Finding jobs for user: {}".format(username))
-            response = hysds.get_mozart_jobs(username=username)
+            size = request.form.get('page_size', request.args.get('page_size', 100))
+            offset = request.form.get('offset', request.args.get('offset', 0))
+            response = hysds.get_mozart_jobs(username=username, page_size=size, offset=offset)
             job_list = response.get("result")
             logging.info("Found Jobs: {}".format(job_list))
             response_body = dict()

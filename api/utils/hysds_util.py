@@ -104,12 +104,14 @@ def create_hysds_io(algorithm_description, algorithm_params, submission_type="in
     return hysds_io
 
 
-def create_job_spec(script_command, algorithm_params, disk_usage="10GB"):
+def create_job_spec(script_command, algorithm_params, disk_usage, queue_name=settings.DEFAULT_QUEUE):
     """
     Creates the contents of the job spec file
     :param script_command:
     :param algorithm_params:
-    :param disk_usage: minimum free disk usage required to run job specified as "\d+(GB|MB|KB)", e.g. "100GB", "20MB", "10KB"
+    :param disk_usage: minimum free disk usage required to run job specified as
+    "\d+(GB|MB|KB)", e.g. "100GB", "20MB", "10KB"
+    :param queue_name: set the recommended queue to run the algorithm on
     :return:
     """
     job_spec = dict()
@@ -120,7 +122,7 @@ def create_job_spec(script_command, algorithm_params, disk_usage="10GB"):
         "$HOME/.aws": "/home/ops/.aws",
         "/tmp": ["/tmp", "rw"]
     }
-    job_spec["recommended-queues"] = [settings.DEFAULT_QUEUE]
+    job_spec["recommended-queues"] = [queue_name]
     params = list()
     for param in algorithm_params:
         destination = "positional"
@@ -413,7 +415,7 @@ def get_mozart_queues():
         if mozart_response.get("success") is True:
             try:
                 queues_list = mozart_response.get("result").get("queues")
-                result = [queue for queue in queues_list if queue.startswith("maap-worker")]
+                result = [queue for queue in queues_list if queue.startswith("maap")]
                 return result
             except Exception as ex:
                 raise ex
@@ -421,21 +423,30 @@ def get_mozart_queues():
         raise Exception("Couldn't get list of available queues")
 
 
-def get_mozart_jobs(username):
+def get_mozart_jobs(username, page_size=10, offset=0):
     """
         Returns mozart's job list
         :param username:
         :return:
         """
     params = dict()
+    params["page_size"] = page_size
+    params["id"] = offset  # this is specifies the offset
     params["username"] = username
     params["detailed"] = True
+    params["paginate"] = True
 
     session = requests.Session()
     session.verify = False
 
     try:
-        mozart_response = session.get("{}/job/list".format(settings.MOZART_URL), params=params)
+        param_list = ""
+        for key, value in params:
+            param_list += "&{}={}".format(key, value)
+
+        url = "{}/job/list?{}".format(settings.MOZART_URL, param_list[1:])
+        print("GET request to: {}".format(url))
+        mozart_response = session.get(url)
 
     except Exception as ex:
         raise ex

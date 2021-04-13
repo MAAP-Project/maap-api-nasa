@@ -10,6 +10,7 @@ import api.utils.ogc_translate as ogc
 from api.cas.cas_auth import get_authorized_user, login_required
 from api.maap_database import db
 from api.models.member_algorithm import MemberAlgorithm
+from api.models.member_algo_registration import MemberAlgorithmRegistration
 from sqlalchemy import or_, and_
 from datetime import datetime
 
@@ -60,7 +61,8 @@ class Register(Resource):
             "environment_name": "ubuntu",
             "docker_container_url": "http://url/to/container",
             "disk_space": "minimum free disk usage required to run job specified as "\d+(GB|MB|KB)", e.g. "100GB", "20MB", "10KB"",
-            ""
+            "queue": "name of worker based on required memory for algorithm",
+            "ade_webhook_url": "url to send algo registration updates to",
             "algorithm_params": [
                 {
                 "field": "param_name1",
@@ -75,7 +77,6 @@ class Register(Resource):
         Sample JSON to post:
         { "script_command" : "python /app/plant.py",
          "algorithm_name" : "plant_test",
-         "label" : "test plant algorithm",
          "code_version": "master",
          "algorithm_description" : "Test Plant",
          "environment_name": "ubuntu",
@@ -83,13 +84,14 @@ class Register(Resource):
          "repo_url": "http://url/to/repo",
          "disk_space": "10GB",
          "queue": "maap-worker-8gb",
+         "ade_webhook_url": "http://ade/url/webhook",
          "algorithm_params" : [
               {
               "field": "localize_urls",
               "download": true
               },
               {
-              "field": "username"
+              "field": "parameter1"
               }
             ]
         }
@@ -97,8 +99,12 @@ class Register(Resource):
 
         response_body = {"code": None, "message": None}
 
+        """
+        First, clone the register-job repo from Gitlab
+        The CI/CD pipeline of this repo handles the registration of the algorithm specification in HySDS.
+        So we need to update the repo with the required files and push the algorithm specs of the one being registered.
+        """
         try:
-            req_data = request.get_json()
             repo = git.git_clone()
         except Exception as ex:
             tb = traceback.format_exc()
@@ -124,6 +130,7 @@ class Register(Resource):
             algorithm_description = req_data.get("algorithm_description")
             algorithm_params = req_data.get("algorithm_params")
             disk_space = req_data.get("disk_space")
+            resource = req_data.get("queue")
 
             log.debug("script_command: {}".format(script_command))
             log.debug("algorithm_name: {}".format(algorithm_name))
@@ -151,7 +158,8 @@ class Register(Resource):
             hysds.write_spec_file(spec_type="hysds-io", algorithm=algorithm_name, body=hysds_io)
             # creating job spec file
             job_spec = hysds.create_job_spec(script_command=script_command, algorithm_params=algorithm_params,
-                                             disk_usage=disk_space)
+                                             disk_usage=disk_space,
+                                             queue_name=resource)
             hysds.write_spec_file(spec_type="job-spec", algorithm=algorithm_name, body=job_spec)
 
             # creating JSON file with all code information
@@ -195,7 +203,7 @@ class Register(Resource):
         try:
             git.update_git_repo(repo, repo_name=settings.REPO_NAME,
                                 algorithm_name=hysds.get_algorithm_file_name(algorithm_name))
-            log.debug("Updated Git Repo")
+            # log.debug("Updated Git Repo with hash {}".format(commit_hash))
         except Exception as ex:
             tb = traceback.format_exc()
             response_body["code"] = 500
@@ -205,21 +213,24 @@ class Register(Resource):
 
         algorithm_id = "{}:{}".format(algorithm_name, req_data.get("code_version"))
 
-        try:
-            # add algorithm to maap db if authenticated
-            m = get_authorized_user()
-
-            if m is not None:
-                ma = MemberAlgorithm(member_id=m.id, algorithm_key=algorithm_id, is_public=False,
-                                     creation_date=datetime.utcnow())
-                db.session.add(ma)
-                db.session.commit()
-
-        except Exception as ex:
-            log.debug(ex)
+        # try:
+        #     # add algorithm registration record to maap db if authenticated
+        #     m = get_authorized_user()
+        #
+        #     if m is not None:
+        #         ade_hook = req_data.get("ade_webhook_url", None)
+        #         mar = MemberAlgorithmRegistration(member_id=m.id, algorithm_key=algorithm_id,
+        #                                           creation_date=datetime.utcnow(), commit_hash=commit_hash,
+        #                                           ade_webhook=ade_hook)
+        #         db.session.add(mar)
+        #         db.session.commit()
+        #
+        # except Exception as ex:
+        #     log.debug(ex)
 
         response_body["code"] = 200
-        response_body["message"] = "Successfully registered {}".format(algorithm_id)
+        response_body["message"] = "Successfully initiated registration of {}. You will receive further notification " \
+                                   "regarding success or failure".format(algorithm_id)
         """
         <?xml version="1.0" encoding="UTF-8"?>
         <AlgorithmName></AlgorithmName>
@@ -288,7 +299,8 @@ class Describe(Resource):
             job_type = "job-{}".format(algo_id)
             response = hysds.get_job_spec(job_type)
             params = response.get("result").get("params")
-            response_body = ogc.describe_process_response(algo_id, params)
+            queue = response.get("result").get("recommended-queues")[0]
+            response_body = ogc.describe_process_response(algo_id, params, queue)
             return Response(response_body, mimetype='text/xml')
         except Exception as ex:
             tb = traceback.format_exc()
