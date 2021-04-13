@@ -27,9 +27,9 @@ source maap-api-nasa/bin/activate
 pip3 install -r requirements.txt
 ```
 
-### Comments:
+### Note: if experiencing any issue while running the above lines, consider to do the following steps:
 
-- Need to install post-gresql-server-dev-X.Y and libqp-dev:
+- install post-gresql-server-dev-X.Y and libqp-dev:
 
 ```
 sudo apt-get install postgresql
@@ -42,7 +42,7 @@ You can run the app:
 ```
 FLASK_APP=api/maapapp.py flask run --host=0.0.0.0
 ```
-### Comments:
+### Some issues you may experience while running the above line:
 
 #### 1. Allowing using postgres without login (A fix for 'fe_sendauth: no password supplied'):
 
@@ -76,10 +76,13 @@ sudo -u postgres psql
 #### 4. Config Titiler endpoint and maap-api-host
 
 In the settings.py (i.e., maap-api-nasa/api/settings.py):
+
+```
 API_HOST_URL = "http://0.0.0.0:5000/" #For local testing
 
 TILER_ENDPOINT = 'Titiler endpoint' # The endpoint obtained after doing Titiler deployment
 (e.g. TITLER_ENDPOINT='https://XXX.execute-api.us-east-1.amazonaws.com')
+```
 
 #### 5. rerun: 
 ```
@@ -93,11 +96,12 @@ And run a test:
 python3 -m unittest test/api/endpoints/test_wmts_get_tile.py
 ```
 
-### Comments:
+### If you are running the latest version of Titiler, use the following local test scripts:
 
 while keeping the server in the previous step running (i.e., local maap-api-nasa). Open a new terminal
 ```
 source maap-api-nasa/bin/activate # or whatever environment name you choose in the previous step
+
 #If you are running the latest version of Titiler, then use the following test scripts: 
 python3 -m unittest -v test/api/endpoints/test_wmts_get_tile_new_titiler.py
 python3 -m unittest -v test/api/endpoints/test_wmts_get_capabilities_new_titiler.py
@@ -112,9 +116,9 @@ curl -X POST --header "Content-Type: application/json" -d "{ \"username\": \"urs
 ```
 ### Comments:
 
-After running the local maap-api-nasa, go to http://0.0.0.0:5000/api to see the APIs.
+- After running the local maap-api-nasa, go to http://0.0.0.0:5000/api to see the APIs.
 
-Or running the your own test scripts with:
+- Or running the your own test scripts with:
 
 ```bash
 curl -X POST --header "Content-Type: application/json" -d "{ \"username\": \"urs_username\", \"password\": \"urs_password\" }" http://0.0.0.0:5000/token
