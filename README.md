@@ -29,6 +29,7 @@ To run the MAAP API locally using PyCharm, create a Python Configuration with th
 ```bash
 python3 -m venv maap-api-nasa # or whatever environment name you choose
 source maap-api-nasa/bin/activate
+# Note: For installing on Mac OSx you may need to replace "psycopg2" with "psycopg2-binary"
 pip3 install -r requirements.txt
 ```
 
