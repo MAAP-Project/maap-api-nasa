@@ -1,5 +1,5 @@
-MAAP_API_URL = "https://api.maap.xyz/api"
-API_HOST_URL = "http://0.0.0.0:5000/"
+MAAP_API_URL = 'https://api.maap.xyz/api'
+API_HOST_URL = 'http://0.0.0.0:5000/'
 
 # Flask settings
 FLASK_SERVER_NAME = 'localhost:5000'
@@ -24,29 +24,29 @@ CMR_TOKEN_SERVICE_URL = 'https://cmr.earthdata.nasa.gov/legacy-services/rest/tok
 CMR_URL = 'https://cmr.maap-project.org'
 CMR_API_TOKEN = ''
 CMR_CLIENT_ID = ''
-MAAP_WMTS_XML = "/maap-api-nasa/api/maap.wmts.xml"
+MAAP_WMTS_XML = '/maap-api-nasa/api/maap.wmts.xml'
 
 # GIT settings
-GIT_REPO_URL = "https://gitlab-ci-token:$TOKEN@repo.nasa.maap.xyz/root/register-job.git"
+GIT_REPO_URL = 'https://gitlab-ci-token:$TOKEN@repo.nasa.maap.xyz/root/register-job.git'
 
 # GTILAB Settings
-GITLAB_TOKEN = "foobar"
+GITLAB_TOKEN = 'foobar'
 
-REPO_NAME = "register-job"
-REPO_PATH = "/home/ubuntu/repo"
-VERSION = "master"
-SUPPORTED_EXTENSIONS = ["py", "java", "sh"]
+REPO_NAME = 'register-job'
+REPO_PATH = '/home/ubuntu/repo'
+VERSION = 'master'
+SUPPORTED_EXTENSIONS = ['py', 'java', 'sh']
 
 # Docker container URL
-CONTAINER_URL = "registry.nasa.maap.xyz/root/dps_plot:master"
+CONTAINER_URL = 'registry.nasa.maap.xyz/root/dps_plot:master'
 
 # HySDS Mozart
-MOZART_URL = "https://[MOZART_IP]/mozart/api/v0.2"
-DEFAULT_QUEUE = "test-job_worker-large"
-LW_QUEUE = "system-jobs-queue"
-HYSDS_LW_VERSION = "v0.0.5"
-GRQ_REST_URL = "http://[GRQ_IP]/api/v0.1"
-S3_CODE_BUCKET = "s3://[S3_BUCKET_NAME]"
+MOZART_URL = 'https://[MOZART_IP]/mozart/api/v0.2'
+DEFAULT_QUEUE = 'test-job_worker-large'
+LW_QUEUE = 'system-jobs-queue'
+HYSDS_LW_VERSION = 'v0.0.5'
+GRQ_REST_URL = 'http://[GRQ_IP]/api/v0.1'
+S3_CODE_BUCKET = 's3://[S3_BUCKET_NAME]'
 
 # FASTBROWSE API
 TILER_ENDPOINT = 'https://d852m4cmf5.execute-api.us-east-1.amazonaws.com'
@@ -62,11 +62,11 @@ CAS_AFTER_LOGIN = 'api.members_self'
 CAS_PROXY_DECRYPTION_TOKEN = ''
 
 # Query Service
-QS_STATE_MACHINE_ARN = "arn:aws:states:us-east-1:532321095167:stateMachine:maap-api-query-service-dev-RunQuery"
-QS_RESULT_BUCKET = "maap-api-query-service-dev-query-results"
+QS_STATE_MACHINE_ARN = 'arn:aws:states:us-east-1:532321095167:stateMachine:maap-api-query-service-dev-RunQuery'
+QS_RESULT_BUCKET = 'maap-api-query-service-dev-query-results'
 
 # AWS
-AWS_REGION = "us-east-1"
+AWS_REGION = 'us-east-1'
 
 # DB
-DATABASE_URL="postgresql://localhost/maap_dev"
+DATABASE_URL='postgresql://localhost/maap_dev'
