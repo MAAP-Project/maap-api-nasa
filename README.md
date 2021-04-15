@@ -19,92 +19,105 @@ To run the MAAP API locally using PyCharm, create a Python Configuration with th
 
 ## II. Local development using python virtualenv
 
-Pre-requisites: pip, python3.7 and virtualenv
+**Pre-requisites:**
 
-```
+* postgresql
+  * Linux: `sudo apt-get install postgresql python-psycopy2 libpq-dev`
+  * Mac OSx: `brew install postgresql`
+* pip, python3.7 and virtualenv
+
+```bash
 python3 -m venv maap-api-nasa # or whatever environment name you choose
 source maap-api-nasa/bin/activate
+# Note: For installing on Mac OSx you may need to replace "psycopg2" with "psycopg2-binary"
 pip3 install -r requirements.txt
 ```
 
+### First run: Configure the database.
 
-### Note: if experiencing any issue while running the above lines, consider to do the following steps:
+1. Add the new postgres user (A fix for 'role <username> does not exist'):
 
-- install post-gresql-server-dev-X.Y and libqp-dev:
+Note: You may need to use `sudo -u postgres ` before postgres commands.
 
+```bash
+# For example
+# $ create user tonhai # or
+# $ sudo -u postgres createuser tonhai
+createuser <current_user>
 ```
-sudo apt-get install postgresql
-sudo apt-get install python-psycopy2
-sudo apt-get install libpq-dev
+
+2. create an empty postgres db (maap_dev) (a fix for 'database maap_dev does not exist'):
+
+```bash
+psql # or $ sudo -u postgres psql
+(in postgres shell): create database maap_dev;
+(in postgres shell): \q
 ```
 
-You can run the app:
+#### Config Titiler endpoint and maap-api-host
 
+In the settings.py (i.e., maap-api-nasa/api/settings.py):
+
+```python
+# settings.py
+API_HOST_URL = 'http://0.0.0.0:5000/' # For local testing
+
+# ...
+
+# The endpoint obtained after doing Titiler deployment
+TILER_ENDPOINT = 'https://XXX.execute-api.us-east-1.amazonaws.com'
+# If running the tiler locally, this can be TILER_ENDPOINT = 'http://localhost:8000'
 ```
+
+### You can run then app:
+
+```bash
 FLASK_APP=api/maapapp.py flask run --host=0.0.0.0
 ```
 
 ### Some issues you may experience while running the above line:
 
-#### 1. Allowing using postgres without login (A fix for 'fe_sendauth: no password supplied'):
+#### Allowing using postgres without login (A fix for 'fe_sendauth: no password supplied'):
 
-```
+```bash
 sudo vi /etc/postgresql/9.5/main/pg_hba.conf #(the location may be different depend on OS and postgres version)
 ```
+
 ```
-# Reconfig as follows: 
+# Reconfig as follows:
     local   all     all     trust
     host    all     all     127.0.0.1/32    trust
     host    all     all     ::1/0           trust
 # Save pg_hba.conf
 ```
-```
+
+```bash
 # Restart postgresql
 sudo /etc/init.d/postgresql reload
 sudo /etc/init.d/postgresql start
 ```
 
-#### 2. Add the new postgres user (A fix for 'role <username> does not exist'): 
-```
-sudo -u postgrest createuser <current_user> # (e.g. sudo -u postgres createuser tonhai)
-```
+#### 5. Rerun:
 
-#### 3. create an empty postgres db (maap_dev) (a fix for 'database maap_dev does not exist'):
-```
-sudo -u postgres psql
-(in postgres shell): create database maap_dev;
-(in postgres shell): \q
-```
-#### 4. Config Titiler endpoint and maap-api-host
-
-In the settings.py (i.e., maap-api-nasa/api/settings.py):
-
-```
-API_HOST_URL = "http://0.0.0.0:5000/" #For local testing
-
-TILER_ENDPOINT = 'Titiler endpoint' # The endpoint obtained after doing Titiler deployment
-(e.g. TITLER_ENDPOINT='https://XXX.execute-api.us-east-1.amazonaws.com')
-```
-
-#### 5. rerun: 
-```
+```bash
 # Run the maap-api-nasa services locally
 FLASK_APP=api/maapapp.py flask run --host=0.0.0.0
 ```
 
 And run a test:
 
-```
+```bash
 python3 -m unittest test/api/endpoints/test_wmts_get_tile.py
 ```
 
 ### If you are running the latest version of Titiler, use the following local test scripts:
 
 while keeping the server in the previous step running (i.e., local maap-api-nasa). Open a new terminal
-```
+
+```bash
 source maap-api-nasa/bin/activate # or whatever environment name you choose in the previous step
 
-#If you are running the latest version of Titiler, then use the following test scripts: 
+#If you are running the latest version of Titiler, then use the following test scripts:
 python3 -m unittest -v test/api/endpoints/test_wmts_get_tile_new_titiler.py
 python3 -m unittest -v test/api/endpoints/test_wmts_get_capabilities_new_titiler.py
 ```
@@ -116,6 +129,7 @@ A valid MAAP API token must be included in the header for any API request. An [E
 ```bash
 curl -X POST --header "Content-Type: application/json" -d "{ \"username\": \"urs_username\", \"password\": \"urs_password\" }" https://api.maap.xyz/token
 ```
+
 ### Comments:
 
 - After running the local maap-api-nasa, go to http://0.0.0.0:5000/api to see the APIs.
@@ -152,7 +166,7 @@ The MAAP API is written in [Flask](http://flask.pocoo.org/), and commonly deploy
             # value is not decisive as it is used as a last resort host regardless.
             # However, you must set it for any further virtual host explicitly.
             #ServerName www.example.com
-    
+
             ServerAdmin webmaster@localhost
             WSGIDaemonProcess maapapi  python-home=/var/www/maapapi/venv
             WSGIScriptAlias / /var/www/maapapi/api/flaskapp.wsgi
@@ -167,24 +181,24 @@ The MAAP API is written in [Flask](http://flask.pocoo.org/), and commonly deploy
            #     Order allow,deny
            #     Allow from all
            # </Directory>
-    
+
             # Available loglevels: trace8, ..., trace1, debug, info, notice, warn,
             # error, crit, alert, emerg.
             # It is also possible to configure the loglevel for particular
             # modules, e.g.
             #LogLevel info ssl:warn
-    
+
             ErrorLog ${APACHE_LOG_DIR}/error.log
             CustomLog ${APACHE_LOG_DIR}/access.log combined
-    
+
             # For most configuration files from conf-available/, which are
             # enabled or disabled at a global level, it is possible to
             # include a line for only one particular virtual host. For example the
             # following line enables the CGI configuration for this host only
             # after it has been globally disabled with "a2disconf".
             #Include conf-available/serve-cgi-bin.conf
-    
-    
+
+
     ServerName api.maap.xyz
     SSLCertificateFile /etc/letsencrypt/live/api.maap.xyz/fullchain.pem
     SSLCertificateKeyFile /etc/letsencrypt/live/api.maap.xyz/privkey.pem
@@ -194,6 +208,6 @@ The MAAP API is written in [Flask](http://flask.pocoo.org/), and commonly deploy
     ```
 7. Restart Apache
     `service apache2 restart`
-    
+
     ..
-   
+
