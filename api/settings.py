@@ -1,4 +1,5 @@
 MAAP_API_URL = "https://api.maap.xyz/api"
+API_HOST_URL = "http://0.0.0.0:5000/"
 
 # Flask settings
 FLASK_SERVER_NAME = 'localhost:5000'
@@ -48,7 +49,7 @@ GRQ_REST_URL = "http://[GRQ_IP]/api/v0.1"
 S3_CODE_BUCKET = "s3://[S3_BUCKET_NAME]"
 
 # FASTBROWSE API
-TILER_ENDPOINT = 'https://8e9mu91qr6.execute-api.us-east-1.amazonaws.com/production'
+TILER_ENDPOINT = 'https://d852m4cmf5.execute-api.us-east-1.amazonaws.com'
 
 # 3D Tiles API
 DATA_SYSTEM_SERVICES_API_BASE = 'https://llxbmdibvf.execute-api.us-east-1.amazonaws.com/test'

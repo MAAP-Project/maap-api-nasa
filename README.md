@@ -3,7 +3,7 @@ The joint ESA-NASA Multi-Mission Algorithm and Analysis Platform (MAAP) focuses 
 
 Development server: https://api.maap.xyz/api
 
-## Getting Started
+## I. Getting Started
 
 To run the MAAP API locally using PyCharm, create a Python Configuration with the following settings:
 
@@ -12,11 +12,12 @@ To run the MAAP API locally using PyCharm, create a Python Configuration with th
 - Python interpreter: `Python 3.7`
 - Working directory: `./api`
 
-#>>> Comments:
-#>>> Working directory is maap-api-nasa
-#>>> export PYTHONUNBUFFERED=1
+### Comments:
 
-## Local development using python virtualenv
+- Working directory is maap-api-nasa
+- export PYTHONUNBUFFERED=1
+
+## II. Local development using python virtualenv
 
 Pre-requisites: pip, python3.7 and virtualenv
 
@@ -26,37 +27,70 @@ source maap-api-nasa/bin/activate
 pip3 install -r requirements.txt
 ```
 
-### Comments:
-Need to install post-gresql-server-dev-X.Y and libqp-dev:
+
+### Note: if experiencing any issue while running the above lines, consider to do the following steps:
+
+- install post-gresql-server-dev-X.Y and libqp-dev:
+
+```
 sudo apt-get install postgresql
 sudo apt-get install python-psycopy2
 sudo apt-get install libpq-dev
+```
 
 You can run the app:
 
 ```
 FLASK_APP=api/maapapp.py flask run --host=0.0.0.0
 ```
-### Comments:
+
+### Some issues you may experience while running the above line:
+
 #### 1. Allowing using postgres without login (A fix for 'fe_sendauth: no password supplied'):
- sudo vi /etc/postgresql/9.5/main/pg_hba.conf (the location may be different depend on OS and postgres version)
-reconfig as follows: 
+
+```
+sudo vi /etc/postgresql/9.5/main/pg_hba.conf #(the location may be different depend on OS and postgres version)
+```
+```
+# Reconfig as follows: 
     local   all     all     trust
     host    all     all     127.0.0.1/32    trust
     host    all     all     ::1/0           trust
- save pg_hba.conf
- sudo /etc/init.d/postgresql reload
- sudo /etc/init.d/postgresql start
+# Save pg_hba.conf
+```
+```
+# Restart postgresql
+sudo /etc/init.d/postgresql reload
+sudo /etc/init.d/postgresql start
+```
 
 #### 2. Add the new postgres user (A fix for 'role <username> does not exist'): 
- sudo -u postgrest createuser <current_user> (e.g. sudo -u postgres createuser tonhai)
+```
+sudo -u postgrest createuser <current_user> # (e.g. sudo -u postgres createuser tonhai)
+```
 
 #### 3. create an empty postgres db (maap_dev) (a fix for 'database maap_dev does not exist'):
- sudo -u postgres psql
- (in postgres shell): create database maap_dev;
- (in postgres shell): \q
+```
+sudo -u postgres psql
+(in postgres shell): create database maap_dev;
+(in postgres shell): \q
+```
+#### 4. Config Titiler endpoint and maap-api-host
 
- Rerun: FLASK_APP=api/maapapp.py flask run --host=0.0.0.0
+In the settings.py (i.e., maap-api-nasa/api/settings.py):
+
+```
+API_HOST_URL = "http://0.0.0.0:5000/" #For local testing
+
+TILER_ENDPOINT = 'Titiler endpoint' # The endpoint obtained after doing Titiler deployment
+(e.g. TITLER_ENDPOINT='https://XXX.execute-api.us-east-1.amazonaws.com')
+```
+
+#### 5. rerun: 
+```
+# Run the maap-api-nasa services locally
+FLASK_APP=api/maapapp.py flask run --host=0.0.0.0
+```
 
 And run a test:
 
@@ -64,21 +98,35 @@ And run a test:
 python3 -m unittest test/api/endpoints/test_wmts_get_tile.py
 ```
 
-#### Comments:
- while keeping the server in the previous step running.
- open a new terminal
- run: source maap-api-nasa/bin/activate # or whatever environment name you choose in the previous step
- run: python3 -m unittest test/api/endpoints/test_wmts_get_tile.py
+### If you are running the latest version of Titiler, use the following local test scripts:
 
-## User Accounts
+while keeping the server in the previous step running (i.e., local maap-api-nasa). Open a new terminal
+```
+source maap-api-nasa/bin/activate # or whatever environment name you choose in the previous step
+
+#If you are running the latest version of Titiler, then use the following test scripts: 
+python3 -m unittest -v test/api/endpoints/test_wmts_get_tile_new_titiler.py
+python3 -m unittest -v test/api/endpoints/test_wmts_get_capabilities_new_titiler.py
+```
+
+## III. User Accounts
 
 A valid MAAP API token must be included in the header for any API request. An [Earthdata account](https://uat.urs.earthdata.nasa.gov) is required to access the MAAP API. To obtain a token, URS credentials must be provided as shown below:
 
 ```bash
 curl -X POST --header "Content-Type: application/json" -d "{ \"username\": \"urs_username\", \"password\": \"urs_password\" }" https://api.maap.xyz/token
 ```
+### Comments:
 
-## Deployment
+- After running the local maap-api-nasa, go to http://0.0.0.0:5000/api to see the APIs.
+
+- Or running the your own test scripts with:
+
+```bash
+curl -X POST --header "Content-Type: application/json" -d "{ \"username\": \"urs_username\", \"password\": \"urs_password\" }" http://0.0.0.0:5000/token
+```
+
+## VI. Deployment
 
 The MAAP API is written in [Flask](http://flask.pocoo.org/), and commonly deployed using [WSGI Middlewares](http://flask.pocoo.org/docs/1.0/quickstart/#hooking-in-wsgi-middlewares). This deployment guide targets Ubuntu 18.04 running Apache2 in AWS with [Let's Encrypt](https://letsencrypt.org/).
 
