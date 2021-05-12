@@ -2,6 +2,7 @@ import logging
 from flask import request, Response
 from flask_restplus import Resource, reqparse
 from api.restplus import api
+import re
 import traceback
 import api.utils.github_util as git
 import api.utils.hysds_util as hysds
@@ -279,7 +280,7 @@ class Register(Resource):
             return [] if member is None else db.session.query(MemberAlgorithm).filter(and_(MemberAlgorithm.member_id == member.id,
                                                                                            not MemberAlgorithm.is_public)).all()
         elif visibility == visibility_all:
-            return list(map(lambda a: MemberAlgorithm(algorithm_key=a.strip("job-")), hysds.get_algorithms()))
+            return list(map(lambda a: MemberAlgorithm(algorithm_key=re.sub('^job-', '', a)), hysds.get_algorithms()))
         else:
             if member is None:
                 return db.session.query(MemberAlgorithm).filter(MemberAlgorithm.is_public).all()
