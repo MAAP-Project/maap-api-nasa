@@ -31,6 +31,7 @@ GIT_REPO_URL = 'https://gitlab-ci-token:$TOKEN@repo.nasa.maap.xyz/root/register-
 
 # GTILAB Settings
 GITLAB_TOKEN = 'foobar'
+MAAP_ENVIRONMENT_FILE = 'https://raw.githubusercontent.com/MAAP-Project/maap-jupyter-ide/develop/maap_environments.json'
 
 REPO_NAME = 'register-job'
 REPO_PATH = '/home/ubuntu/repo'

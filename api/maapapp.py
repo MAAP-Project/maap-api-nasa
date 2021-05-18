@@ -13,6 +13,7 @@ from api.endpoints.wms import ns as wms_namespace
 from api.endpoints.members import ns as members_namespace
 from api.endpoints.query_service import ns as query_service_namespace
 from api.endpoints.three_dimensional_tiles import ns as three_d_tiles_namespace
+from api.endpoints.environment import ns as environment_namespace
 from api.restplus import api
 from api.maap_database import db
 from api.models import initialize_sql
@@ -75,6 +76,7 @@ def initialize_app(flask_app):
     api.add_namespace(members_namespace)
     api.add_namespace(query_service_namespace)
     api.add_namespace(three_d_tiles_namespace)
+    api.add_namespace(environment_namespace)
     flask_app.register_blueprint(blueprint)
 
 
