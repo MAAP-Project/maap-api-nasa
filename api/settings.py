@@ -68,6 +68,10 @@ QS_RESULT_BUCKET = 'maap-api-query-service-dev-query-results'
 
 # AWS
 AWS_REGION = 'us-east-1'
+WORKSPACE_MOUNT_PRIVATE = 'my-private-bucket'
+WORKSPACE_MOUNT_PUBLIC = 'my-public-bucket'
+WORKSPACE_MOUNT_SHARED = 'shared-buckets'
+AWS_SHARED_WORKSPACE_BUCKET_PATH = 'shared'
 
 # DB
 DATABASE_URL='postgresql://localhost/maap_dev'
