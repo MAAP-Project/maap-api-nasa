@@ -105,7 +105,7 @@ class PresignedUrlS3(Resource):
     def get(self, bucket, key):
 
         expiration = request.args['exp']
-        che_ws_namespace = request.args['ws']
+        che_ws_namespace = request.args['ws'] if 'ws' in request.args else ''
         s3_path = self.mount_key_to_bucket(key, che_ws_namespace) if che_ws_namespace else key
 
         url = s3_client.generate_presigned_url(
