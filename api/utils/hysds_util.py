@@ -100,7 +100,8 @@ def create_hysds_io(algorithm_description, algorithm_params, submission_type="in
                 param_spec["name"] = param[key]
                 param_spec["from"] = "submitter"
                 params.append(param_spec)
-        hysds_io["params"] = params
+
+    hysds_io["params"] = params
     return hysds_io
 
 
@@ -134,7 +135,7 @@ def create_job_spec(script_command, algorithm_params, disk_usage, queue_name=set
                 param_spec["name"] = param[key]
                 param_spec["destination"] = destination
                 params.append(param_spec)
-                
+
     job_spec["params"] = params
 
     return job_spec
