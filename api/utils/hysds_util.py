@@ -134,7 +134,8 @@ def create_job_spec(script_command, algorithm_params, disk_usage, queue_name=set
                 param_spec["name"] = param[key]
                 param_spec["destination"] = destination
                 params.append(param_spec)
-        job_spec["params"] = params
+                
+    job_spec["params"] = params
 
     return job_spec
 
