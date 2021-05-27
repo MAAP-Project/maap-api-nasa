@@ -116,6 +116,8 @@ class Register(Resource):
             return response_body, 500
 
         try:
+            invalid_attributes = ['timestamp']
+
             req_data = request.get_json()
             script_command = req_data.get("script_command")
             cmd_list = script_command.split(" ")
@@ -129,7 +131,7 @@ class Register(Resource):
             validate_register_inputs(script_command, req_data.get("algorithm_name"), req_data.get("environment_name"))
             algorithm_name = "{}_{}".format(req_data.get("algorithm_name"), req_data.get("environment_name"))
             algorithm_description = req_data.get("algorithm_description")
-            algorithm_params = req_data.get("algorithm_params")
+            algorithm_params = list(filter(lambda p: p['field'] not in invalid_attributes, req_data.get("algorithm_params")))
             disk_space = req_data.get("disk_space")
             resource = req_data.get("queue")
 
