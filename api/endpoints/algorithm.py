@@ -2,6 +2,7 @@ import logging
 from flask import request, Response
 from flask_restplus import Resource, reqparse
 from api.restplus import api
+import re
 import traceback
 import api.utils.github_util as git
 import api.utils.hysds_util as hysds
@@ -115,6 +116,8 @@ class Register(Resource):
             return response_body, 500
 
         try:
+            invalid_attributes = ['timestamp']
+
             req_data = request.get_json()
             script_command = req_data.get("script_command")
             cmd_list = script_command.split(" ")
@@ -128,7 +131,7 @@ class Register(Resource):
             validate_register_inputs(script_command, req_data.get("algorithm_name"), req_data.get("environment_name"))
             algorithm_name = "{}_{}".format(req_data.get("algorithm_name"), req_data.get("environment_name"))
             algorithm_description = req_data.get("algorithm_description")
-            algorithm_params = req_data.get("algorithm_params")
+            algorithm_params = list(filter(lambda p: p['field'] not in invalid_attributes, req_data.get("algorithm_params")))
             disk_space = req_data.get("disk_space")
             resource = req_data.get("queue")
 
@@ -284,7 +287,7 @@ class Register(Resource):
             return [] if member is None else db.session.query(MemberAlgorithm).filter(and_(MemberAlgorithm.member_id == member.id,
                                                                                            not MemberAlgorithm.is_public)).all()
         elif visibility == visibility_all:
-            return list(map(lambda a: MemberAlgorithm(algorithm_key=a.strip("job-")), hysds.get_algorithms()))
+            return list(map(lambda a: MemberAlgorithm(algorithm_key=re.sub('^job-', '', a)), hysds.get_algorithms()))
         else:
             if member is None:
                 return db.session.query(MemberAlgorithm).filter(MemberAlgorithm.is_public).all()

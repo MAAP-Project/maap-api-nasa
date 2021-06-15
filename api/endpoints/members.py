@@ -41,6 +41,7 @@ class Self(Resource):
 
         return jsonify({'access_token': urs_token})
 
+
 @ns.route('/selfTest')
 class Self(Resource):
 
@@ -97,18 +98,21 @@ class PresignedUrlS3(Resource):
 
     expiration_param = reqparse.RequestParser()
     expiration_param.add_argument('exp', type=int, required=False, default=60 * 60 * 12)
+    expiration_param.add_argument('ws', type=str, required=False, default="")
 
     @login_required
     @api.expect(expiration_param)
     def get(self, bucket, key):
 
         expiration = request.args['exp']
+        che_ws_namespace = request.args['ws'] if 'ws' in request.args else ''
+        s3_path = self.mount_key_to_bucket(key, che_ws_namespace) if che_ws_namespace else key
 
         url = s3_client.generate_presigned_url(
             'get_object',
             Params={
                 'Bucket': bucket,
-                'Key': parse.unquote(key)
+                'Key': parse.unquote(s3_path)
             },
             ExpiresIn=expiration
 
@@ -118,6 +122,18 @@ class PresignedUrlS3(Resource):
         response.headers.add('Access-Control-Allow-Origin', '*')
 
         return response
+
+    def mount_key_to_bucket(self, key, ws):
+
+        if key.startswith(settings.WORKSPACE_MOUNT_PRIVATE):
+            return key.replace(settings.WORKSPACE_MOUNT_PRIVATE, ws)
+        elif key.startswith(settings.WORKSPACE_MOUNT_PUBLIC):
+            return key.replace(settings.WORKSPACE_MOUNT_PUBLIC, f'{settings.AWS_SHARED_WORKSPACE_BUCKET_PATH}/{ws}')
+        elif key.startswith(settings.WORKSPACE_MOUNT_SHARED):
+            return key.replace(settings.WORKSPACE_MOUNT_SHARED, settings.AWS_SHARED_WORKSPACE_BUCKET_PATH)
+        else:
+            return key
+
 
 
 
