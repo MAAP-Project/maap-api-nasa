@@ -1,4 +1,5 @@
 MAAP_API_URL = "https://api.maap.xyz/api"
+PROJECT_QUEUE_PREFIX = "maap"
 
 # Flask settings
 FLASK_SERVER_NAME = 'localhost:5000'

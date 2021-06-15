@@ -121,7 +121,7 @@ class Register(Resource):
             docker_cmd = " "
             for index, item in enumerate(cmd_list):
                 if "." in item:
-                    if item.split(".")[1] in settings.SUPPORTED_EXTENSIONS:
+                    if item.split(".")[-1] in settings.SUPPORTED_EXTENSIONS:
                         cmd_list[index] = "/{}/{}".format("app", item)
             script_command = docker_cmd.join(cmd_list)
 
@@ -150,6 +150,11 @@ class Register(Resource):
             return response_body, 500
 
         try:
+            # validate if input queue is valid
+            if resource not in hysds.get_mozart_queues():
+                response_body["code"] = 500
+                response_body["message"] = "The resource {} is invalid. Please select from one of {}".format(resource, hysds.get_mozart_queues())
+                response_body["error"] = "Invalid queue in request: {}".format(req_data)
             # clean up any old specs from the repo
             repo = git.clean_up_git_repo(repo, repo_name=settings.REPO_NAME)
             # creating hysds-io file
