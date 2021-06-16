@@ -107,6 +107,9 @@ class Result(Resource):
             logging.info("Retrieved Mozart job id: {}".format(job_id))
             response = hysds.get_mozart_job_info(job_id)
             job_info = response.get("job").get("job_info").get("metrics").get("products_staged")
+            traceback = response.get("traceback")
+            if traceback is not None:
+                return Response(ogc.result_response(job_id=job_id, error=traceback), mimetype='text/xml')
             if job_info is not None:
                 for product in job_info:
                     prod = dict()
@@ -118,7 +121,7 @@ class Result(Resource):
                     prod["urls"].append(clickable_url)
                     prod["id"] = product.get("id")
                     prod_list.append(prod)
-            return Response(ogc.result_response(job_id=job_id, job_result=prod_list), mimetype='text/xml')
+                return Response(ogc.result_response(job_id=job_id, job_result=prod_list), mimetype='text/xml')
         except Exception as ex:
             return Response(ogc.get_exception(type="FailedGetResult", origin_process="GetResult",
                                               ex_message="Failed to get job result of job with id: {}. " \

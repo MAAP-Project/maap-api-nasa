@@ -162,7 +162,7 @@ def construct_product(xml_element, product):
     return xml_element
 
 
-def result_response(job_id, job_result):
+def result_response(job_id, job_result=None, error=None):
     """
     OCG GetResult Response
     <wps:Result xsi:schemaLocation="http://www.opengis.net/wps/2.0 http://schemas.opengis.net/wps/2.0/wps.xsd" xmlns:wps="http://www.opengis.net/wps/2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
@@ -177,13 +177,19 @@ def result_response(job_id, job_result):
     response = ET.Element("wps:Result")
     response = set_namespaces(response)
     ET.SubElement(response, "wps:JobID").text = job_id
-    for product in job_result:
+    if job_result is not None:
+        for product in job_result:
+            output = ET.SubElement(response, "wps:Output")
+            output.set("id", product.get("id"))
+            for url in product.get("urls"):
+                location = ET.SubElement(output, "wps:Data")
+                location.text = url
+            # products = construct_product(products, product)
+    if error is not None:
         output = ET.SubElement(response, "wps:Output")
-        output.set("id", product.get("id"))
-        for url in product.get("urls"):
-            location = ET.SubElement(output, "wps:Data")
-            location.text = url
-        # products = construct_product(products, product)
+        output.set("id", "traceback")
+        error = ET.SubElement(output, "wps:Data")
+        error.text = error
     return tostring(response)
 
 
