@@ -91,7 +91,8 @@ class Describe(Resource):
 class Result(Resource):
     def get(self, job_id):
         """
-        This will return the result of the job that successfully completed
+        This will return the result of the job that successfully completed or failed. If job failed, you can see the
+         error traceback.
         :return:
         """
         try:
