@@ -27,16 +27,9 @@ class Submit(Resource):
         job_type, params, queue, output, dedup = ogc.parse_execute_request(request_xml)
 
         try:
-            if dedup is None:
-                if queue is None:
-                    response = hysds.mozart_submit_job(job_type=job_type, params=params)
-                else:
-                    response = hysds.mozart_submit_job(job_type=job_type, params=params, queue=queue)
-            else:
-                if queue is None:
-                    response = hysds.mozart_submit_job(job_type=job_type, params=params, dedup=dedup)
-                else:
-                    response = hysds.mozart_submit_job(job_type=job_type, params=params, dedup=dedup, queue=queue)
+            dedup = "false" if dedup is None else dedup
+            queue = hysds.get_recommended_queue(job_type=job_type) if queue is None or queue is "" else queue
+            response = hysds.mozart_submit_job(job_type=job_type, params=params, dedup=dedup, queue=queue)
 
             logging.info("Mozart Response: {}".format(json.dumps(response)))
             job_id = response.get("result")

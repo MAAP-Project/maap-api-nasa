@@ -390,6 +390,13 @@ def get_job_spec(job_type):
     return mozart_response.json()
 
 
+def get_recommended_queue(job_type):
+    response = get_job_spec(job_type)
+    recommended_queues = response.get("result", None).get("recommended-queues", None)
+    recommended_queue = recommended_queues[0] if type(recommended_queues) is list else None
+    return recommended_queue if recommended_queue != "" else settings.DEFAULT_QUEUE
+
+
 def get_mozart_job_info(job_id):
     params = dict()
     params["id"] = job_id
