@@ -188,8 +188,8 @@ def result_response(job_id, job_result=None, error=None):
     if error is not None:
         output = ET.SubElement(response, "wps:Output")
         output.set("id", "traceback")
-        error = ET.SubElement(output, "wps:Data")
-        error.text = error
+        err = ET.SubElement(output, "wps:Data")
+        err.text = error
     return tostring(response)
 
 
