@@ -129,7 +129,8 @@ def start_member_session(cas_response, ticket):
                         last_name=get_cas_attribute_value(attributes, 'family_name'),
                         username=usr,
                         email=get_cas_attribute_value(attributes, 'email'),
-                        organization=get_cas_attribute_value(attributes, 'organization'))
+                        organization=get_cas_attribute_value(attributes, 'organization'),
+                        urs_token=get_cas_attribute_value(attributes, 'access_token'))
         db.session.add(member)
         db.session.commit()
 
