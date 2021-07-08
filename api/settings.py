@@ -1,6 +1,7 @@
 MAAP_API_URL = "https://api.maap.xyz/api"
 PROJECT_QUEUE_PREFIX = "maap"
 API_HOST_URL = 'http://0.0.0.0:5000/'
+# API_HOST_URL = 'https://api.maap-project.org/api'
 
 # Flask settings
 FLASK_SERVER_NAME = 'localhost:5000'
@@ -50,7 +51,14 @@ HYSDS_LW_VERSION = 'v0.0.5'
 GRQ_REST_URL = 'http://[GRQ_IP]/api/v0.1'
 S3_CODE_BUCKET = 's3://[S3_BUCKET_NAME]'
 
-# FASTBROWSE API
+# Dynamic Tiler API - OLD API
+#
+# Uncomment the `TILER_ENDPOINT` line below if testing api.maap-project.org at this time.
+# api.maap-project.org is using an older version of the Dynamic Tiler API.
+# TILER_ENDPOINT = 'https://8e9mu91qr6.execute-api.us-east-1.amazonaws.com/production'
+
+# Dynamic Tiler API - NEW API
+# The updated WMTS code (api/endpoints/wmts.py) should work with the newer version of the tiler API is deployed at the URL below.
 TILER_ENDPOINT = 'https://d852m4cmf5.execute-api.us-east-1.amazonaws.com'
 
 # 3D Tiles API
