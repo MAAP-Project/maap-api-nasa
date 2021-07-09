@@ -76,3 +76,6 @@ AWS_SHARED_WORKSPACE_BUCKET_PATH = 'shared'
 
 # DB
 DATABASE_URL='postgresql://localhost/maap_dev'
+
+# OGC API - Features
+OGCAPI_FEATURES_ENDPOINT = "https://hqv5kmigp4.execute-api.us-west-2.amazonaws.com"
