@@ -1,33 +1,9 @@
 from json.decoder import JSONDecodeError
 import unittest
 import json
-from unittest.mock import Mock, MagicMock
 import api.endpoints.ogcapi_features as ogcapi_features
-from api.maapapp import app
 from api import settings
-from flask import Response
-import os
 import pytest
-
-g1 = {
-    'granule_ur': 'uavsar_AfriSAR_v1_SLC-lopenp_14043_16015_001_160308_L090.vrt',
-    'cog_url': 's3://cumulus-map-internal/file-staging/circleci/AfriSAR_UAVSAR_Coreg_SLC___1/uavsar_AfriSAR_v1_SLC-lopenp_14043_16015_001_160308_L090.vrt.cog.tif',
-    'color_map': 'schwarzwald',
-    'rescale': '-1,1',
-    'zxy': '10/545/513'
-}
-
-g2 = {
-    'granule_ur': 'uavsar_AfriSAR_v1_SLC-hundre_14048_16008_007_160225_L090.vrt',
-    'cog_url': 's3://cumulus-map-internal/file-staging/circleci/AfriSAR_UAVSAR_Coreg_SLC___1/uavsar_AfriSAR_v1_SLC-hundre_14048_16008_007_160225_L090.vrt.cog.tif'
-}
-
-collection = {
-  'short_name': 'AfriSAR_UAVSAR_Coreg_SLC',
-  'version': '1'
-}
-
-MOCK_RESPONSES = False if os.environ.get('MOCK_RESPONSES') == 'false' else True
 
 class MockResponse:
     def __init__(self, status_code, headers, text):
@@ -37,27 +13,11 @@ class MockResponse:
 
 
 class OgcapiFeaturesTestCase(unittest.TestCase):
-    # Helper functions
-    def get_path(self, path):
-      return f"api/ogcapi-features{zxy}"
-
-    def assert_image_response(self, response):
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.headers['Content-Type'], 'image/png')
-        self.assertEqual(response.headers['Access-Control-Allow-Origin'], '*')
-        self.assertTrue(int(response.headers['Content-Length']) > 0)
 
     # Setup
     def setUp(self):
-        app.config['TESTING'] = True
         self.maxDiff = None # For seeing the whole redirect message
-        self.app = app.test_client()
         settings.OGCAPI_FEATURES_ENDPOINT = "http://example.com/oaf"
-        # if MOCK_RESPONSES:
-            # mock_response = Mock()
-            # mock_response.content = 'imagebytes'
-            # mock_response.status_code = 200
-            # ogcapi_features.get_tiles = MagicMock(return_value = mock_response)
 
     def test_rewrite_urls(self):
         ogcapi_features.rewrite_urls(None, "")
