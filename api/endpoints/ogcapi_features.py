@@ -34,8 +34,8 @@ class OgcapiFeatures(Resource):
         """
 
         return respond(
-            req(path, request.query_string, request.headers.get("accept")),
-            f"{request.url_root}api/ogcapi-features",
+            r = req(path, request.query_string, request.headers.get("accept")),
+            url_root=f"{request.url_root}api/ogcapi-features",
         )
 
 
@@ -48,7 +48,7 @@ def req(path: str, query_string: str, accept_content_type: Optional[str]):
     return requests.get(url, params=params, headers=headers, timeout=10)
 
 
-def respond(r, url_root: str):
+def respond(r, url_root: str) -> Response:
     content_type_header = r.headers.get("content-type")
     status_code = r.status_code
     body = r.text
@@ -67,12 +67,15 @@ def rewrite_urls_in_list(entities, url_root):
     if entities:
         for entity in entities:
             rewrite_urls(entity, url_root)
+    return entities
 
 
 def rewrite_urls(entity, url_root):
-    for link in entity.get("links", []):
-        href = link.get("href")
-        if href:
-            link["href"] = href.replace(
-                settings.OGCAPI_FEATURES_ENDPOINT, url_root, 1
-            )
+    if entity:
+        for link in entity.get("links", []):
+            href = link.get("href")
+            if href:
+                link["href"] = href.replace(
+                    settings.OGCAPI_FEATURES_ENDPOINT, url_root, 1
+                )
+    return entity
