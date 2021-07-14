@@ -18,7 +18,7 @@ except ImportError:
 log = logging.getLogger(__name__)
 
 ns = api.namespace(
-    "ogcapi-features", description="Operations related to OGC API - Features"
+    "features", description="Operations related to OGC API - Features"
 )
 
 
@@ -35,7 +35,7 @@ class OgcapiFeatures(Resource):
 
         return respond(
             r = req(path, request.query_string, request.headers.get("accept")),
-            url_root=f"{request.url_root}api/ogcapi-features",
+            url_root=f"{request.url_root}api/features",
         )
 
 
@@ -45,7 +45,7 @@ def req(path: str, query_string: str, accept_content_type: Optional[str]):
     headers = {}
     if accept_content_type:
         headers["accept"] = accept_content_type
-    return requests.get(url, params=params, headers=headers, timeout=10)
+    return requests.get(url, params=params, headers=headers, timeout=30)
 
 
 def respond(r, url_root: str) -> Response:
