@@ -59,7 +59,7 @@ def configure_app(flask_app):
     flask_app.config['ERROR_404_HELP'] = settings.RESTPLUS_ERROR_404_HELP
     flask_app.config['TILER_ENDPOINT'] = settings.TILER_ENDPOINT
     flask_app.config['OGCAPI_FEATURES_ENDPOINT'] = settings.OGCAPI_FEATURES_ENDPOINT
-    flask_app.config['DATA_SYSTEM_SERVICES_API_BASE'] = settings.DATA_SYSTEM_SERVICES_API_BASE
+    flask_app.config['_3DTILES_API_ENDPOINT'] = settings._3DTILES_API_ENDPOINT
     flask_app.config['DATA_SYSTEM_FILES_PATH'] = settings.DATA_SYSTEM_FILES_PATH
     flask_app.config['QS_STATE_MACHINE_ARN'] = settings.QS_STATE_MACHINE_ARN
     flask_app.config['QS_RESULT_BUCKET'] = settings.QS_RESULT_BUCKET
