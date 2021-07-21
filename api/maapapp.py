@@ -14,6 +14,7 @@ from api.endpoints.members import ns as members_namespace
 from api.endpoints.query_service import ns as query_service_namespace
 from api.endpoints.three_dimensional_tiles import ns as three_d_tiles_namespace
 from api.endpoints.environment import ns as environment_namespace
+from api.endpoints.ogcapi_features import ns as ogcapi_features_namespace
 from api.restplus import api
 from api.maap_database import db
 from api.models import initialize_sql
@@ -57,6 +58,7 @@ def configure_app(flask_app):
     flask_app.config['RESTPLUS_MASK_SWAGGER'] = settings.RESTPLUS_MASK_SWAGGER
     flask_app.config['ERROR_404_HELP'] = settings.RESTPLUS_ERROR_404_HELP
     flask_app.config['TILER_ENDPOINT'] = settings.TILER_ENDPOINT
+    flask_app.config['OGCAPI_FEATURES_ENDPOINT'] = settings.OGCAPI_FEATURES_ENDPOINT
     flask_app.config['_3DTILES_API_ENDPOINT'] = settings._3DTILES_API_ENDPOINT
     flask_app.config['DATA_SYSTEM_FILES_PATH'] = settings.DATA_SYSTEM_FILES_PATH
     flask_app.config['QS_STATE_MACHINE_ARN'] = settings.QS_STATE_MACHINE_ARN
@@ -77,6 +79,7 @@ def initialize_app(flask_app):
     api.add_namespace(query_service_namespace)
     api.add_namespace(three_d_tiles_namespace)
     api.add_namespace(environment_namespace)
+    api.add_namespace(ogcapi_features_namespace)
     flask_app.register_blueprint(blueprint)
 
 
