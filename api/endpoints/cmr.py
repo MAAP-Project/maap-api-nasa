@@ -5,12 +5,13 @@ import shapefile
 from api import settings
 from zipfile import ZipFile
 import tempfile
-from flask import request, json, Response
+from flask import request, json, Response, jsonify
 from flask_restplus import Resource
 from api.restplus import api
 from api.cas.cas_auth import get_authorized_user
 from api.maap_database import db
 from api.models.member import Member
+from urllib import parse
 
 try:
     import urllib.parse as urlparse
@@ -120,19 +121,22 @@ class CmrFiles(Resource):
 
     def get(self, file_uri):
         s = requests.Session()
-        response = s.get(file_uri, stream=True)
+        response = s.get(parse.unquote(file_uri), stream=True)
 
         if response.status_code == 401:
             maap_user = get_authorized_user()
 
             if maap_user is None:
-                return response
+                return Response(response.text, status=401)
             else:
                 urs_token = db.session.query(Member).filter(Member.id == maap_user.id).urs_token
                 s.headers.update({'Authorization': f'Bearer {urs_token},Basic {os.environ.get("MAAP_APP_CREDS")}',
                                   'Connection': 'close'})
 
                 response = s.get(url=response.url, stream=True)
+
+                if response.status_code == 401:
+                    return Response(response.text, status=401)
 
         return Response(response.iter_content(chunk_size=10 * 1024),
                         content_type=response.headers['Content-Type'])
