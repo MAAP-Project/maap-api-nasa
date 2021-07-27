@@ -133,7 +133,7 @@ class CmrGranuleData(Resource):
         response = s.get(parse.unquote(file_uri), stream=True)
 
         if response.status_code == 401:
-            maap_user = 222  # get_authorized_user()
+            maap_user = get_authorized_user()
 
             if maap_user is None:
                 return Response(response.text, status=401)
