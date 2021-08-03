@@ -147,13 +147,10 @@ class CmrGranuleData(Resource):
                 if response.status_code == 401:
                     return Response(response.text, status=401)
 
-        resp = Response(
+        return Response(
             response=stream_with_context(response.iter_content(chunk_size=1024 * 10)),
-            status=200,
             content_type=response.headers["Content-Type"],
             direct_passthrough=True)
-
-        return resp
 
 
 def get_search_headers():
