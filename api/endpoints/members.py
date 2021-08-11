@@ -27,7 +27,6 @@ class Self(Resource):
         if 'proxy-ticket' in request.headers:
             member_schema = MemberSchema()
             return json.loads(member_schema.dumps(member))
-
         if 'Authorization' in request.headers:
             return member
 
@@ -101,7 +100,7 @@ class PresignedUrlS3(Resource):
         url = s3_client.generate_presigned_url(
             'get_object',
             Params={
-                'Bucket': bucket,
+                'Bucket': 'maap-ops-workspace', #bucket, (put this back to {bucket} once environments are finalized!)
                 'Key': parse.unquote(s3_path)
             },
             ExpiresIn=expiration
@@ -123,12 +122,6 @@ class PresignedUrlS3(Resource):
             return key.replace(settings.WORKSPACE_MOUNT_SHARED, settings.AWS_SHARED_WORKSPACE_BUCKET_PATH)
         else:
             return key
-
-
-
-
-
-
 
 
 

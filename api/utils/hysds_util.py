@@ -100,7 +100,7 @@ def create_hysds_io(algorithm_description, algorithm_params, submission_type="in
                 param_spec["name"] = param[key]
                 param_spec["from"] = "submitter"
                 params.append(param_spec)
-
+    
     hysds_io["params"] = params
     return hysds_io
 
@@ -388,13 +388,6 @@ def get_job_spec(job_type):
         raise ex
 
     return mozart_response.json()
-
-
-def get_recommended_queue(job_type):
-    response = get_job_spec(job_type)
-    recommended_queues = response.get("result", None).get("recommended-queues", None)
-    recommended_queue = recommended_queues[0] if type(recommended_queues) is list else None
-    return recommended_queue if recommended_queue != "" else settings.DEFAULT_QUEUE
 
 
 def get_mozart_job_info(job_id):

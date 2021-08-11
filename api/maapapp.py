@@ -5,14 +5,13 @@ import logging.config
 import os
 from flask import Flask, Blueprint
 from api import settings
-from api.endpoints.cmr import ns as cmr_namespace
+from api.endpoints.cmr import ns as cmr_collections_namespace
 from api.endpoints.algorithm import ns as algorithm_namespace
 from api.endpoints.job import ns as job_namespace
 from api.endpoints.wmts import ns as wmts_namespace
 from api.endpoints.wms import ns as wms_namespace
 from api.endpoints.members import ns as members_namespace
 from api.endpoints.query_service import ns as query_service_namespace
-from api.endpoints.three_dimensional_tiles import ns as three_d_tiles_namespace
 from api.endpoints.environment import ns as environment_namespace
 from api.restplus import api
 from api.maap_database import db
@@ -26,7 +25,7 @@ log = logging.getLogger(__name__)
 
 blueprint = Blueprint('baseapi', __name__, url_prefix='/api')
 api.init_app(blueprint)
-api.add_namespace(cmr_namespace)
+api.add_namespace(cmr_collections_namespace)
 app.register_blueprint(blueprint)
 
 
@@ -57,8 +56,6 @@ def configure_app(flask_app):
     flask_app.config['RESTPLUS_MASK_SWAGGER'] = settings.RESTPLUS_MASK_SWAGGER
     flask_app.config['ERROR_404_HELP'] = settings.RESTPLUS_ERROR_404_HELP
     flask_app.config['TILER_ENDPOINT'] = settings.TILER_ENDPOINT
-    flask_app.config['DATA_SYSTEM_SERVICES_API_BASE'] = settings.DATA_SYSTEM_SERVICES_API_BASE
-    flask_app.config['DATA_SYSTEM_FILES_PATH'] = settings.DATA_SYSTEM_FILES_PATH
     flask_app.config['QS_STATE_MACHINE_ARN'] = settings.QS_STATE_MACHINE_ARN
     flask_app.config['QS_RESULT_BUCKET'] = settings.QS_RESULT_BUCKET
 
@@ -68,14 +65,13 @@ def initialize_app(flask_app):
 
     blueprint = Blueprint('api', __name__, url_prefix='/api')
     api.init_app(blueprint)
-    api.add_namespace(cmr_namespace)
+    api.add_namespace(cmr_collections_namespace)
     api.add_namespace(algorithm_namespace)
     api.add_namespace(job_namespace)
     api.add_namespace(wmts_namespace)
     api.add_namespace(wms_namespace)
     api.add_namespace(members_namespace)
     api.add_namespace(query_service_namespace)
-    api.add_namespace(three_d_tiles_namespace)
     api.add_namespace(environment_namespace)
     flask_app.register_blueprint(blueprint)
 
