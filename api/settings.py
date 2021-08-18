@@ -12,13 +12,6 @@ RESTPLUS_VALIDATE = True
 RESTPLUS_MASK_SWAGGER = False
 RESTPLUS_ERROR_404_HELP = False
 
-# CMR settings
-
-# # NASA UAT
-# CMR_URL = 'https://cmr.uat.earthdata.nasa.gov'
-# CMR_API_TOKEN = '4C40153D-6CC6-D01A-58E2-D8F3CAFB5472'
-# CMR_CLIENT_ID = 'maap-api-cmr'
-
 CMR_TOKEN_SERVICE_URL = 'https://cmr.earthdata.nasa.gov/legacy-services/rest/tokens'
 
 # MAAP DEV
