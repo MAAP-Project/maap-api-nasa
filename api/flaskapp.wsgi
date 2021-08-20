@@ -1,14 +1,16 @@
-#!/usr/bin/python                                                                
+#!/usr/bin/python
 
 import sys
 import logging
 import os
 
-logging.basicConfig(stream=sys.stderr)
-sys.path.insert(0,"/var/www/maap-api-nasa/")
+from pathlib import Path
+top = str(Path(__file__ + '../..').resolve()).replace('/api', '')
 
-activate_this = os.path.join('/var/www/maap-api-nasa/venv', 'bin', 'activate_this.py')
-#execfile(activate_this, dict(__file__=activate_this))
+logging.basicConfig(stream=sys.stderr)
+sys.path.insert(0, top)
+
+activate_this = os.path.join(top, 'venv', 'bin', 'activate_this.py')
 
 with open(activate_this) as f:
     code = compile(f.read(), activate_this, 'exec')
