@@ -233,7 +233,7 @@ def get_op(op_ele, op_name, get_url = None, post_url = None):
     return op_ele
 
 
-def get_capabilities(job_list):
+def get_capabilities(base_url, job_list):
     """
     This creates a response containing service metadata such as the service name, keywords, and contact information for
     the organization operating the server.
@@ -277,10 +277,10 @@ def get_capabilities(job_list):
     ET.SubElement(address, "ows:ElectronicMailAddress")
 
     op_met = ET.SubElement(response, "ows:OperationsMetadata")
-    op_met = get_op(op_met, "GetCapabilities", get_url="https://api.maap.xyz/api/dps/job?")
-    op_met = get_op(op_met, "Execute", post_url="https://api.maap.xyz/api/dps/job")
-    op_met = get_op(op_met, "GetStatus", get_url="https://api.maap.xyz/api/dps/job/<job_id>")
-    op_met = get_op(op_met, "DescribeProcess", get_url="https://api.maap.xyz/api/mas/algorithm/<algorithm_id>")
+    op_met = get_op(op_met, "GetCapabilities", get_url=base_url + "api/dps/job?")
+    op_met = get_op(op_met, "Execute", post_url=base_url + "api/dps/job")
+    op_met = get_op(op_met, "GetStatus", get_url=base_url + "api/dps/job/<job_id>")
+    op_met = get_op(op_met, "DescribeProcess", get_url=base_url + "api/mas/algorithm/<algorithm_id>")
 
     lang = ET.SubElement(response, "ows:Languages")
     ET.SubElement(lang, "ows.Language").text = "en-US"
@@ -297,7 +297,7 @@ def get_capabilities(job_list):
         ET.SubElement(proc_summ, "ows:Identifier").text = job_type.strip("job-")
         proc_metadata = ET.SubElement(proc_summ, "ows:Metadata")
         proc_metadata.set("xlin:role", "Process description")
-        proc_metadata.set("xlin:href", "https://api.maap.xyz/api/dps/job/describeprocess/{}%3A{}"
+        proc_metadata.set("xlin:href", base_url + "api/dps/job/describeprocess/{}%3A{}"
                           .format(job_type.strip("job-").split(":")[0],
                                   job_type.strip("job-").split(":")[1]))
     return tostring(response)

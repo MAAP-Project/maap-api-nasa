@@ -54,7 +54,7 @@ class Submit(Resource):
 
         try:
             job_list = hysds.get_algorithms()
-            response_body = ogc.get_capabilities(job_list)
+            response_body = ogc.get_capabilities(request.url_root, job_list)
             return Response(response_body, mimetype='text/xml')
         except Exception as ex:
             tb = traceback.format_exc()
