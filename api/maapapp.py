@@ -12,7 +12,6 @@ from api.endpoints.wmts import ns as wmts_namespace
 from api.endpoints.wms import ns as wms_namespace
 from api.endpoints.members import ns as members_namespace
 from api.endpoints.query_service import ns as query_service_namespace
-from api.endpoints.three_dimensional_tiles import ns as three_d_tiles_namespace
 from api.endpoints.environment import ns as environment_namespace
 from api.restplus import api
 from api.maap_database import db
@@ -57,8 +56,6 @@ def configure_app(flask_app):
     flask_app.config['RESTPLUS_MASK_SWAGGER'] = settings.RESTPLUS_MASK_SWAGGER
     flask_app.config['ERROR_404_HELP'] = settings.RESTPLUS_ERROR_404_HELP
     flask_app.config['TILER_ENDPOINT'] = settings.TILER_ENDPOINT
-    flask_app.config['DATA_SYSTEM_SERVICES_API_BASE'] = settings.DATA_SYSTEM_SERVICES_API_BASE
-    flask_app.config['DATA_SYSTEM_FILES_PATH'] = settings.DATA_SYSTEM_FILES_PATH
     flask_app.config['QS_STATE_MACHINE_ARN'] = settings.QS_STATE_MACHINE_ARN
     flask_app.config['QS_RESULT_BUCKET'] = settings.QS_RESULT_BUCKET
 
@@ -75,7 +72,6 @@ def initialize_app(flask_app):
     api.add_namespace(wms_namespace)
     api.add_namespace(members_namespace)
     api.add_namespace(query_service_namespace)
-    api.add_namespace(three_d_tiles_namespace)
     api.add_namespace(environment_namespace)
     flask_app.register_blueprint(blueprint)
 

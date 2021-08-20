@@ -11,9 +11,10 @@ import api.utils.ogc_translate as ogc
 from api.cas.cas_auth import get_authorized_user, login_required
 from api.maap_database import db
 from api.models.member_algorithm import MemberAlgorithm
-from api.models.member_algo_registration import MemberAlgorithmRegistration
 from sqlalchemy import or_, and_
 from datetime import datetime
+from flask_restplus import reqparse
+import json
 
 log = logging.getLogger(__name__)
 
@@ -61,9 +62,6 @@ class Register(Resource):
             "code_version": "master",
             "environment_name": "ubuntu",
             "docker_container_url": "http://url/to/container",
-            "disk_space": "minimum free disk usage required to run job specified as "\d+(GB|MB|KB)", e.g. "100GB", "20MB", "10KB"",
-            "queue": "name of worker based on required memory for algorithm",
-            "ade_webhook_url": "url to send algo registration updates to",
             "algorithm_params": [
                 {
                 "field": "param_name1",
@@ -78,21 +76,22 @@ class Register(Resource):
         Sample JSON to post:
         { "script_command" : "python /app/plant.py",
          "algorithm_name" : "plant_test",
+         "label" : "test plant algorithm",
          "code_version": "master",
          "algorithm_description" : "Test Plant",
          "environment_name": "ubuntu",
          "docker_container_url": "http://url/to/container",
          "repo_url": "http://url/to/repo",
-         "disk_space": "10GB",
-         "queue": "maap-worker-8gb",
-         "ade_webhook_url": "http://ade/url/webhook",
+
+
+
          "algorithm_params" : [
               {
               "field": "localize_urls",
               "download": true
               },
               {
-              "field": "parameter1"
+              "field": "username"
               }
             ]
         }
@@ -106,6 +105,11 @@ class Register(Resource):
         So we need to update the repo with the required files and push the algorithm specs of the one being registered.
         """
         try:
+            # remove any trailing commas
+            regex = r'''(?<=[}\]"']),(?!\s*[{["'])'''
+            req_data_string = request.data.decode("utf-8")
+            req_data_string_cleaned = re.sub(regex, '', req_data_string, 0)
+            req_data = json.loads(req_data_string_cleaned)
             repo = git.git_clone()
         except Exception as ex:
             tb = traceback.format_exc()
@@ -153,11 +157,12 @@ class Register(Resource):
             return response_body, 500
 
         try:
-            # validate if input queue is valid
+
             if resource not in hysds.get_mozart_queues():
                 response_body["code"] = 500
                 response_body["message"] = "The resource {} is invalid. Please select from one of {}".format(resource, hysds.get_mozart_queues())
                 response_body["error"] = "Invalid queue in request: {}".format(req_data)
+
             # clean up any old specs from the repo
             repo = git.clean_up_git_repo(repo, repo_name=settings.REPO_NAME)
             # creating hysds-io file
@@ -211,7 +216,7 @@ class Register(Resource):
         try:
             git.update_git_repo(repo, repo_name=settings.REPO_NAME,
                                 algorithm_name=hysds.get_algorithm_file_name(algorithm_name))
-            # log.debug("Updated Git Repo with hash {}".format(commit_hash))
+            log.debug("Updated Git Repo")
         except Exception as ex:
             tb = traceback.format_exc()
             response_body["code"] = 500
@@ -221,24 +226,21 @@ class Register(Resource):
 
         algorithm_id = "{}:{}".format(algorithm_name, req_data.get("code_version"))
 
-        # try:
-        #     # add algorithm registration record to maap db if authenticated
-        #     m = get_authorized_user()
-        #
-        #     if m is not None:
-        #         ade_hook = req_data.get("ade_webhook_url", None)
-        #         mar = MemberAlgorithmRegistration(member_id=m.id, algorithm_key=algorithm_id,
-        #                                           creation_date=datetime.utcnow(), commit_hash=commit_hash,
-        #                                           ade_webhook=ade_hook)
-        #         db.session.add(mar)
-        #         db.session.commit()
-        #
-        # except Exception as ex:
-        #     log.debug(ex)
+        try:
+            # add algorithm to maap db if authenticated
+            m = get_authorized_user()
+
+            if m is not None:
+                ma = MemberAlgorithm(member_id=m.id, algorithm_key=algorithm_id, is_public=False,
+                                     creation_date=datetime.utcnow())
+                db.session.add(ma)
+                db.session.commit()
+
+        except Exception as ex:
+            log.debug(ex)
 
         response_body["code"] = 200
-        response_body["message"] = "Successfully initiated registration of {}. You will receive further notification " \
-                                   "regarding success or failure".format(algorithm_id)
+        response_body["message"] = "Successfully registered {}".format(algorithm_id)
         """
         <?xml version="1.0" encoding="UTF-8"?>
         <AlgorithmName></AlgorithmName>
@@ -283,17 +285,17 @@ class Register(Resource):
     def _get_algorithms(self, visibility):
         member = get_authorized_user()
 
-        if visibility == visibility_private:
-            return [] if member is None else db.session.query(MemberAlgorithm).filter(and_(MemberAlgorithm.member_id == member.id,
-                                                                                           not MemberAlgorithm.is_public)).all()
-        elif visibility == visibility_all:
-            return list(map(lambda a: MemberAlgorithm(algorithm_key=re.sub('^job-', '', a)), hysds.get_algorithms()))
-        else:
-            if member is None:
-                return db.session.query(MemberAlgorithm).filter(MemberAlgorithm.is_public).all()
-            else:
-                return db.session.query(MemberAlgorithm).filter(or_(MemberAlgorithm.member_id == member.id,
-                                                                    MemberAlgorithm.is_public)).all()
+        #if visibility == visibility_private:
+        #    return [] if member is None else db.session.query(MemberAlgorithm).filter(and_(MemberAlgorithm.member_id == member.id,
+        #                                                                                   not MemberAlgorithm.is_public)).all()
+        #elif visibility == visibility_all:
+        return list(map(lambda a: MemberAlgorithm(algorithm_key=re.sub('^job-', '', a)), hysds.get_algorithms()))
+        #else:
+        #    if member is None:
+        #        return db.session.query(MemberAlgorithm).filter(MemberAlgorithm.is_public).all()
+        #    else:
+        #        return db.session.query(MemberAlgorithm).filter(or_(MemberAlgorithm.member_id == member.id,
+        #                                                            MemberAlgorithm.is_public)).all()
 
 
 @ns.route('/algorithm/<string:algo_id>')
@@ -340,7 +342,6 @@ class Describe(Resource):
             response_body["error"] = "{} Traceback: {}".format(ex, tb)
             return response_body, 404
 
-
 @ns.route('/algorithm/resource')
 class ResourceList(Resource):
     def get(self):
@@ -361,7 +362,6 @@ class ResourceList(Resource):
                                               ex_message="Failed to get list of queues. {}.".format(ex)),
                             status=500,
                             mimetype='text/xml')
-
 
 @ns.route('/build')
 class Build(Resource):
