@@ -123,62 +123,26 @@ def start_member_session(cas_response, ticket):
     usr = get_cas_attribute_value(attributes, 'preferred_username')
 
     member = db.session.query(Member).filter_by(username=usr).first()
+    urs_access_token = get_cas_attribute_value(attributes, 'access_token')
 
     if member is None:
         member = Member(first_name=get_cas_attribute_value(attributes, 'given_name'),
                         last_name=get_cas_attribute_value(attributes, 'family_name'),
                         username=usr,
                         email=get_cas_attribute_value(attributes, 'email'),
-                        organization=get_cas_attribute_value(attributes, 'organization'))
+                        organization=get_cas_attribute_value(attributes, 'organization'),
+                        urs_token=urs_access_token)
         db.session.add(member)
-        db.session.commit()
+    else:
+        member.urs_token = urs_access_token
+
+    db.session.commit()
 
     member_session = MemberSession(member_id=member.id, session_key=ticket, creation_date=datetime.utcnow())
     db.session.add(member_session)
     db.session.commit()
 
     return member_session
-
-
-def get_urs_token(ticket):
-    """
-    Will attempt to validate the urs access_token. If validation fails, then None
-    is returned. If validation is successful, then a token is returned.
-    """
-
-    current_app.logger.debug("validating ticket for urs_token {0}".format(ticket))
-
-    decrypted_ticket = decrypt_proxy_ticket(ticket)
-
-    cas_validate_proxy_url = create_cas_proxy_url(
-        current_app.config['CAS_SERVER'],
-        request.base_url,
-        decrypted_ticket
-    )
-
-    cas_response = validate_cas_request(cas_validate_proxy_url)
-
-    if cas_response[0]:
-        current_app.logger.debug("valid proxy granting ticket")
-
-        xml_from_dict = cas_response[1]["cas:serviceResponse"]["cas:proxySuccess"]
-        proxy_ticket = xml_from_dict["cas:proxyTicket"]
-
-        proxy_validate_url = create_cas_proxy_validate_url(
-            current_app.config['CAS_SERVER'],
-            request.base_url,
-            proxy_ticket
-        )
-
-        cas_proxy_response = validate_cas_request(proxy_validate_url)
-
-        if cas_proxy_response[0]:
-            xml_from_dict = cas_proxy_response[1]["cas:serviceResponse"]["cas:authenticationSuccess"]
-            attributes = xml_from_dict.get("cas:attributes", {})
-            return get_cas_attribute_value(attributes, 'access_token')
-
-    current_app.logger.debug("invalid proxy granting ticket")
-    return None
 
 
 def get_cas_attribute_value(attributes, attribute_key):

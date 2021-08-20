@@ -5,9 +5,13 @@ import shapefile
 from api import settings
 from zipfile import ZipFile
 import tempfile
-from flask import request, json
+from flask import request, json, Response, stream_with_context
 from flask_restplus import Resource
 from api.restplus import api
+from api.cas.cas_auth import get_authorized_user
+from api.maap_database import db
+from api.models.member import Member
+from urllib import parse
 
 try:
     import urllib.parse as urlparse
@@ -112,14 +116,51 @@ class CmrGranules(Resource):
         return respond(resp)
 
 
+@ns.route('/granules/<string:file_uri>/data')
+class CmrGranuleData(Resource):
+    """
+    CMR granule data
+
+        Download granule by file URI
+        file_uri: a UTF-8 encoded URI
+
+        Example:
+        https://api.maap-project.org/api/cmr/granules/https%3A%2F%2Fdata.ornldaac.earthdata.nasa.gov%2Fprotected%2Fgedi%2FGEDI_L3_Land_Surface_Metrics%2Fdata%2FGEDI03_elev_lowestmode_stddev_2019108_2020106_001_08.tif/data
+    """
+
+    def get(self, file_uri):
+        s = requests.Session()
+        response = s.get(parse.unquote(file_uri), stream=True)
+
+        if response.status_code == 401:
+            maap_user = get_authorized_user()
+
+            if maap_user is None:
+                return Response(response.text, status=401)
+            else:
+                urs_token = db.session.query(Member).filter(Member.id == maap_user.id).urs_token
+                s.headers.update({'Authorization': f'Bearer {urs_token},Basic {os.environ.get("MAAP_APP_CREDS")}',
+                                  'Connection': 'close'})
+
+                response = s.get(url=response.url, stream=True)
+
+                if response.status_code == 401:
+                    return Response(response.text, status=401)
+
+        return Response(
+            response=stream_with_context(response.iter_content(chunk_size=1024 * 10)),
+            content_type=response.headers["Content-Type"],
+            direct_passthrough=True)
+
+
 def get_search_headers():
     accept = next(iter(request.headers.getlist('accept') or ['application/json']), ['application/json'])
 
     return {
-            'Accept': accept,
-            'Echo-Token': settings.CMR_API_TOKEN,
-            'Client-Id': settings.CMR_CLIENT_ID
-        }
+        'Accept': accept,
+        'Echo-Token': settings.CMR_API_TOKEN,
+        'Client-Id': settings.CMR_CLIENT_ID
+    }
 
 
 # Preserves keys that occur more than once, as allowed for in CMR
@@ -150,4 +191,3 @@ def respond(response):
             return response_text, response.status_code, {'Content-Type': 'application/xml'}
         else:
             return json.loads(response.text)
-
