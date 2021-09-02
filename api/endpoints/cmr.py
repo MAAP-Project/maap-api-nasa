@@ -120,10 +120,8 @@ class CmrGranules(Resource):
 class CmrGranuleData(Resource):
     """
     CMR granule data
-
         Download granule by file URI
         file_uri: a UTF-8 encoded URI
-
         Example:
         https://api.maap-project.org/api/cmr/granules/https%3A%2F%2Fdata.ornldaac.earthdata.nasa.gov%2Fprotected%2Fgedi%2FGEDI_L3_Land_Surface_Metrics%2Fdata%2FGEDI03_elev_lowestmode_stddev_2019108_2020106_001_08.tif/data
     """
@@ -138,8 +136,8 @@ class CmrGranuleData(Resource):
             if maap_user is None:
                 return Response(response.text, status=401)
             else:
-                urs_token = db.session.query(Member).filter(Member.id == maap_user.id).urs_token
-                s.headers.update({'Authorization': f'Bearer {urs_token},Basic {os.environ.get("MAAP_APP_CREDS")}',
+                urs_token = db.session.query(Member).filter_by(id=maap_user.id).first().urs_token
+                s.headers.update({'Authorization': f'Bearer {urs_token},Basic {settings.MAAP_EDL_CREDS}',
                                   'Connection': 'close'})
 
                 response = s.get(url=response.url, stream=True)
@@ -157,10 +155,10 @@ def get_search_headers():
     accept = next(iter(request.headers.getlist('accept') or ['application/json']), ['application/json'])
 
     return {
-        'Accept': accept,
-        'Echo-Token': settings.CMR_API_TOKEN,
-        'Client-Id': settings.CMR_CLIENT_ID
-    }
+            'Accept': accept,
+            'Echo-Token': settings.CMR_API_TOKEN,
+            'Client-Id': settings.CMR_CLIENT_ID
+        }
 
 
 # Preserves keys that occur more than once, as allowed for in CMR
@@ -191,3 +189,4 @@ def respond(response):
             return response_text, response.status_code, {'Content-Type': 'application/xml'}
         else:
             return json.loads(response.text)
+
