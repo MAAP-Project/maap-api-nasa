@@ -64,6 +64,7 @@ WORKSPACE_MOUNT_PRIVATE = 'my-private-bucket'
 WORKSPACE_MOUNT_PUBLIC = 'my-public-bucket'
 WORKSPACE_MOUNT_SHARED = 'shared-buckets'
 AWS_SHARED_WORKSPACE_BUCKET_PATH = 'shared'
+AWS_REQUESTOR_PAYS_BUCKET_ARN = 'arn:aws:iam::???:role/???'
 
 # DB
 DATABASE_URL=''
