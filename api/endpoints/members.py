@@ -125,6 +125,38 @@ class PresignedUrlS3(Resource):
             return key
 
 
+@ns.route('/self/awsAccess/requestorPaysBucket')
+class AwsAccess(Resource):
+
+    expiration_param = reqparse.RequestParser()
+    expiration_param.add_argument('exp', type=int, required=False, default=60 * 60 * 12)
+
+    @login_required
+    @api.expect(expiration_param)
+    def get(self):
+
+        member = get_authorized_user()
+
+        expiration = request.args['exp']
+        sts_client = boto3.client('sts')
+        assumed_role_object = sts_client.assume_role(
+            DurationSeconds=expiration,
+            RoleArn=settings.AWS_REQUESTOR_PAYS_BUCKET_ARN,
+            RoleSessionName="MAAP-session-" + member.username
+        )
+        credentials = assumed_role_object['Credentials']
+
+        response = jsonify(
+            aws_access_key_id=credentials['AccessKeyId'],
+            aws_secret_access_key=credentials['SecretAccessKey'],
+            aws_session_token=credentials['SessionToken']
+        )
+
+        response.headers.add('Access-Control-Allow-Origin', '*')
+
+        return response
+
+
 
 
 
