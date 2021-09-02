@@ -135,12 +135,14 @@ class AwsAccess(Resource):
     @api.expect(expiration_param)
     def get(self):
 
+        member = get_authorized_user()
+
         expiration = request.args['exp']
         sts_client = boto3.client('sts')
         assumed_role_object = sts_client.assume_role(
             DurationSeconds=expiration,
             RoleArn=settings.AWS_REQUESTOR_PAYS_BUCKET_ARN,
-            RoleSessionName="AssumeRoleSession1"
+            RoleSessionName="MAAP-session-" + member.username
         )
         credentials = assumed_role_object['Credentials']
 
