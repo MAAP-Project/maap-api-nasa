@@ -124,7 +124,7 @@ class PresignedUrlS3(Resource):
             return key
 
 
-@ns.route('/self/awsAccess/requestorPaysBucket')
+@ns.route('/self/awsAccess/requesterPaysBucket')
 class AwsAccess(Resource):
 
     expiration_param = reqparse.RequestParser()
@@ -139,8 +139,8 @@ class AwsAccess(Resource):
         expiration = request.args['exp']
         sts_client = boto3.client('sts')
         assumed_role_object = sts_client.assume_role(
-            DurationSeconds=expiration,
-            RoleArn=settings.AWS_REQUESTOR_PAYS_BUCKET_ARN,
+            DurationSeconds=int(expiration),
+            RoleArn=settings.AWS_REQUESTER_PAYS_BUCKET_ARN,
             RoleSessionName="MAAP-session-" + member.username
         )
         credentials = assumed_role_object['Credentials']
