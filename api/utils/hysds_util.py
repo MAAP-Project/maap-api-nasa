@@ -425,6 +425,9 @@ def get_mozart_queues():
             try:
                 queues_list = mozart_response.get("result").get("queues")
                 result = [queue for queue in queues_list if queue.startswith(settings.PROJECT_QUEUE_PREFIX)]
+                
+                if not result:
+                    result = [settings.DEFAULT_QUEUE]
                 return result
             except Exception as ex:
                 raise ex
