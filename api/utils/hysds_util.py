@@ -194,7 +194,7 @@ def create_config_file(repo_name, repo_url_w_token, repo_branch, docker_containe
     config_content += "BRANCH={}\n".format(repo_branch)
     config_content += "GRQ_REST_URL={}\n".format(settings.GRQ_REST_URL)
     config_content += "MAAP_API_URL={}\n".format(settings.MAAP_API_URL)
-    config_content += "MOZART_URL={}\n".format(settings.MOZART_URL)
+    config_content += "MOZART_URL={}\n".format(settings.MOZART_V1_URL)
     config_content += "S3_CODE_BUCKET={}".format(settings.S3_CODE_BUCKET)
 
     return config_content
