@@ -382,7 +382,7 @@ def get_job_spec(job_type):
     session.verify = False
 
     try:
-        mozart_response = session.get("{}/job_spec/type?id={}".format(settings.MOZART_URL, job_type), headers=headers,
+        mozart_response = session.get("{}/job_spec/type?id={}".format(settings.MOZART_V1_URL, job_type), headers=headers,
                                       verify=False)
     except Exception as ex:
         raise ex
