@@ -24,20 +24,31 @@ class Submit(Resource):
         :return:
         """
         request_xml = request.data
-        job_type, params, queue, output, dedup = ogc.parse_execute_request(request_xml)
+        job_type, input_params, queue, output, dedup, identifier = ogc.parse_execute_request(request_xml)
+
+        # validate the inputs provided by user against the registered spec for the job
+        try:
+            hysdsio_type = job_type.replace("job-", "hysds-io-")
+            hysds_io = hysds.get_hysds_io(hysdsio_type)
+            params = hysds.validate_job_submit(hysds_io, input_params)
+        except Exception as ex:
+            return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",
+                                              ex_message="Failed to submit job of type {}. Exception Message: {}"
+                                              .format(job_type, ex)), status=500)
 
         try:
             dedup = "false" if dedup is None else dedup
             queue = hysds.get_recommended_queue(job_type=job_type) if queue is None or queue is "" else queue
-            response = hysds.mozart_submit_job(job_type=job_type, params=params, dedup=dedup, queue=queue)
+            response = hysds.mozart_submit_job(job_type=job_type, params=params, dedup=dedup, queue=queue,
+                                               identifier=identifier)
 
             logging.info("Mozart Response: {}".format(json.dumps(response)))
             job_id = response.get("result")
-            response = hysds.mozart_job_status(job_id=job_id)
-            job_status = response.get("status")
-
             if job_id is not None:
                 logging.info("Submitted Job with HySDS ID: {}".format(job_id))
+                # the status is hard coded because we query too fast before the record even shows up in ES
+                # we wouldn't have a Job ID unless it was a valid payload and got accepted by the system
+                job_status = "job-queued"
                 return Response(ogc.status_response(job_id=job_id, job_status=job_status), mimetype='text/xml')
             else:
                 raise Exception(response.get("message"))
@@ -123,14 +134,16 @@ class Result(Resource):
                                                          " please contact administrator " \
                                                          "of DPS".format(job_id, ex)), mimetype='text/xml', status=500)
 
+    """
+        No longer want to expose the ability to delete DPS jobs to users.
     def delete(self, job_id):
-        """
+        \"""
         This will delete a job from the DPS
         It submits a lightweight HySDS job of type purge to delete a job.
         :param self:
         :param job_id:
         :return:
-        """
+        \"""
         try:
             # check if job is non-running
             current_status = hysds.mozart_job_status(job_id).get("status")
@@ -171,6 +184,7 @@ class Result(Resource):
                                               ex_message="Failed to delete job {}. Please try again or "
                                                          "contact DPS administrator. {}".format(job_id, ex)),
                             mimetype='text/xml', status=500)
+    """
 
 
 @ns.route('/job/<string:job_id>/status')
@@ -304,8 +318,6 @@ class Metrics(Resource):
                 async_io_stats.text = str(async_io_stats)
                 total_io_stats = SubElement(xml_response, "total_io_stats")
                 total_io_stats.text = str(total_io_stats)
-
-
             return Response(tostring(xml_response), mimetype="text/xml", status=200)
         except Exception as ex:
             print("Metrics Exception: {}".format(ex))
@@ -405,10 +417,3 @@ class StopJobs(Resource):
                                               ex_message="Failed to dismiss job {}. Please try again or "
                                                          "contact DPS administrator. {}".format(job_id, ex)),
                             mimetype='text/xml', status=500)
-
-
-
-
-
-
-
