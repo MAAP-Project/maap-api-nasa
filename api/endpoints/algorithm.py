@@ -256,7 +256,7 @@ class Register(Resource):
         vis = request.args.get('visibility', None)
 
         try:
-            member_algorithms = self._get_algorithms(vis if vis is not None else 'public')
+            member_algorithms = self._get_algorithms(vis if vis is not None else visibility_all)
             algo_list = list(map(lambda a: {'type': a.algorithm_key.split(":")[0],
                                             'version': a.algorithm_key.split(":")[1]}, member_algorithms))
 

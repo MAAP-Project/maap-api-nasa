@@ -194,7 +194,7 @@ def create_config_file(repo_name, repo_url_w_token, repo_branch, docker_containe
     config_content += "BRANCH={}\n".format(repo_branch)
     config_content += "GRQ_REST_URL={}\n".format(settings.GRQ_REST_URL)
     config_content += "MAAP_API_URL={}\n".format(settings.MAAP_API_URL)
-    config_content += "MOZART_URL={}\n".format(settings.MOZART_URL)
+    config_content += "MOZART_URL={}\n".format(settings.MOZART_V1_URL)
     config_content += "S3_CODE_BUCKET={}".format(settings.S3_CODE_BUCKET)
 
     return config_content
@@ -382,7 +382,7 @@ def get_job_spec(job_type):
     session.verify = False
 
     try:
-        mozart_response = session.get("{}/job_spec/type?id={}".format(settings.MOZART_URL, job_type), headers=headers,
+        mozart_response = session.get("{}/job_spec/type?id={}".format(settings.MOZART_V1_URL, job_type), headers=headers,
                                       verify=False)
     except Exception as ex:
         raise ex
@@ -425,6 +425,9 @@ def get_mozart_queues():
             try:
                 queues_list = mozart_response.get("result").get("queues")
                 result = [queue for queue in queues_list if queue.startswith(settings.PROJECT_QUEUE_PREFIX)]
+                
+                if not result:
+                    result = [settings.DEFAULT_QUEUE]
                 return result
             except Exception as ex:
                 raise ex
