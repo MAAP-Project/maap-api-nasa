@@ -310,9 +310,7 @@ def mozart_submit_job(job_type, params={}, queue=settings.DEFAULT_QUEUE, dedup="
     job_payload["queue"] = queue
     job_payload["priority"] = 0
     job_payload["tags"] = json.dumps(["maap-api_submit"])
-    # assign username to job
-    if params.get("username") is not None:
-        job_payload["username"] = params.get("username").strip()
+    job_payload["username"] = get_username_from_job_submission(params)
     # remove username from algo params if provided.
     params.pop('username', None)
     job_payload["params"] = json.dumps(params)
@@ -333,6 +331,13 @@ def mozart_submit_job(job_type, params={}, queue=settings.DEFAULT_QUEUE, dedup="
         raise ex
     return mozart_response.json()
 
+
+def get_username_from_job_submission(params={}):
+    if params.get("username") is not None:
+        return params.get("username").strip()
+    else:
+        return None
+        
 
 def mozart_job_status(job_id):
     """
