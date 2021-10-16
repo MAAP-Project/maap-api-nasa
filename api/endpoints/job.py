@@ -49,6 +49,7 @@ class Submit(Resource):
             else:
                 raise Exception(response.get("message"))
         except Exception as ex:
+            logging.info("Error submitting job: {}".format(ex))
             return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",
                             ex_message="Failed to submit job of type {}. Exception Message: {}"
                             .format(job_type, ex)), status=500)                         
