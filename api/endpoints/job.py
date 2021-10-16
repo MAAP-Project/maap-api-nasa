@@ -76,7 +76,7 @@ class Submit(Resource):
         _user_id = self._get_user_id(params)
 
         if _user_id is not None:
-            ma = MemberJob(member_id=_user_id, job_id=job_id, submission_date=datetime.utcnow())
+            ma = MemberJob(member_id=_user_id, job_id=job_id, submitted_date=datetime.utcnow())
             db.session.add(ma)
             db.session.commit()
 
