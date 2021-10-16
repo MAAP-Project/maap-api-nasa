@@ -233,6 +233,8 @@ def login_required(wrapped_function):
 
         abort(403, description="Not authorized.")
 
+    return wrap
+
 
 def dps_authorized(wrapped_function):
     @wraps(wrapped_function)
@@ -245,6 +247,8 @@ def dps_authorized(wrapped_function):
                 return wrapped_function(*args, **kwargs)
 
         abort(403, description="Not authorized.")
+
+    return wrap
 
 
 def _is_valid_dps_request():
