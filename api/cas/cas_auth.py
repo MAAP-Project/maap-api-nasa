@@ -246,8 +246,6 @@ def dps_authorized(wrapped_function):
 
         abort(403, description="Not authorized.")
 
-    return wrap
-
 
 def _is_valid_dps_request():
     return 'dps-machine-token' in request.headers and 'dps-job-id' in request.headers
