@@ -33,7 +33,7 @@ class Self(Resource):
 
 
 @ns.route('/selfTest')
-class Self(Resource):
+class SelfTest(Resource):
 
     @login_required
     def get(self):
