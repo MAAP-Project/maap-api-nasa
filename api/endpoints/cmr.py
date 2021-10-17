@@ -138,7 +138,7 @@ class CmrGranuleData(Resource):
             if maap_user is None:
                 return Response(response.text, status=401)
             else:
-                urs_token = db.session.query(Member).filter(Member.id == maap_user.id).urs_token
+                urs_token = db.session.query(Member).filter_by(Member.id == maap_user.id).first().urs_token
                 s.headers.update({'Authorization': f'Bearer {urs_token},Basic {os.environ.get("MAAP_APP_CREDS")}',
                                   'Connection': 'close'})
 
