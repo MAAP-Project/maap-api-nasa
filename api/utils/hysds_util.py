@@ -178,7 +178,7 @@ def create_config_file(repo_name, repo_url_w_token, repo_branch, docker_containe
     REPO_NAME=dps_plot
     BRANCH=master
     GRQ_REST_URL=<grq-ip>/api/v0.1
-    MAAP_API_URL=https:api.nasa.maap.xyz/api
+    MAAP_API_URL=https:api.dit.maap-project.org/api
     MOZART_URL=<mozart-ip>/mozart/api/v0.1
     S3_CODE_BUCKET=s3://s3.amazon.aws.com/<bucket-name>
 

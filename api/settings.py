@@ -1,4 +1,4 @@
-MAAP_API_URL = "https://api.maap.xyz/api"
+MAAP_API_URL = "https://api.dit.maap-project.org/api"
 PROJECT_QUEUE_PREFIX = "maap"
 API_HOST_URL = 'http://0.0.0.0:5000/'
 # API_HOST_URL = 'https://api.maap-project.org/api'
@@ -29,7 +29,7 @@ CMR_CLIENT_ID = ''
 MAAP_WMTS_XML = '/maap-api-nasa/api/maap.wmts.xml'
 
 # GIT settings
-GIT_REPO_URL = 'https://gitlab-ci-token:$TOKEN@repo.nasa.maap.xyz/root/register-job.git'
+GIT_REPO_URL = 'https://gitlab-ci-token:$TOKEN@repo.dit.maap-project.org/root/register-job.git'
 
 # GTILAB Settings
 GITLAB_TOKEN = 'foobar'
@@ -41,7 +41,7 @@ VERSION = 'master'
 SUPPORTED_EXTENSIONS = ['py', 'java', 'sh']
 
 # Docker container URL
-CONTAINER_URL = 'registry.nasa.maap.xyz/root/dps_plot:master'
+CONTAINER_URL = 'registry.dit.maap-project.org/root/dps_plot:master'
 
 # HySDS Mozart
 MOZART_URL = 'https://[MOZART_IP]/mozart/api/v0.2'
@@ -67,7 +67,7 @@ DATA_SYSTEM_FILES_PATH = '/file-staging/nasa-map/'
 
 # CAS
 CAS_SECRET_KEY = '9c0d611c-04c5-4f36-b91c-8374b4410590'
-CAS_SERVER_NAME = 'https://auth.nasa.maap.xyz/cas'
+CAS_SERVER_NAME = 'https://auth.dit.maap-project.org/cas'
 CAS_AFTER_LOGIN = 'api.members_self'
 CAS_PROXY_DECRYPTION_TOKEN = ''
 
