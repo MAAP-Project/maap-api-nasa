@@ -24,8 +24,8 @@ class ThreeDimensionalTiles(Resource):
 
             Examples:
 
-            https://api.maap.xyz/api/3d-tiles/ATL08_ARD-beta___001/afrisar/ept/ept-tileset/tileset.json
-            https://api.maap.xyz/api/3d-tiles/ATL08_ARD-beta___001/peru/ept/ept-tileset/tileset.json
+            https://api.dit.maap-project.org/api/3d-tiles/ATL08_ARD-beta___001/afrisar/ept/ept-tileset/tileset.json
+            https://api.dit.maap-project.org/api/3d-tiles/ATL08_ARD-beta___001/peru/ept/ept-tileset/tileset.json
         """
 
         three_d_tile_json_url = settings._3DTILES_API_ENDPOINT + settings.DATA_SYSTEM_FILES_PATH + path
