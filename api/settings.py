@@ -49,7 +49,7 @@ TILER_ENDPOINT = ''
 
 # CAS
 CAS_SECRET_KEY = ''
-CAS_SERVER_NAME = 'https://auth.nasa.maap.xyz/cas'
+CAS_SERVER_NAME = 'https://auth.dit.maap-project.org/cas'
 CAS_AFTER_LOGIN = 'api.members_self'
 CAS_PROXY_DECRYPTION_TOKEN = ''
 MAAP_EDL_CREDS = ''
