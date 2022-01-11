@@ -35,7 +35,8 @@ SUPPORTED_EXTENSIONS = ['py', 'java', 'sh']
 # Docker container URL
 CONTAINER_URL = 'registry.nasa.maap.xyz/root/dps_plot:master'
 
-# HySDS Mozart
+# HySDS Settings
+HYSDS_VERSION = "v3.0"
 MOZART_URL = 'https://[MOZART_IP]/mozart/api/v0.2'
 DEFAULT_QUEUE = 'test-job_worker-large'
 LW_QUEUE = 'system-jobs-queue'

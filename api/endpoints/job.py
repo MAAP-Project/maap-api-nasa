@@ -4,6 +4,7 @@ from flask_restplus import Resource
 from api.restplus import api
 import api.utils.hysds_util as hysds
 import api.utils.ogc_translate as ogc
+import api.settings as settings
 import json
 import traceback
 from xml.etree.ElementTree import Element, SubElement, Comment, tostring
@@ -342,13 +343,16 @@ class Jobs(Resource):
         """
         # request_xml = request.data
         # job_id = ogc.parse_status_request(request_xml)
+        size = request.form.get('page_size', request.args.get('page_size', 100))
+        offset = request.form.get('offset', request.args.get('offset', 0))
         try:
             logging.info("Finding jobs for user: {}".format(username))
-            size = request.form.get('page_size', request.args.get('page_size', 100))
-            offset = request.form.get('offset', request.args.get('offset', 0))
             response = hysds.get_mozart_jobs(username=username, page_size=size, offset=offset)
             job_list = response.get("result")
             logging.info("Found Jobs: {}".format(job_list))
+            if settings.HYSDS_VERSION == "v4.0":
+                # get job info per job
+                job_list = hysds.get_jobs_info(job_list)
             response_body = dict()
             response_body["code"] = 200
             response_body["jobs"] = job_list

@@ -539,8 +539,10 @@ def get_mozart_jobs(username, page_size=10, offset=0):
         param_list = ""
         for key, value in params:
             param_list += "&{}={}".format(key, value)
-
-        url = "{}/job/list?{}".format(settings.MOZART_URL, param_list[1:])
+        if settings.HYSDS_VERSION == "v3.0":
+            url = "{}/job/list?{}".format(settings.MOZART_URL, param_list[1:])
+        elif settings.HYSDS_VERSION == "v4.0":
+            url = "{}/job/user/{}?{}".format(settings.MOZART_URL, username, param_list[1:])
         print("GET request to: {}".format(url))
         mozart_response = session.get(url)
 
@@ -548,6 +550,35 @@ def get_mozart_jobs(username, page_size=10, offset=0):
         raise ex
 
     return mozart_response.json()
+
+
+def get_jobs_info(job_list):
+    """
+    Returns Job infos
+    :param job_list:
+    :return:
+    """
+
+    session = requests.Session()
+    session.verify = False
+    jobs_info = list()
+
+    try:
+        for job_id in job_list:
+            job = dict()
+            url = "{}/job/info?id={}".format(settings.MOZART_URL, job_id)
+            logging.info("GET request to find job information: {}".format(url))
+            mozart_response = session.get(url).json()
+            success = mozart_response.get("success")
+            if success is True:
+                job[job_id] = mozart_response.get("result").get("job").get("params")
+            else:
+                job[job_id] = {"message": "Failed to get job info"}
+            jobs_info.append(job)
+    except Exception as ex:
+        raise ex
+
+    return jobs_info
 
 
 def delete_mozart_job_type(job_type):
