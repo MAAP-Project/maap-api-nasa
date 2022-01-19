@@ -33,13 +33,13 @@ class CmrCollection(Resource):
             Examples:
 
             Find collection by concept id
-            https://api.maap.xyz/api/cmr/collections?concept_id[]=C1200015068-NASA_MAAP
+            https://api.dit.maap-project.org/api/cmr/collections?concept_id[]=C1200015068-NASA_MAAP
 
             With multiple dataset ids
-            https://api.maap.xyz/api/cmr/collections?concept_id[]=C1200015068-NASA_MAAP&concept_id[]=C1200090707-NASA_MAAP
+            https://api.dit.maap-project.org/api/cmr/collections?concept_id[]=C1200015068-NASA_MAAP&concept_id[]=C1200090707-NASA_MAAP
 
             Find collections by bounding box
-            https://api.maap.xyz/api/cmr/collections?bounding_box=-35.4375,-55.6875,-80.4375,37.6875
+            https://api.dit.maap-project.org/api/cmr/collections?bounding_box=-35.4375,-55.6875,-80.4375,37.6875
 
         For a comprehensive list of collection search examples, see: https://cmr.earthdata.nasa.gov/search/site/docs/search/api.html#collection-search-by-parameters
         """
@@ -99,13 +99,13 @@ class CmrGranules(Resource):
             Examples:
 
             Find granules by granule ur
-            https://api.maap.xyz/api/cmr/granules?granule_ur=uavsar_AfriSAR_v1-cov_lopenp_14043_16008_140_001_160225-geo_cov_4-4.bin
+            https://api.dit.maap-project.org/api/cmr/granules?granule_ur=uavsar_AfriSAR_v1-cov_lopenp_14043_16008_140_001_160225-geo_cov_4-4.bin
 
             With multiple dataset ids
-            https://api.maap.xyz/api/cmr/granules?granule_ur[]=uavsar_AfriSAR_v1-cov_lopenp_14043_16008_140_001_160225-geo_cov_4-4.bin&granule_ur[]=biosar1_105_kz.tiff
+            https://api.dit.maap-project.org/api/cmr/granules?granule_ur[]=uavsar_AfriSAR_v1-cov_lopenp_14043_16008_140_001_160225-geo_cov_4-4.bin&granule_ur[]=biosar1_105_kz.tiff
 
             Find granules by instrument
-            https://api.maap.xyz/api/cmr/granules?instrument=UAVSAR
+            https://api.dit.maap-project.org/api/cmr/granules?instrument=UAVSAR
 
 
         For a comprehensive list of granule search examples, see: https://cmr.earthdata.nasa.gov/search/site/docs/search/api.html#granule-search-by-parameters
@@ -138,7 +138,7 @@ class CmrGranuleData(Resource):
             if maap_user is None:
                 return Response(response.text, status=401)
             else:
-                urs_token = db.session.query(Member).filter(Member.id == maap_user.id).urs_token
+                urs_token = db.session.query(Member).filter_by(id=maap_user.id).first().urs_token
                 s.headers.update({'Authorization': f'Bearer {urs_token},Basic {os.environ.get("MAAP_APP_CREDS")}',
                                   'Connection': 'close'})
 

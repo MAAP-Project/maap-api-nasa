@@ -1,7 +1,7 @@
 # NASA MAAP API
 The joint ESA-NASA Multi-Mission Algorithm and Analysis Platform (MAAP) focuses on developing a collaborative data system enabling collocated data, processing, and analysis tools for NASA and ESA datasets. The NASA MAAP API adheres to the joint ESA-NASA MAAP API specification currently in development. This joint architectural approach enables NASA and ESA to each run independent MAAPs, while ultimately sharing common facilities to share and integrate collocated platform services.
 
-Development server: https://api.maap.xyz/api
+Development server: https://api.dit.maap-project.org/api
 
 ## I. Getting Started
 
@@ -127,7 +127,7 @@ python3 -m unittest -v test/api/endpoints/test_wmts_get_capabilities_new_titiler
 A valid MAAP API token must be included in the header for any API request. An [Earthdata account](https://uat.urs.earthdata.nasa.gov) is required to access the MAAP API. To obtain a token, URS credentials must be provided as shown below:
 
 ```bash
-curl -X POST --header "Content-Type: application/json" -d "{ \"username\": \"urs_username\", \"password\": \"urs_password\" }" https://api.maap.xyz/token
+curl -X POST --header "Content-Type: application/json" -d "{ \"username\": \"urs_username\", \"password\": \"urs_password\" }" https://api.dit.maap-project.org/token
 ```
 
 ### Comments:
@@ -153,7 +153,7 @@ The MAAP API is written in [Flask](http://flask.pocoo.org/), and commonly deploy
 5. Create a virtual environment and activate it:
     - `python3 -m venv yourenvironment`
     - `source yourenvironment/bin/activate`
-6. Configure Apache conf file to load our new Flask app using WSGI. If using Let's Encrypt, the conf file will likely be `/etc/apache2/sites-available/000-default-le-ssl.conf`. Below is a sample conf file used on https://api.maap.xyz/api/:
+6. Configure Apache conf file to load our new Flask app using WSGI. If using Let's Encrypt, the conf file will likely be `/etc/apache2/sites-available/000-default-le-ssl.conf`. Below is a sample conf file used on https://api.dit.maap-project.org/api/:
 
     ```XML
     <IfModule mod_ssl.c>
@@ -199,9 +199,9 @@ The MAAP API is written in [Flask](http://flask.pocoo.org/), and commonly deploy
             #Include conf-available/serve-cgi-bin.conf
 
 
-    ServerName api.maap.xyz
-    SSLCertificateFile /etc/letsencrypt/live/api.maap.xyz/fullchain.pem
-    SSLCertificateKeyFile /etc/letsencrypt/live/api.maap.xyz/privkey.pem
+    ServerName api.dit.maap-project.org
+    SSLCertificateFile /etc/letsencrypt/live/api.dit.maap-project.org/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/api.dit.maap-project.org/privkey.pem
     Include /etc/letsencrypt/options-ssl-apache.conf
     </VirtualHost>
     </IfModule>

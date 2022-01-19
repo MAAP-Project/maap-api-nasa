@@ -10,6 +10,7 @@ from .cas_urls import create_cas_proxy_validate_url
 from api.maap_database import db
 from api.models.member import Member
 from api.models.member_session import MemberSession
+from api.models.member_job import MemberJob
 from api import settings
 from functools import wraps
 from Crypto.PublicKey import RSA
@@ -77,12 +78,28 @@ def validate_proxy(ticket):
     return None
 
 
+def validate_dps_job(dps_token, job_id):
+    """
+    Will attempt to validate a dps token and job id. If validation fails, then None
+    is returned. If validation is successful, then a Member object is returned.
+    """
+    current_app.logger.debug("validating dps token / job id: {0} / {1}".format(dps_token, job_id))
+
+    if dps_token != settings.DPS_MACHINE_TOKEN:
+        return None
+
+    dps_job = db.session.query(MemberJob).filter_by(job_id=job_id).first()
+
+    if dps_job is None:
+        return None
+
+    return dps_job.member
+
+
 def validate_bearer(token):
     """
     Will attempt to validate the bearer token. If validation fails, then None
-    is returned. If validation is successful, then a Member object is returned
-    and the validated bearer token is saved in the session db table while the
-    validated attributes are saved under member db table.
+    is returned. If validation is successful, then a Member object is returned.
     """
 
     current_app.logger.debug("validating token {0}".format(token))
@@ -188,6 +205,14 @@ def get_authorized_user():
     return None
 
 
+def get_dps_user():
+    if _is_valid_dps_request():
+        dps_user = validate_dps_job(request.headers['dps-machine-token'], request.headers['dps-job-id'])
+        return dps_user
+
+    return None
+
+
 def login_required(wrapped_function):
     @wraps(wrapped_function)
     def wrap(*args, **kwargs):
@@ -209,4 +234,23 @@ def login_required(wrapped_function):
         abort(403, description="Not authorized.")
 
     return wrap
+
+
+def dps_authorized(wrapped_function):
+    @wraps(wrapped_function)
+    def wrap(*args, **kwargs):
+
+        if _is_valid_dps_request():
+            authorized = validate_dps_job(request.headers['dps-machine-token'], request.headers['dps-job-id'])
+
+            if authorized is not None:
+                return wrapped_function(*args, **kwargs)
+
+        abort(403, description="Not authorized.")
+
+    return wrap
+
+
+def _is_valid_dps_request():
+    return 'dps-machine-token' in request.headers and 'dps-job-id' in request.headers
 

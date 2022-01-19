@@ -3,7 +3,7 @@ from flask_restplus import Resource, reqparse
 from flask import request, jsonify, make_response
 from api.restplus import api
 import api.settings as settings
-from api.cas.cas_auth import get_authorized_user, login_required
+from api.cas.cas_auth import get_authorized_user, login_required, dps_authorized, get_dps_user
 from api.maap_database import db
 from api.models.member import Member, MemberSchema
 from datetime import datetime
@@ -33,7 +33,7 @@ class Self(Resource):
 
 
 @ns.route('/selfTest')
-class Self(Resource):
+class SelfTest(Resource):
 
     @login_required
     def get(self):
@@ -123,6 +123,17 @@ class PresignedUrlS3(Resource):
             return key.replace(settings.WORKSPACE_MOUNT_SHARED, settings.AWS_SHARED_WORKSPACE_BUCKET_PATH)
         else:
             return key
+
+
+@ns.route('/dps/userImpersonationToken')
+class DPS(Resource):
+
+    @dps_authorized
+    def get(self):
+        dps_user = get_dps_user()
+        response = jsonify(user_token=dps_user.urs_token, app_token=settings.MAAP_EDL_CREDS)
+
+        return response
 
 
 
