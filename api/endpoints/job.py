@@ -7,6 +7,12 @@ import api.utils.ogc_translate as ogc
 import api.settings as settings
 import json
 import traceback
+from api.cas.cas_auth import get_authorized_user
+from api.maap_database import db
+from api.models.member_job import MemberJob
+from api.models.member import Member
+from sqlalchemy import or_, and_
+from datetime import datetime
 from xml.etree.ElementTree import Element, SubElement, Comment, tostring
 import uuid
 
@@ -50,13 +56,15 @@ class Submit(Resource):
                 # the status is hard coded because we query too fast before the record even shows up in ES
                 # we wouldn't have a Job ID unless it was a valid payload and got accepted by the system
                 job_status = "job-queued"
+                self._log_job_submission(job_id, params)
                 return Response(ogc.status_response(job_id=job_id, job_status=job_status), mimetype='text/xml')
             else:
                 raise Exception(response.get("message"))
         except Exception as ex:
+            logging.info("Error submitting job: {}".format(ex))
             return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",
                             ex_message="Failed to submit job of type {}. Exception Message: {}"
-                            .format(job_type, ex)), status=500)
+                            .format(job_type, ex)), status=500)                         
 
     def get(self):
         """
@@ -75,6 +83,30 @@ class Submit(Resource):
                                               .format(ex.message, tb)),
                             mimetype='text/xml',
                             status=500)
+
+    def _log_job_submission(self, job_id, params={}):
+        _user_id = self._get_user_id(params)
+
+        if _user_id is not None:
+            ma = MemberJob(member_id=_user_id, job_id=job_id, submitted_date=datetime.utcnow())
+            db.session.add(ma)
+            db.session.commit()
+
+    def _get_user_id(self, params={}):
+        # First try request token
+        user = get_authorized_user()
+        if user is None:
+            # Not an authenticated request, so try from username param
+            _username = hysds.get_username_from_job_submission(params)
+
+            if _username is None:
+                return None
+            else:
+                # Get user id from username
+                member = db.session.query(Member).filter_by(username=_username).first()    
+                return None if member is None else member.id
+        else:
+            return user.id
 
 
 @ns.route('/job/describeprocess/<string:algo_id>')

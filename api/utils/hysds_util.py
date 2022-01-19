@@ -191,7 +191,7 @@ def create_config_file(repo_name, repo_url_w_token, repo_branch, docker_containe
     REPO_NAME=dps_plot
     BRANCH=master
     GRQ_REST_URL=<grq-ip>/api/v0.1
-    MAAP_API_URL=https:api.nasa.maap.xyz/api
+    MAAP_API_URL=https:api.dit.maap-project.org/api
     MOZART_URL=<mozart-ip>/mozart/api/v0.1
     S3_CODE_BUCKET=s3://s3.amazon.aws.com/<bucket-name>
 
@@ -334,6 +334,7 @@ def mozart_submit_job(job_type, params={}, queue=settings.DEFAULT_QUEUE, dedup="
     # assign username to job
     if params.get("username") is not None:
         job_payload["username"] = params.get("username").strip()
+
     # remove username from algo params if provided.
     params.pop('username', None)
     job_payload["params"] = json.dumps(params)
@@ -354,6 +355,13 @@ def mozart_submit_job(job_type, params={}, queue=settings.DEFAULT_QUEUE, dedup="
         raise ex
     return mozart_response.json()
 
+
+def get_username_from_job_submission(params={}):
+    if params.get("username") is not None:
+        return params.get("username").strip()
+    else:
+        return None
+        
 
 def mozart_job_status(job_id):
     """
