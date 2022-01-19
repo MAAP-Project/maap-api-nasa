@@ -58,7 +58,10 @@ def get_git_pipeline_status(project_id, commit_hash):
     :param commit_hash:
     :return:
     """
-    auth_headers = {"Authorization": "Bearer {}".format(settings.GITLAB_API_TOKEN)}
+    # For Gitlab 12.0
+    # auth_headers = {"Authorization": "Bearer {}".format(settings.GITLAB_API_TOKEN)}
+    # For Gitlab 14.0 and up
+    auth_headers = {"PRIVATE-TOKEN": "{}".format(settings.GITLAB_API_TOKEN)}
     get_commit_url = "{}/{}/repository/commits/{}".format(settings.GIT_API_URL, project_id, commit_hash)
     logging.info("Requesting for commit information: {}".format(get_commit_url))
     last_pipeline = None
