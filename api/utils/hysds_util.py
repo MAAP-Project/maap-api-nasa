@@ -94,12 +94,13 @@ def create_hysds_io(algorithm_description, algorithm_params, submission_type="in
     params = list()
 
     for param in algorithm_params:
-        for key in param:
-            if key != "download":
-                param_spec = dict()
-                param_spec["name"] = param[key]
-                param_spec["from"] = "submitter"
-                params.append(param_spec)
+        param_spec = dict()
+        param_spec["name"] = param.get("field")
+        param_spec["from"] = "submitter"
+        param_spec["type"] = "text"
+        if param.get("default") is not None:
+            param_spec["default"] = param.get("default")
+        params.append(param_spec)
 
     hysds_io["params"] = params
     return hysds_io
@@ -135,9 +136,21 @@ def create_job_spec(script_command, algorithm_params, disk_usage, queue_name=set
                 param_spec["name"] = param[key]
                 param_spec["destination"] = destination
                 params.append(param_spec)
-
+        # TODO: Add support for 3 types of inputs: file, positional and config.
+        # Uncomment below when ready to introduce to MAAP
+        """
+        if param.get("type") == "file":
+            destination = "localize"
+        elif param.get("type") == "positional":
+            destination = "positional"
+        elif param.get("type") == "config":
+            destination = "context"
+        param_spec = dict()
+        param_spec["name"] = param.get("field")
+        param_spec["destination"] = destination
+        params.append(param_spec)
+        """
     job_spec["params"] = params
-
     return job_spec
 
 
@@ -293,7 +306,7 @@ def get_algorithms():
     return maap_algo_list
 
 
-def mozart_submit_job(job_type, params={}, queue=settings.DEFAULT_QUEUE, dedup="false"):
+def mozart_submit_job(job_type, params={}, queue=settings.DEFAULT_QUEUE, dedup="false", identifier=["maap-api_submit"]):
     """
     Submit a job to Mozart
     :param job_type:
@@ -309,8 +322,19 @@ def mozart_submit_job(job_type, params={}, queue=settings.DEFAULT_QUEUE, dedup="
     job_payload["type"] = job_type
     job_payload["queue"] = queue
     job_payload["priority"] = 0
-    job_payload["tags"] = json.dumps(["maap-api_submit"])
-    job_payload["username"] = get_username_from_job_submission(params)
+    if identifier is not None:
+        if type(identifier) is dict:
+            job_payload["tags"] = json.dumps(identifier)
+        else:
+            identifier_list = identifier.split(",")
+            job_payload["tags"] = json.dumps(identifier_list)
+    else:
+        job_payload["tags"] = json.dumps(["maap-api_submit"])
+
+    # assign username to job
+    if params.get("username") is not None:
+        job_payload["username"] = params.get("username").strip()
+
     # remove username from algo params if provided.
     params.pop('username', None)
     job_payload["params"] = json.dumps(params)
@@ -395,11 +419,72 @@ def get_job_spec(job_type):
     return mozart_response.json()
 
 
+def get_hysds_io(hysdsio_type):
+    """
+        Get the hysds-io of a registered algorigthm
+        :param hysdsio_type:
+        :return:
+        """
+    headers = {'content-type': 'application/json'}
+
+    session = requests.Session()
+    session.verify = False
+
+    try:
+        grq_response = session.get("{}/hysds_io/type?id={}".format(settings.GRQ_URL, hysdsio_type), headers=headers,
+                                   verify=False)
+    except Exception as ex:
+        raise ex
+
+    return grq_response.json()
+
+
 def get_recommended_queue(job_type):
     response = get_job_spec(job_type)
     recommended_queues = response.get("result", None).get("recommended-queues", None)
     recommended_queue = recommended_queues[0] if type(recommended_queues) is list else None
     return recommended_queue if recommended_queue != "" else settings.DEFAULT_QUEUE
+
+
+def validate_job_submit(hysds_io, user_params):
+    """
+    Given user's input params and the hysds-io spec for the job type
+    This function validates if all the input params were provided,
+    if not provided then fill in the default value specified during registration
+    :param hysds_io:
+    :param user_params:
+    :return:
+    """
+    # building a dictionary of key value pairs of the parameters registered
+    reg_params = hysds_io.get("result").get("params")
+    known_params = dict()
+    for param in reg_params:
+        param_info = dict()
+        param_name = param.get("name")
+        param_info["from"] = param.get("from")
+        param_info["default"] = param.get("default", None)
+        param_info["type"] = param.get("type", str)
+        known_params[param_name] = param_info
+
+    """
+    Verify if user provided all the parameters
+    - if not, check if default was provided on registration and set to that value
+    - else throw an error saying parameter missing
+    """
+    validated_params = dict()
+    # do not miss the username in params
+    validated_params["username"] = user_params.get("username")
+    for p in known_params:
+        if user_params.get(p) is not None:
+            validated_params[p] = user_params.get(p)
+            # TODO: Check datatype of input, if provided in spec
+        else:
+            if known_params.get(p).get("default") is not None:
+                validated_params[p] = known_params.get(p).get("default")
+            else:
+                raise Exception("Parameter {} missing from inputs. Didn't find any default set for it in "
+                                "algorithm specification. Please specify it and attempt to submit.".format(p))
+    return validated_params
 
 
 def get_mozart_job_info(job_id):
@@ -409,7 +494,7 @@ def get_mozart_job_info(job_id):
     session.verify = False
 
     job_status = mozart_job_status(job_id).get("status")
-    if job_status == "job-completed" or job_status == "job-failed":
+    if job_status == "job-completed":
         try:
             mozart_response = session.get("{}/job/info".format(settings.MOZART_URL), params=params).json()
             result = mozart_response.get("result")
@@ -444,6 +529,8 @@ def get_mozart_jobs(username, page_size=10, offset=0):
     """
         Returns mozart's job list
         :param username:
+        :param page_size:
+        :param offset:
         :return:
         """
     params = dict()
@@ -460,8 +547,10 @@ def get_mozart_jobs(username, page_size=10, offset=0):
         param_list = ""
         for key, value in params:
             param_list += "&{}={}".format(key, value)
-
-        url = "{}/job/list?{}".format(settings.MOZART_URL, param_list[1:])
+        if settings.HYSDS_VERSION == "v3.0":
+            url = "{}/job/list?{}".format(settings.MOZART_URL, param_list[1:])
+        elif settings.HYSDS_VERSION == "v4.0":
+            url = "{}/job/user/{}?{}".format(settings.MOZART_URL, username, param_list[1:])
         print("GET request to: {}".format(url))
         mozart_response = session.get(url)
 
@@ -469,6 +558,35 @@ def get_mozart_jobs(username, page_size=10, offset=0):
         raise ex
 
     return mozart_response.json()
+
+
+def get_jobs_info(job_list):
+    """
+    Returns Job infos
+    :param job_list:
+    :return:
+    """
+
+    session = requests.Session()
+    session.verify = False
+    jobs_info = list()
+
+    try:
+        for job_id in job_list:
+            job = dict()
+            url = "{}/job/info?id={}".format(settings.MOZART_URL, job_id)
+            logging.info("GET request to find job information: {}".format(url))
+            mozart_response = session.get(url).json()
+            success = mozart_response.get("success")
+            if success is True:
+                job[job_id] = mozart_response.get("result").get("job").get("params")
+            else:
+                job[job_id] = {"message": "Failed to get job info"}
+            jobs_info.append(job)
+    except Exception as ex:
+        raise ex
+
+    return jobs_info
 
 
 def delete_mozart_job_type(job_type):

@@ -1,4 +1,5 @@
 import logging
+import os
 from flask import request, Response
 from flask_restplus import Resource, reqparse
 from api.restplus import api
@@ -22,6 +23,7 @@ ns = api.namespace('mas', description='Operations to register an algorithm')
 visibility_private = "private"
 visibility_public = "public"
 visibility_all = "all"
+
 
 def is_empty(item):
     if item is None or len(item) == 0:
@@ -209,17 +211,28 @@ class Register(Resource):
             return response_body, 500
 
         try:
-            git.update_git_repo(repo, repo_name=settings.REPO_NAME,
-                                algorithm_name=hysds.get_algorithm_file_name(algorithm_name))
-            # log.debug("Updated Git Repo with hash {}".format(commit_hash))
+            commit_hash = git.update_git_repo(repo, repo_name=settings.REPO_NAME,
+                                              algorithm_name=hysds.get_algorithm_file_name(algorithm_name))
+            logging.info("Updated Git Repo with hash {}".format(commit_hash))
         except Exception as ex:
             tb = traceback.format_exc()
             response_body["code"] = 500
-            response_body["message"] = "Failed to register {}".format(algorithm_name)
+            response_body["message"] = "Failed to register {}.".format(algorithm_name)
             response_body["error"] = "{} Traceback: {}".format(ex.message, tb)
             return response_body, 500
 
-        algorithm_id = "{}:{}".format(algorithm_name, req_data.get("code_version"))
+        try:
+            # Check and return the pipeline info and status
+            if commit_hash is None:
+                raise Exception("Commit Hash can not be None.")
+            gitlab_response = git.get_git_pipeline_status(project_id=settings.REGISTER_JOB_REPO_ID,
+                                                          commit_hash=commit_hash)
+        except Exception as ex:
+            tb = traceback.format_exc()
+            response_body["code"] = 500
+            response_body["message"] = "Failed to get registration build information."
+            response_body["error"] = "{} Traceback: {}".format(ex, tb)
+            return response_body, 500
 
         # try:
         #     # add algorithm registration record to maap db if authenticated
@@ -237,14 +250,13 @@ class Register(Resource):
         #     log.debug(ex)
 
         response_body["code"] = 200
-        response_body["message"] = "Successfully initiated registration of {}. You will receive further notification " \
-                                   "regarding success or failure".format(algorithm_id)
+        response_body["message"] = gitlab_response
         """
         <?xml version="1.0" encoding="UTF-8"?>
         <AlgorithmName></AlgorithmName>
         """
 
-        return response_body
+        return response_body, 200
 
     @api.expect(algorithm_visibility_param)
     def get(self):
