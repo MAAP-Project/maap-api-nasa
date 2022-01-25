@@ -511,6 +511,7 @@ def get_mozart_queues():
 
     try:
         mozart_response = session.get("{}/queue/list".format(settings.MOZART_URL)).json()
+        logging.debug("Response from {}/queue/list:\n{}".format(settings.MOZART_URL, mozart_response))
         if mozart_response.get("success") is True:
             try:
                 queues_list = mozart_response.get("result").get("queues")
