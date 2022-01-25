@@ -32,11 +32,19 @@ class Submit(Resource):
         """
         request_xml = request.data
         job_type, input_params, queue, output, dedup, identifier = ogc.parse_execute_request(request_xml)
+        logging.info("Received request for Job Submission")
+        logging.info("Job Type: {}".format(job_type))
+        logging.info("Input Parameters: {}".format(input_params))
+        logging.info("Queue: {}".format(queue))
+        logging.info("Output: {}".format(output))
+        logging.info("Dedup: {}".format(dedup))
+        logging.info("Identifier: {}".format(identifier))
 
         # validate the inputs provided by user against the registered spec for the job
         try:
             hysdsio_type = job_type.replace("job-", "hysds-io-")
             hysds_io = hysds.get_hysds_io(hysdsio_type)
+            logging.info("Found HySDS-IO: {}".format(hysds_io))
             params = hysds.validate_job_submit(hysds_io, input_params)
         except Exception as ex:
             return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",
