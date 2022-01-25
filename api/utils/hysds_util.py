@@ -494,7 +494,7 @@ def get_mozart_job_info(job_id):
     session.verify = False
 
     job_status = mozart_job_status(job_id).get("status")
-    if job_status == "job-completed":
+    if job_status == "job-completed" or job_status == "job-failed":
         try:
             mozart_response = session.get("{}/job/info".format(settings.MOZART_URL), params=params).json()
             result = mozart_response.get("result")
