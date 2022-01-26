@@ -15,7 +15,7 @@ def git_clone(repo_url=settings.GIT_REPO_URL, repo_name=settings.REPO_NAME):
     repo_path = os.path.join(settings.REPO_PATH, repo_name)
     if os.path.exists(repo_path):
         shutil.rmtree(repo_path)
-    repo = Repo.clone_from(git_url, repo_path)
+    repo = Repo.clone_from(git_url, repo_path, branch="master")
     return repo
 
 
