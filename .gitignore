@@ -1,4 +1,11 @@
+
 /.idea
+/bin
+/lib
+pyvenv.cfg
+/venv
+/venv2
 __pycache__
 .cache
 maap.wmts.xml
+*.DS_Store
