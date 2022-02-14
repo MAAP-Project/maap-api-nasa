@@ -1,6 +1,6 @@
 import logging
 from flask_restplus import Resource, reqparse
-from flask import request, jsonify, make_response
+from flask import request, jsonify, Response, make_response
 from api.restplus import api
 import api.settings as settings
 from api.cas.cas_auth import get_authorized_user, login_required
@@ -9,6 +9,7 @@ from api.models.member import Member, MemberSchema
 from datetime import datetime
 import json
 import boto3
+import requests
 from urllib import parse
 
 
@@ -32,7 +33,7 @@ class Self(Resource):
 
 
 @ns.route('/selfTest')
-class Self(Resource):
+class SelfTest(Resource):
 
     @login_required
     def get(self):
@@ -125,7 +126,7 @@ class PresignedUrlS3(Resource):
 
 
 @ns.route('/self/awsAccess/requesterPaysBucket')
-class AwsAccess(Resource):
+class AwsAccessRequesterPaysBucket(Resource):
 
     expiration_param = reqparse.RequestParser()
     expiration_param.add_argument('exp', type=int, required=False, default=60 * 60 * 12)
@@ -154,6 +155,52 @@ class AwsAccess(Resource):
         response.headers.add('Access-Control-Allow-Origin', '*')
 
         return response
+
+
+@ns.route('/self/awsAccess/edcCredentials/<string:endpoint_uri>')
+class AwsAccessEdcCredentials(Resource):
+    """
+    Earthdata Cloud Temporary s3 Credentials
+
+        Obtain temporary s3 credentials to access Earthdata Cloud resources
+
+        Example:
+        https://api.maap-project.org/api/self/edcCredentials/https%3A%2F%2Fdata.lpdaac.earthdatacloud.nasa.gov%2Fs3credentials
+    """
+    @login_required
+    def get(self, endpoint_uri):
+
+        s = requests.Session()
+        maap_user = get_authorized_user()
+
+        if maap_user is None:
+            return Response('Unauthorized', status=401)
+        else:
+            urs_token = db.session.query(Member).filter_by(id=maap_user.id).first().urs_token
+            s.headers.update({'Authorization': f'Bearer {urs_token},Basic {settings.MAAP_EDL_CREDS}',
+                              'Connection': 'close'})
+
+            endpoint = parse.unquote(endpoint_uri)
+            login_resp = s.get(
+                endpoint, allow_redirects=False
+            )
+            login_resp.raise_for_status()
+
+            edl_response = s.get(url=login_resp.headers['location'])
+            json_response = json.loads(edl_response.content)
+
+            response = jsonify(
+                accessKeyId=json_response['accessKeyId'],
+                secretAccessKey=json_response['secretAccessKey'],
+                sessionToken=json_response['sessionToken'],
+                expiration=json_response['expiration']
+            )
+
+            response.headers.add('Access-Control-Allow-Origin', '*')
+
+            return response
+
+
 
 
 
