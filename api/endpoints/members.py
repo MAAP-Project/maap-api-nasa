@@ -1,6 +1,6 @@
 import logging
 from flask_restplus import Resource, reqparse
-from flask import request, jsonify, make_response
+from flask import request, jsonify
 from api.restplus import api
 import api.settings as settings
 from api.cas.cas_auth import get_authorized_user, login_required, dps_authorized, get_dps_user
@@ -27,7 +27,6 @@ class Self(Resource):
         if 'proxy-ticket' in request.headers:
             member_schema = MemberSchema()
             return json.loads(member_schema.dumps(member))
-
         if 'Authorization' in request.headers:
             return member
 
@@ -136,10 +135,36 @@ class DPS(Resource):
         return response
 
 
+@ns.route('/self/awsAccess/requesterPaysBucket')
+class AwsAccess(Resource):
 
+    expiration_param = reqparse.RequestParser()
+    expiration_param.add_argument('exp', type=int, required=False, default=60 * 60 * 12)
 
+    @login_required
+    @api.expect(expiration_param)
+    def get(self):
 
+        member = get_authorized_user()
 
+        expiration = request.args['exp']
+        sts_client = boto3.client('sts')
+        assumed_role_object = sts_client.assume_role(
+            DurationSeconds=int(expiration),
+            RoleArn=settings.AWS_REQUESTER_PAYS_BUCKET_ARN,
+            RoleSessionName="MAAP-session-" + member.username
+        )
+        credentials = assumed_role_object['Credentials']
+
+        response = jsonify(
+            aws_access_key_id=credentials['AccessKeyId'],
+            aws_secret_access_key=credentials['SecretAccessKey'],
+            aws_session_token=credentials['SessionToken']
+        )
+
+        response.headers.add('Access-Control-Allow-Origin', '*')
+
+        return response
 
 
 

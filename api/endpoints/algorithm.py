@@ -1,9 +1,9 @@
 import logging
-import os
 from flask import request, Response
 from flask_restplus import Resource, reqparse
 from api.restplus import api
 import re
+import json
 import traceback
 import api.utils.github_util as git
 import api.utils.hysds_util as hysds
@@ -12,7 +12,6 @@ import api.utils.ogc_translate as ogc
 from api.cas.cas_auth import get_authorized_user, login_required
 from api.maap_database import db
 from api.models.member_algorithm import MemberAlgorithm
-from api.models.member_algo_registration import MemberAlgorithmRegistration
 from sqlalchemy import or_, and_
 from datetime import datetime
 
@@ -23,7 +22,6 @@ ns = api.namespace('mas', description='Operations to register an algorithm')
 visibility_private = "private"
 visibility_public = "public"
 visibility_all = "all"
-
 
 def is_empty(item):
     if item is None or len(item) == 0:
@@ -108,6 +106,11 @@ class Register(Resource):
         So we need to update the repo with the required files and push the algorithm specs of the one being registered.
         """
         try:
+            # remove any trailing commas
+            regex = r'''(?<=[}\]"']),(?!\s*[{["'])'''
+            req_data_string = request.data.decode("utf-8")
+            req_data_string_cleaned = re.sub(regex, '', req_data_string, 0)
+            req_data = json.loads(req_data_string_cleaned)
             repo = git.git_clone()
         except Exception as ex:
             tb = traceback.format_exc()

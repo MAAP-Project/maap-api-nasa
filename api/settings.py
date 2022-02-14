@@ -19,6 +19,7 @@ CMR_URL = 'https://cmr.maap-project.org'
 CMR_API_TOKEN = ''
 CMR_CLIENT_ID = ''
 MAAP_WMTS_XML = '/maap-api-nasa/api/maap.wmts.xml'
+MAAP_EDL_CREDS = ''
 
 # GIT settings
 GIT_REPO_URL = 'https://gitlab-ci-token:$TOKEN@repo.dit.maap-project.org/root/register-job.git'
@@ -53,11 +54,10 @@ DATA_SYSTEM_SERVICES_API_BASE = 'https://llxbmdibvf.execute-api.us-east-1.amazon
 DATA_SYSTEM_FILES_PATH = '/file-staging/nasa-map/'
 
 # CAS
-CAS_SECRET_KEY = '9c0d611c-04c5-4f36-b91c-8374b4410590'
+CAS_SECRET_KEY = ''
 CAS_SERVER_NAME = 'https://auth.dit.maap-project.org/cas'
 CAS_AFTER_LOGIN = 'api.members_self'
 CAS_PROXY_DECRYPTION_TOKEN = ''
-MAAP_EDL_CREDS = ''
 
 # Query Service
 QS_STATE_MACHINE_ARN = 'arn:aws:states:us-east-1:532321095167:stateMachine:maap-api-query-service-dev-RunQuery'
@@ -69,6 +69,7 @@ WORKSPACE_MOUNT_PRIVATE = 'my-private-bucket'
 WORKSPACE_MOUNT_PUBLIC = 'my-public-bucket'
 WORKSPACE_MOUNT_SHARED = 'shared-buckets'
 AWS_SHARED_WORKSPACE_BUCKET_PATH = 'shared'
+AWS_REQUESTER_PAYS_BUCKET_ARN = 'arn:aws:iam::???:role/???'
 
 # DB
-DATABASE_URL='postgresql://localhost/maap_dev'
+DATABASE_URL = 'postgresql://localhost/maap_dev'
