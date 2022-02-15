@@ -1,6 +1,6 @@
 import logging
 from flask_restplus import Resource, reqparse
-from flask import request, jsonify, make_response
+from flask import request, jsonify, Response
 from api.restplus import api
 import api.settings as settings
 from api.cas.cas_auth import get_authorized_user, login_required, dps_authorized, get_dps_user
@@ -9,6 +9,7 @@ from api.models.member import Member, MemberSchema
 from datetime import datetime
 import json
 import boto3
+import requests
 from urllib import parse
 
 
@@ -27,7 +28,6 @@ class Self(Resource):
         if 'proxy-ticket' in request.headers:
             member_schema = MemberSchema()
             return json.loads(member_schema.dumps(member))
-
         if 'Authorization' in request.headers:
             return member
 
@@ -136,8 +136,80 @@ class DPS(Resource):
         return response
 
 
+@ns.route('/self/awsAccess/requesterPaysBucket')
+class AwsAccessRequesterPaysBucket(Resource):
+
+    expiration_param = reqparse.RequestParser()
+    expiration_param.add_argument('exp', type=int, required=False, default=60 * 60 * 12)
+
+    @login_required
+    @api.expect(expiration_param)
+    def get(self):
+
+        member = get_authorized_user()
+
+        expiration = request.args['exp']
+        sts_client = boto3.client('sts')
+        assumed_role_object = sts_client.assume_role(
+            DurationSeconds=int(expiration),
+            RoleArn=settings.AWS_REQUESTER_PAYS_BUCKET_ARN,
+            RoleSessionName="MAAP-session-" + member.username
+        )
+        credentials = assumed_role_object['Credentials']
+
+        response = jsonify(
+            aws_access_key_id=credentials['AccessKeyId'],
+            aws_secret_access_key=credentials['SecretAccessKey'],
+            aws_session_token=credentials['SessionToken']
+        )
+
+        response.headers.add('Access-Control-Allow-Origin', '*')
+
+        return response
 
 
+@ns.route('/self/awsAccess/edcCredentials/<string:endpoint_uri>')
+class AwsAccessEdcCredentials(Resource):
+    """
+    Earthdata Cloud Temporary s3 Credentials
+
+        Obtain temporary s3 credentials to access Earthdata Cloud resources
+
+        Example:
+        https://api.maap-project.org/api/self/edcCredentials/https%3A%2F%2Fdata.lpdaac.earthdatacloud.nasa.gov%2Fs3credentials
+    """
+    @login_required
+    def get(self, endpoint_uri):
+
+        s = requests.Session()
+        maap_user = get_authorized_user()
+
+        if maap_user is None:
+            return Response('Unauthorized', status=401)
+        else:
+            urs_token = db.session.query(Member).filter_by(id=maap_user.id).first().urs_token
+            s.headers.update({'Authorization': f'Bearer {urs_token},Basic {settings.MAAP_EDL_CREDS}',
+                              'Connection': 'close'})
+
+            endpoint = parse.unquote(endpoint_uri)
+            login_resp = s.get(
+                endpoint, allow_redirects=False
+            )
+            login_resp.raise_for_status()
+
+            edl_response = s.get(url=login_resp.headers['location'])
+            json_response = json.loads(edl_response.content)
+
+            response = jsonify(
+                accessKeyId=json_response['accessKeyId'],
+                secretAccessKey=json_response['secretAccessKey'],
+                sessionToken=json_response['sessionToken'],
+                expiration=json_response['expiration']
+            )
+
+            response.headers.add('Access-Control-Allow-Origin', '*')
+
+            return response
 
 
 

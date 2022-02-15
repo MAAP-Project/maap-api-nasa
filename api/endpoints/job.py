@@ -175,58 +175,6 @@ class Result(Resource):
                                                          " please contact administrator " \
                                                          "of DPS".format(job_id, ex)), mimetype='text/xml', status=500)
 
-    """
-        No longer want to expose the ability to delete DPS jobs to users.
-    def delete(self, job_id):
-        \"""
-        This will delete a job from the DPS
-        It submits a lightweight HySDS job of type purge to delete a job.
-        :param self:
-        :param job_id:
-        :return:
-        \"""
-        try:
-            # check if job is non-running
-            current_status = hysds.mozart_job_status(job_id).get("status")
-            logging.info("current job status: {}".format(current_status))
-            if current_status == "job-started":
-                raise Exception("Cannot delete job with ID: {} in running state.".format(job_id))
-            if current_status is None:
-                raise Exception("Job with id {} was not found.".format(job_id))
-            # submit purge job
-            logging.info("Submitting Purge job for Job {}".format(job_id))
-            purge_id, res = hysds.delete_mozart_job(job_id=job_id)
-            logging.info("Purge Job Submission Response: {}".format(res))
-            job_status = res.get("status")
-            if job_status == "job-failed" or job_status == "job-revoked" or job_status == "job-offline":
-                logging.info("Failed to complete purge job for job {}. Job ID of purge job is {}"
-                             .format(job_id, purge_id))
-                raise Exception("Failed to complete purge job for job {}. Job ID of purge job is {}"
-                                .format(job_id, purge_id))
-            # verify if job is deleted
-            job_response = hysds.mozart_job_status(job_id)
-            logging.info("Checkup on Deleted job. {}".format(job_response))
-            if job_response.get("message") == "Internal Server Error" or (
-                    job_response.get("status") is None
-                    and job_response.get("success") is False):
-                # this means the job has been deleted.
-                logging.info("Job successfully deleted")
-                response = ogc.status_response(job_id=job_id, job_status="Deleted")
-                logging.info(response)
-                return Response(response=response, mimetype='text/xml')
-            else:
-                return Response(ogc.get_exception(type="FailedJobDelete", origin_process="Delete",
-                                                  ex_message="Failed to delete job {}. Please try again or"
-                                                             " contact DPS administrator".format(job_id)),
-                                mimetype='text/xml',
-                                status=500)
-        except Exception as ex:
-            return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",
-                                              ex_message="Failed to delete job {}. Please try again or "
-                                                         "contact DPS administrator. {}".format(job_id, ex)),
-                            mimetype='text/xml', status=500)
-    """
-
 
 @ns.route('/job/<string:job_id>/status')
 class Status(Resource):

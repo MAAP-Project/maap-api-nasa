@@ -139,7 +139,7 @@ class CmrGranuleData(Resource):
                 return Response(response.text, status=401)
             else:
                 urs_token = db.session.query(Member).filter_by(id=maap_user.id).first().urs_token
-                s.headers.update({'Authorization': f'Bearer {urs_token},Basic {os.environ.get("MAAP_APP_CREDS")}',
+                s.headers.update({'Authorization': f'Bearer {urs_token},Basic {settings.MAAP_EDL_CREDS}',
                                   'Connection': 'close'})
 
                 response = s.get(url=response.url, stream=True)
@@ -157,10 +157,10 @@ def get_search_headers():
     accept = next(iter(request.headers.getlist('accept') or ['application/json']), ['application/json'])
 
     return {
-        'Accept': accept,
-        'Echo-Token': settings.CMR_API_TOKEN,
-        'Client-Id': settings.CMR_CLIENT_ID
-    }
+            'Accept': accept,
+            'Echo-Token': settings.CMR_API_TOKEN,
+            'Client-Id': settings.CMR_CLIENT_ID
+        }
 
 
 # Preserves keys that occur more than once, as allowed for in CMR

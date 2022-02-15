@@ -40,12 +40,6 @@ class QueryServiceCreate(Resource):
 
     def _is_valid_fields(self, fields):
         return all([isinstance(f, str) for f in fields])
-    
-    def _is_valid_table(self, table):
-        if (table == "tree" or table == "plot"):
-            return True
-        else:
-            return False
 
     def _is_valid_bbox(self, bbox):
         return all([
@@ -78,10 +72,9 @@ class QueryServiceCreate(Resource):
                 }
             },
             "query": {
-                "where": {},     // Key:Value mapping
+                "where": {}     // Key:Value mapping
                 "bbox": [],     // GeoJSON compliant bbox
-                "fields": [],    // Array of field names (string)
-                "table": ""     // tree table or plot table
+                "fields": []    // Array of field names (string)
             }
         }
 
@@ -103,8 +96,7 @@ class QueryServiceCreate(Resource):
                     -122.5,
                     38.5
                 ],
-                "fields": ["project", "wkt"],
-                "table":"tree"
+                "fields": ["project", "wkt"]
             }
         }
         """
@@ -115,10 +107,6 @@ class QueryServiceCreate(Resource):
         query = req_data.get('query', {})
         if not isinstance(query, dict):
             return err_response("Valid query object required.")
-
-        table = query.get('table') or "tree"
-        if not self._is_valid_table(table):
-            return err_response("Optional 'table' property must be either tree or plot")
 
         fields = query.get('fields') or []
         if fields and not self._is_valid_fields(fields):
@@ -146,9 +134,7 @@ class QueryServiceCreate(Resource):
             'id': query_id,
             'src': src,
             'query': {
-                'table': table,
                 'fields': fields,
-                'where': where,
                 'bbox': bbox
             }
         }
