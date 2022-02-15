@@ -431,7 +431,7 @@ def get_hysds_io(hysdsio_type):
     session.verify = False
 
     try:
-        grq_response = session.get("{}/hysds_io/type?id={}".format(settings.GRQ_URL, hysdsio_type), headers=headers,
+        grq_response = session.get("{}/hysds_io/type?id={}".format(settings.GRQ_REST_URL, hysdsio_type), headers=headers,
                                    verify=False)
     except Exception as ex:
         raise ex
