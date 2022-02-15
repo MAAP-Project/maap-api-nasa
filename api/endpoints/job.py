@@ -41,20 +41,20 @@ class Submit(Resource):
         logging.info("Identifier: {}".format(identifier))
 
         # validate the inputs provided by user against the registered spec for the job
-        try:
-            hysdsio_type = job_type.replace("job-", "hysds-io-")
-            hysds_io = hysds.get_hysds_io(hysdsio_type)
-            logging.info("Found HySDS-IO: {}".format(hysds_io))
-            params = hysds.validate_job_submit(hysds_io, input_params)
-        except Exception as ex:
-            return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",
-                                              ex_message="Failed to submit job of type {}. Exception Message: {}"
-                                              .format(job_type, ex)), status=500)
+        # try:
+        #     hysdsio_type = job_type.replace("job-", "hysds-io-")
+        #     hysds_io = hysds.get_hysds_io(hysdsio_type)
+        #     logging.info("Found HySDS-IO: {}".format(hysds_io))
+        #     params = hysds.validate_job_submit(hysds_io, input_params)
+        # except Exception as ex:
+        #     return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",
+        #                                       ex_message="Failed to submit job of type {}. Exception Message: {}"
+        #                                       .format(job_type, ex)), status=500)
 
         try:
             dedup = "false" if dedup is None else dedup
             queue = hysds.get_recommended_queue(job_type=job_type) if queue is None or queue is "" else queue
-            response = hysds.mozart_submit_job(job_type=job_type, params=params, dedup=dedup, queue=queue,
+            response = hysds.mozart_submit_job(job_type=job_type, params=input_params, dedup=dedup, queue=queue,
                                                identifier=identifier)
 
             logging.info("Mozart Response: {}".format(json.dumps(response)))
