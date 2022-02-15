@@ -64,7 +64,7 @@ class Submit(Resource):
                 # the status is hard coded because we query too fast before the record even shows up in ES
                 # we wouldn't have a Job ID unless it was a valid payload and got accepted by the system
                 job_status = "job-queued"
-                self._log_job_submission(job_id, params)
+                self._log_job_submission(job_id, input_params)
                 return Response(ogc.status_response(job_id=job_id, job_status=job_status), mimetype='text/xml')
             else:
                 raise Exception(response.get("message"))
