@@ -190,7 +190,8 @@ class Register(Resource):
                 config = hysds.create_config_file(repo_name=repo_name,
                                                   docker_container_url=req_data.get("docker_container_url"),
                                                   repo_url_w_token=req_data.get("repo_url"),
-                                                  repo_branch=req_data.get("code_version"))
+                                                  repo_branch=req_data.get("code_version"),
+                                                  build_command=req_data.get("build_command"))
                 hysds.write_file("{}/{}".format(settings.REPO_PATH, settings.REPO_NAME), "config.txt", config)
             else:
                 response_body["code"] = 500
