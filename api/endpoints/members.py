@@ -18,6 +18,16 @@ ns = api.namespace('members', description='Operations for MAAP members')
 s3_client = boto3.client('s3', region_name=settings.AWS_REGION)
 
 
+@ns.route('/<string:key>')
+class Self(Resource):
+
+    @login_required
+    def get(self, key):
+        member = db.session.query(Member).filter_by(username=key).first()
+        member_schema = MemberSchema()
+        return json.loads(member_schema.dumps(member))
+
+
 @ns.route('/self')
 class Self(Resource):
 
