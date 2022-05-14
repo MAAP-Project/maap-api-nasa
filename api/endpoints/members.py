@@ -23,7 +23,12 @@ class Self(Resource):
 
     @login_required
     def get(self, key):
+
         member = db.session.query(Member).filter_by(username=key).first()
+
+        if member is None:
+            return Response('No member found with key ' + key, status=404)
+
         member_schema = MemberSchema()
         return json.loads(member_schema.dumps(member))
 
