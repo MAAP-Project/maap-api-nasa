@@ -18,8 +18,15 @@ ns = api.namespace('members', description='Operations for MAAP members')
 s3_client = boto3.client('s3', region_name=settings.AWS_REGION)
 
 
+def err_response(msg, code=400):
+    return {
+        'code': code,
+        'message': msg
+    }, code
+
+
 @ns.route('/<string:key>')
-class Self(Resource):
+class MemberLookup(Resource):
 
     @login_required
     def get(self, key):
@@ -27,7 +34,51 @@ class Self(Resource):
         member = db.session.query(Member).filter_by(username=key).first()
 
         if member is None:
-            return Response('No member found with key ' + key, status=404)
+            return err_response(msg="No member found with key " + key, code=404)
+
+        member_schema = MemberSchema()
+        return json.loads(member_schema.dumps(member))
+
+
+@ns.route('/<string:key>/status')
+class MemberStatus(Resource):
+    STATUS_ACTIVE = "active"
+    STATUS_SUSPENDED = "suspended"
+
+    @login_required
+    def post(self, key):
+
+        """
+        Update member status
+
+        Format of JSON to post:
+        {
+            "status": ""
+        }
+
+        Sample JSON:
+        {
+            "status": "suspended"
+        }
+        """
+        req_data = request.get_json()
+        if not isinstance(req_data, dict):
+            return err_response("Valid JSON body object required.")
+
+        status = req_data.get("status", "")
+        if not isinstance(status, str):
+            return err_response("Valid status string required.")
+
+        if status != self.STATUS_ACTIVE and status != self.STATUS_SUSPENDED:
+            return err_response("Status must be either " + self.STATUS_ACTIVE + " or " + self.STATUS_SUSPENDED)
+
+        member = db.session.query(Member).filter_by(username=key).first()
+
+        if member is None:
+            return err_response(msg="No member found with key " + key, code=404)
+
+        member.status = status
+        db.session.commit()
 
         member_schema = MemberSchema()
         return json.loads(member_schema.dumps(member))
