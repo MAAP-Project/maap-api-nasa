@@ -77,8 +77,13 @@ class MemberStatus(Resource):
         if member is None:
             return err_response(msg="No member found with key " + key, code=404)
 
-        member.status = status
-        db.session.commit()
+        old_status = member.status if member.status is not None else self.STATUS_SUSPENDED
+        activated = old_status == self.STATUS_SUSPENDED and status == self.STATUS_ACTIVE
+        deactivated = old_status == self.STATUS_ACTIVE and status == self.STATUS_SUSPENDED
+
+        if activated or deactivated:
+            member.status = status
+            db.session.commit()
 
         member_schema = MemberSchema()
         return json.loads(member_schema.dumps(member))
