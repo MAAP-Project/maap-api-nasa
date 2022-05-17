@@ -114,6 +114,15 @@ def validate_bearer(token):
     return None
 
 
+def validate_cas_request(token):
+    """
+    Will attempt to validate a CAS machine token. Return True if validation succeeds.
+    """
+
+    current_app.logger.debug("validating cas request token {0}".format(token))
+    return token == settings.CAS_SECRET_KEY
+
+
 def validate_cas_request(cas_url):
 
     xml_from_dict = {}
@@ -229,6 +238,12 @@ def login_required(wrapped_function):
             authorized = validate_bearer(token)
 
             if authorized is not None:
+                return wrapped_function(*args, **kwargs)
+
+        if 'cas-authorization' in request.headers:
+            authorized = validate_cas_request(request.headers['cas-authorization'])
+
+            if authorized:
                 return wrapped_function(*args, **kwargs)
 
         abort(403, description="Not authorized.")
