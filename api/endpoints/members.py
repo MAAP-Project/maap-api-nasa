@@ -125,7 +125,7 @@ class Member(Resource):
     def put(self, key):
 
         """
-        Update member
+        Update member. Only supplied fields are updated.
 
         Format of JSON to put:
         {
@@ -164,35 +164,25 @@ class Member(Resource):
         if member is None:
             return err_response(msg="No member found with username " + key)
 
-        first_name = req_data.get("first_name", "")
-        if not isinstance(first_name, str) or not first_name:
-            return err_response("first_name is required.")
-
-        last_name = req_data.get("last_name", "")
-        if not isinstance(last_name, str) or not last_name:
-            return err_response("last_name is required.")
-
-        email = req_data.get("email", "")
-        if not isinstance(email, str) or not email:
-            return err_response("Valid email is required.")
-
+        email = req_data.get("email", member.email)
         if email != member.email:
             email_check = db.session.query(Member_db).filter_by(email=email).first()
 
             if email_check is not None:
                 return err_response(msg="Member already exists with email " + email)
 
-        member.first_name = first_name
-        member.last_name = last_name
+        member.first_name = req_data.get("first_name", member.first_name)
+        member.last_name = req_data.get("last_name", member.last_name)
         member.email = email
-        member.organization = req_data.get("organization", None)
-        member.public_ssh_key = req_data.get("public_ssh_key", None)
-        member.public_ssh_key_name = req_data.get("public_ssh_key_name", None)
-        member.public_ssh_key_modified_date = datetime.utcnow()
-        member.gitlab_id = req_data.get("gitlab_id", None)
-        member.gitlab_username = req_data.get("gitlab_username", None)
-        member.gitlab_token = req_data.get("gitlab_token", None)
-        member.urs_token = req_data.get("urs_token", None)
+        member.organization = req_data.get("organization", member.organization)
+        if req_data.get("public_ssh_key", member.public_ssh_key) != member.public_ssh_key:
+            member.public_ssh_key_modified_date = datetime.utcnow()
+        member.public_ssh_key = req_data.get("public_ssh_key", member.public_ssh_key)
+        member.public_ssh_key_name = req_data.get("public_ssh_key_name", member.public_ssh_key_name)
+        member.gitlab_id = req_data.get("gitlab_id", member.gitlab_id)
+        member.gitlab_username = req_data.get("gitlab_username", member.gitlab_username)
+        member.gitlab_token = req_data.get("gitlab_token", member.gitlab_token)
+        member.urs_token = req_data.get("urs_token", member.urs_token)
         db.session.commit()
 
         member_schema = MemberSchema()
