@@ -17,6 +17,8 @@ log = logging.getLogger(__name__)
 ns = api.namespace('members', description='Operations for MAAP members')
 s3_client = boto3.client('s3', region_name=settings.AWS_REGION)
 
+STATUS_ACTIVE = "active"
+STATUS_SUSPENDED = "suspended"
 
 def err_response(msg, code=400):
     return {
@@ -110,7 +112,8 @@ class Member(Resource):
                           urs_token=req_data.get("urs_token", None),
                           gitlab_id=req_data.get("gitlab_id", None),
                           gitlab_username=req_data.get("gitlab_username", None),
-                          gitlab_token=req_data.get("gitlab_token", None))
+                          gitlab_token=req_data.get("gitlab_token", None),
+                          status=STATUS_SUSPENDED)
 
         db.session.add(guest)
         db.session.commit()
@@ -198,8 +201,6 @@ class Member(Resource):
 
 @ns.route('/<string:key>/status')
 class MemberStatus(Resource):
-    STATUS_ACTIVE = "active"
-    STATUS_SUSPENDED = "suspended"
 
     @login_required
     def post(self, key):
@@ -225,17 +226,17 @@ class MemberStatus(Resource):
         if not isinstance(status, str) or not status:
             return err_response("Valid status string required.")
 
-        if status != self.STATUS_ACTIVE and status != self.STATUS_SUSPENDED:
-            return err_response("Status must be either " + self.STATUS_ACTIVE + " or " + self.STATUS_SUSPENDED)
+        if status != STATUS_ACTIVE and status != STATUS_SUSPENDED:
+            return err_response("Status must be either " + STATUS_ACTIVE + " or " + STATUS_SUSPENDED)
 
         member = db.session.query(Member_db).filter_by(username=key).first()
 
         if member is None:
             return err_response(msg="No member found with key " + key, code=404)
 
-        old_status = member.status if member.status is not None else self.STATUS_SUSPENDED
-        activated = old_status == self.STATUS_SUSPENDED and status == self.STATUS_ACTIVE
-        deactivated = old_status == self.STATUS_ACTIVE and status == self.STATUS_SUSPENDED
+        old_status = member.status if member.status is not None else STATUS_SUSPENDED
+        activated = old_status == STATUS_SUSPENDED and status == STATUS_ACTIVE
+        deactivated = old_status == STATUS_ACTIVE and status == STATUS_SUSPENDED
 
         if activated or deactivated:
             member.status = status
