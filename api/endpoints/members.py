@@ -27,6 +27,17 @@ def err_response(msg, code=400):
     }, code
 
 
+@ns.route('/')
+class Member(Resource):
+
+    @login_required
+    def get(self):
+        members = db.session.query(Member_db).all()
+        member_schema = MemberSchema()
+        result = [json.loads(member_schema.dumps(m)) for m in members]
+        return result
+
+
 @ns.route('/<string:key>')
 class Member(Resource):
 
