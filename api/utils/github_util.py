@@ -7,6 +7,8 @@ import copy
 import time
 import api.settings as settings
 import requests
+import uuid
+import json
 
 
 def git_clone(repo_url=settings.GIT_REPO_URL, repo_name=settings.REPO_NAME):
@@ -82,3 +84,92 @@ def get_git_pipeline_status(project_id, commit_hash):
     git_response["job_web_url"] = job_web_url
     git_response["job_log_url"] = "{}/raw".format(job_web_url)
     return git_response
+
+
+def sync_gitlab_account(is_active, username, email, first_name, last_name):
+    """
+    Updates a Gitlab user account
+    :param is_active: true for an active user, false for suspended
+    :param username: MAAP/Gitlab username
+    :param email: MAAP email
+    :param first_name: MAAP first name
+    :param last_name: MAAP last name
+    :return:
+    """
+    api_url_users = settings.GIT_API_URL.replace("/projects/", "/users")
+    auth_headers = {"PRIVATE-TOKEN": "{}".format(settings.GITLAB_API_TOKEN)}
+    gitlab_user = get_gitlab_user(username, email)
+
+    if is_active:
+        if gitlab_user is None:
+            return create_gitlab_user(username, email, first_name, last_name)
+        else:
+            # Unblock user
+            requests.post("{}/{}/unblock".format(api_url_users, gitlab_user["id"]), headers=auth_headers)
+    else:
+        if gitlab_user is not None:
+            # Block user
+            requests.post("{}/{}/block".format(api_url_users, gitlab_user["id"]), headers=auth_headers)
+
+    return None
+
+
+def create_gitlab_user(username, email, first_name, last_name):
+    api_url_users = settings.GIT_API_URL.replace("/projects/", "/users")
+    auth_headers = {"PRIVATE-TOKEN": "{}".format(settings.GITLAB_API_TOKEN)}
+
+    # Create user
+    payload = dict(
+        username=username,
+        password=uuid.uuid4().hex,
+        name="{} {}".format(first_name, last_name),
+        email=email,
+        skip_confirmation=True
+    )
+    response = requests.post(api_url_users, data=payload, headers=auth_headers)
+    response.raise_for_status()
+    query_response = response.json()
+    gitlab_id = query_response["id"]
+
+    # Create Gitlab identity
+    payload = dict(provider="cas3", extern_uid=email)
+    requests.put("{}/{}".format(api_url_users, gitlab_id), data=payload, headers=auth_headers)
+
+    # Create Gitlab impersonation token
+    payload = {
+        'name': 'MAAP',
+        'expires_at': '2038-01-19',
+        'scopes': ["api"]
+    }
+    headers = {
+        "PRIVATE-TOKEN": "{}".format(settings.GITLAB_API_TOKEN),
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+    }
+    response = requests.post("{}/{}/impersonation_tokens".format(
+        api_url_users,   gitlab_id), data=json.dumps(payload), headers=headers)
+    response.raise_for_status()
+    query_response = response.json()
+    gitlab_token = query_response["token"]
+
+    return dict(gitlab_id=gitlab_id, gitlab_token=gitlab_token)
+
+
+def get_gitlab_user(username, email):
+    api_url_users = settings.GIT_API_URL.replace("/projects/", "/users")
+    auth_headers = {"PRIVATE-TOKEN": "{}".format(settings.GITLAB_API_TOKEN)}
+    response = requests.get("{}?username={}".format(api_url_users, username), headers=auth_headers)
+    response.raise_for_status()
+    query_response = response.json()
+
+    if query_response:
+        return query_response[0]
+    else:
+        response = requests.get("{}?search={}".format(api_url_users, email), headers=auth_headers)
+        response.raise_for_status()
+        query_response = response.json()
+
+        if query_response:
+            return query_response[0]
+        else:
+            return None

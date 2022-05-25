@@ -150,18 +150,7 @@ def start_member_session(cas_response, ticket):
 
     member = db.session.query(Member).filter_by(username=usr).first()
     urs_access_token = get_cas_attribute_value(attributes, 'access_token')
-
-    if member is None:
-        member = Member(first_name=get_cas_attribute_value(attributes, 'given_name'),
-                        last_name=get_cas_attribute_value(attributes, 'family_name'),
-                        username=usr,
-                        email=get_cas_attribute_value(attributes, 'email'),
-                        organization=get_cas_attribute_value(attributes, 'organization'),
-                        urs_token=urs_access_token)
-        db.session.add(member)
-    else:
-        member.urs_token = urs_access_token
-
+    member.urs_token = urs_access_token
     db.session.commit()
 
     member_session = MemberSession(member_id=member.id, session_key=ticket, creation_date=datetime.utcnow())
