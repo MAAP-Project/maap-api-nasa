@@ -29,12 +29,20 @@ def err_response(msg, code=400):
     }, code
 
 
-@ns.route('/')
+@ns.route('')
 class Member(Resource):
 
     @login_required
     def get(self):
-        members = db.session.query(Member_db).all()
+        members = db.session.query(
+            Member_db.id,
+            Member_db.username,
+            Member_db.first_name,
+            Member_db.last_name,
+            Member_db.email,
+            Member_db.status
+        ).order_by(Member_db.username).all()
+
         member_schema = MemberSchema()
         result = [json.loads(member_schema.dumps(m)) for m in members]
         return result
