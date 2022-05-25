@@ -40,7 +40,8 @@ class Member(Resource):
             Member_db.first_name,
             Member_db.last_name,
             Member_db.email,
-            Member_db.status
+            Member_db.status,
+            Member_db.creation_date
         ).order_by(Member_db.username).all()
 
         member_schema = MemberSchema()
@@ -134,7 +135,8 @@ class Member(Resource):
                           gitlab_id=req_data.get("gitlab_id", None),
                           gitlab_username=req_data.get("gitlab_username", None),
                           gitlab_token=req_data.get("gitlab_token", None),
-                          status=STATUS_SUSPENDED)
+                          status=STATUS_SUSPENDED,
+                          creation_date=datetime.utcnow())
 
         db.session.add(guest)
         db.session.commit()
