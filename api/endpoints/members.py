@@ -76,11 +76,7 @@ class Member(Resource):
             "email": "",
             "organization": "",
             "public_ssh_key": "",
-            "public_ssh_key_name": "",
-            "urs_token": "",
-            "gitlab_id": "",
-            "gitlab_username": "",
-            "gitlab_token": ""
+            "public_ssh_key_name": ""
         }
 
         Sample JSON:
@@ -131,10 +127,6 @@ class Member(Resource):
                           public_ssh_key=req_data.get("public_ssh_key", None),
                           public_ssh_key_modified_date=datetime.utcnow(),
                           public_ssh_key_name=req_data.get("public_ssh_key_name", None),
-                          urs_token=req_data.get("urs_token", None),
-                          gitlab_id=req_data.get("gitlab_id", None),
-                          gitlab_username=req_data.get("gitlab_username", None),
-                          gitlab_token=req_data.get("gitlab_token", None),
                           status=STATUS_SUSPENDED,
                           creation_date=datetime.utcnow())
 
@@ -157,11 +149,7 @@ class Member(Resource):
             "email": "",
             "organization": "",
             "public_ssh_key": "",
-            "public_ssh_key_name": "",
-            "urs_token": "",
-            "gitlab_id": "",
-            "gitlab_username": "",
-            "gitlab_token": ""
+            "public_ssh_key_name": ""
         }
 
         Sample JSON:
@@ -202,10 +190,6 @@ class Member(Resource):
             member.public_ssh_key_modified_date = datetime.utcnow()
         member.public_ssh_key = req_data.get("public_ssh_key", member.public_ssh_key)
         member.public_ssh_key_name = req_data.get("public_ssh_key_name", member.public_ssh_key_name)
-        member.gitlab_id = req_data.get("gitlab_id", member.gitlab_id)
-        member.gitlab_username = req_data.get("gitlab_username", member.gitlab_username)
-        member.gitlab_token = req_data.get("gitlab_token", member.gitlab_token)
-        member.urs_token = req_data.get("urs_token", member.urs_token)
         db.session.commit()
 
         member_schema = MemberSchema()
