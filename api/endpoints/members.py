@@ -5,6 +5,7 @@ from api.restplus import api
 import api.settings as settings
 from api.cas.cas_auth import get_authorized_user, login_required, dps_authorized, get_dps_user
 from api.maap_database import db
+from api.utils import github_util
 from api.models.member import Member as Member_db, MemberSchema
 from datetime import datetime
 import json
@@ -19,6 +20,7 @@ s3_client = boto3.client('s3', region_name=settings.AWS_REGION)
 
 STATUS_ACTIVE = "active"
 STATUS_SUSPENDED = "suspended"
+
 
 def err_response(msg, code=400):
     return {
@@ -242,6 +244,19 @@ class MemberStatus(Resource):
         if activated or deactivated:
             member.status = status
             db.session.commit()
+            gitlab_account = github_util.sync_gitlab_account(
+                activated,
+                member.username,
+                member.email,
+                member.first_name,
+                member.last_name)
+
+            if gitlab_account is not None:
+                # A gitlab account was created, so update the member profile.
+                member.gitlab_id = gitlab_account["gitlab_id"]
+                member.gitlab_token = gitlab_account["gitlab_token"]
+                member.gitlab_username = member.username
+                db.session.commit()
 
         member_schema = MemberSchema()
         return json.loads(member_schema.dumps(member))
