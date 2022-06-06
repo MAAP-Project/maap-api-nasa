@@ -6,7 +6,7 @@ from api import settings
 from zipfile import ZipFile
 import tempfile
 from flask import request, json, Response, stream_with_context
-from flask_restplus import Resource
+from flask_restx import Resource
 from api.restplus import api
 from api.cas.cas_auth import get_authorized_user
 from api.maap_database import db

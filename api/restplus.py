@@ -2,7 +2,7 @@ import logging
 from flask import jsonify
 
 
-from flask_restplus import Api
+from flask_restx import Api
 from api import settings
 
 log = logging.getLogger(__name__)
