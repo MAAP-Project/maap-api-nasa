@@ -253,7 +253,9 @@ class MemberStatus(Resource):
                 db.session.commit()
 
         member_schema = MemberSchema()
-        return json.loads(member_schema.dumps(member))
+        response = json.loads(member_schema.dumps(member))
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
 
 
 @ns.route('/self')
