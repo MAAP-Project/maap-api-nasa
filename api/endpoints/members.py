@@ -7,6 +7,10 @@ from api.cas.cas_auth import get_authorized_user, login_required, dps_authorized
 from api.maap_database import db
 from api.utils import github_util
 from api.models.member import Member as Member_db, MemberSchema
+from api.utils.email_util import send_user_status_update_active_user_email, \
+    send_user_status_update_suspended_user_email, send_new_active_user_email, \
+    send_new_suspended_user_email, send_welcome_to_maap_active_user_email, \
+    send_welcome_to_maap_suspended_user_email
 from datetime import datetime
 import json
 import boto3
@@ -133,6 +137,10 @@ class Member(Resource):
         db.session.add(guest)
         db.session.commit()
 
+        # Send Email Notifications for suspended
+        send_new_suspended_user_email()
+        send_welcome_to_maap_suspended_user_email()
+
         member_schema = MemberSchema()
         return json.loads(member_schema.dumps(guest))
 
@@ -251,6 +259,14 @@ class MemberStatus(Resource):
                 member.gitlab_token = gitlab_account["gitlab_token"]
                 member.gitlab_username = member.username
                 db.session.commit()
+
+        # Send "Account Activated" email notification to Member
+        if activated:
+            send_user_status_update_active_user_email(member, request.base_url)
+
+        # Send "Account Deactivated" email notification to Member
+        if deactivated:
+            send_user_status_update_suspended_user_email(member, request.base_url)
 
         member_schema = MemberSchema()
         return json.loads(member_schema.dumps(member))
