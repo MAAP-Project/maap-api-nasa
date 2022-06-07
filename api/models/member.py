@@ -22,6 +22,9 @@ class Member(Base):
     gitlab_token = db.Column(db.String())
     creation_date = db.Column(db.DateTime())
 
+    def get_display_name(self):
+        return "{} {}".format(self.first_name,self.last_name)
+
     def __repr__(self):
         return "<Member(username={self.username!r})>".format(self=self)
 
