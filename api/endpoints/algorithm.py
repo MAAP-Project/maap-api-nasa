@@ -1,6 +1,6 @@
 import logging
 from flask import request, Response
-from flask_restplus import Resource, reqparse
+from flask_restx import Resource, reqparse
 from api.restplus import api
 import re
 import json

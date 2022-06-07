@@ -1,5 +1,5 @@
 import logging
-from flask_restplus import Resource, reqparse
+from flask_restx import Resource, reqparse
 from flask import request, jsonify, Response
 from api.restplus import api
 import api.settings as settings

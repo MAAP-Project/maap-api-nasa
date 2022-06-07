@@ -1,5 +1,5 @@
 import logging
-from flask_restplus import Resource
+from flask_restx import Resource
 from api.restplus import api
 from urllib.parse import urlsplit
 from api import settings

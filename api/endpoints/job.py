@@ -1,6 +1,6 @@
 import logging
 from flask import request, Response
-from flask_restplus import Resource
+from flask_restx import Resource
 from api.restplus import api
 import api.utils.hysds_util as hysds
 import api.utils.ogc_translate as ogc

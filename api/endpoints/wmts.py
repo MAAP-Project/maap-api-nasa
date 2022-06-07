@@ -4,7 +4,7 @@ import os
 import sys, traceback
 import requests
 from flask import Response, request, render_template_string
-from flask_restplus import Resource
+from flask_restx import Resource
 from api.restplus import api
 from api import settings
 import api.endpoints.cmr as cmr

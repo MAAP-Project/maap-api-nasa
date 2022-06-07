@@ -221,6 +221,12 @@ def login_required(wrapped_function):
             if authorized is not None:
                 return wrapped_function(*args, **kwargs)
 
+        if 'cpticket' in request.headers:
+            authorized = validate_proxy(request.headers['cpticket'])
+
+            if authorized is not None:
+                return wrapped_function(*args, **kwargs)
+
         if 'Authorization' in request.headers:
             bearer = request.headers.get('Authorization')
             token = bearer.split()[1]

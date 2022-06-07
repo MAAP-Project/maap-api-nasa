@@ -4,7 +4,7 @@ import uuid
 
 import boto3
 from flask import jsonify, request, redirect
-from flask_restplus import Resource
+from flask_restx import Resource
 
 from api.restplus import api
 import api.settings as settings
