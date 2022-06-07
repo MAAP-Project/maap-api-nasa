@@ -73,3 +73,16 @@ AWS_REQUESTER_PAYS_BUCKET_ARN = 'arn:aws:iam::???:role/???'
 
 # DB
 DATABASE_URL = 'postgresql://localhost/maap_dev'
+
+# SMTP
+SMTP_HOSTNAME = 'my_smtp_hostname'
+SMTP_PORT = 9999
+SMTP_USERNAME = 'my_smtp_username'
+SMTP_PASSWORD = 'my_smtp_password'
+SMTP_DEBUG_LEVEL = 1
+
+# EMAIL ADDRESSES
+EMAIL_NO_REPLY = ""
+EMAIL_SUPPORT = ""
+EMAIL_ADMIN = ""
+EMAIL_JPL_ADMINS = ""   # Use a comma to delimit emails, if more than one
