@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>{title}</title>
+  </head>
+  <body style="margin: 0;font-family:Roboto,Helvetica,Arial,sans-serif;">
+   {environment_info[template][header][html]}
+    <div style="width:600px;padding:20px;">
+      <img src="{environment_info[urls][logo]}" />
+      <p>A new user has registered for a MAAP ({environment_info[env]}) account.</p>
+      <h3>User Information</h3>
+      <table width="100%">
+        <tbody>
+          <tr>
+            <td width="25%">Name:</td>
+            <td width="75%">{member_display_name}</td>
+          </tr>
+          <tr>
+            <td>Email:</td>
+            <td>{member_email}</td>
+          </tr>
+          <tr>
+            <td>Account Status:</td>
+            <td><font color="#008542"><b>Active</b></font></td>
+          </tr>
+        </tbody>
+      </table>
+      <h3>Action</h3>
+      <p>No further action is required.</p>
+      <p>Thank you,<br /><br />The MAAP Team</p>
+    </div>
+  </body>
+</html>

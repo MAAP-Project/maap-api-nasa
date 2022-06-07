@@ -1,0 +1,9 @@
+{environment_info[template][header][plain]}
+
+Hello {member_first_name},
+
+Your account has been deactivated, and you no longer have full access to the Multi-Mission Algorithm and Analysis Platform (MAAP). If you feel this was done in error, or if you have questions about your account, email {support_email}
+
+Thank you,
+
+The MAAP Team
