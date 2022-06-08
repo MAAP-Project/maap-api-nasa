@@ -7,6 +7,7 @@ from api.cas.cas_auth import get_authorized_user, login_required, dps_authorized
 from api.maap_database import db
 from api.utils import github_util
 from api.models.member import Member as Member_db, MemberSchema
+from api.models.pre_approved import PreApproved, PreApprovedSchema
 from datetime import datetime
 import json
 import boto3
@@ -119,6 +120,13 @@ class Member(Resource):
         if member is not None:
             return err_response(msg="Member already exists with email " + email)
 
+        pre_approved_email = db.session.query(PreApproved).filter(
+            (PreApproved.email.like("*%") & PreApproved.email.like("%" + email[1:])) |
+            (~PreApproved.email.like("*%") & PreApproved.email.like(email))
+        ).first()
+
+        status = STATUS_SUSPENDED if pre_approved_email is None else STATUS_ACTIVE
+
         guest = Member_db(first_name=first_name,
                           last_name=last_name,
                           username=key,
@@ -127,7 +135,7 @@ class Member(Resource):
                           public_ssh_key=req_data.get("public_ssh_key", None),
                           public_ssh_key_modified_date=datetime.utcnow(),
                           public_ssh_key_name=req_data.get("public_ssh_key_name", None),
-                          status=STATUS_SUSPENDED,
+                          status=status,
                           creation_date=datetime.utcnow())
 
         db.session.add(guest)
@@ -448,6 +456,85 @@ class AwsAccessEdcCredentials(Resource):
             response.headers.add('Access-Control-Allow-Origin', '*')
 
             return response
+
+
+@ns.route('/pre-approved')
+class PreApprovedEmails(Resource):
+
+    @login_required
+    def get(self):
+        pre_approved = db.session.query(
+            PreApproved.email,
+            PreApproved.creation_date
+        ).order_by(PreApproved.email).all()
+
+        pre_approved_schema = PreApprovedSchema()
+        result = [json.loads(pre_approved_schema.dumps(p)) for p in pre_approved]
+        return result
+
+    @login_required
+    def post(self):
+
+        """
+        Create new pre-approved email. Wildcards are supported for starting email characters.
+
+        Format of JSON to post:
+        {
+            "email": ""
+        }
+
+        Sample 1. Any email ending in "@maap-project.org" is pre-approved
+        {
+            "email": "*@maap-project.org"
+        }
+
+        Sample 2. Any email matching "jane.doe@maap-project.org" is pre-approved
+        {
+            "email": "jane.doe@maap-project.org"
+        }
+        """
+
+        req_data = request.get_json()
+        if not isinstance(req_data, dict):
+            return err_response("Valid JSON body object required.")
+
+        email = req_data.get("email", "")
+        if not isinstance(email, str) or not email:
+            return err_response("Valid email is required.")
+
+        pre_approved_email = db.session.query(PreApproved).filter_by(email=email).first()
+
+        if pre_approved_email is not None:
+            return err_response(msg="Email already exists")
+
+        new_email = PreApproved(email=email, creation_date=datetime.utcnow())
+
+        db.session.add(new_email)
+        db.session.commit()
+
+        pre_approved_schema = PreApprovedSchema()
+        return json.loads(pre_approved_schema.dumps(new_email))
+
+
+@ns.route('/pre-approved/<string:email>')
+class PreApprovedEmails(Resource):
+
+    @login_required
+    def delete(self, email):
+
+        """
+        Delete pre-approved email
+        """
+
+        pre_approved_email = db.session.query(PreApproved).filter_by(email=email).first()
+
+        if pre_approved_email is None:
+            return err_response(msg="Email does not exist")
+
+        db.session.query(PreApproved).filter_by(email=email).delete()
+        db.session.commit()
+
+        return {"code": 200, "message": "Successfully deleted {}.".format(email)}
 
 
 
