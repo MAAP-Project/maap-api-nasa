@@ -39,9 +39,8 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.app_context().push()
 db.init_app(app)
 initialize_sql(db.engine)
-#Base.ini .metadata.create_all(db.engine)
-# db.create_all()
-# db.session.commit()
+# Create any new tables
+db.create_all()
 
 
 @app.route('/')
