@@ -145,9 +145,13 @@ class Member(Resource):
         db.session.add(guest)
         db.session.commit()
 
-        # Send Email Notifications for suspended
-        send_new_suspended_user_email()
-        send_welcome_to_maap_suspended_user_email()
+        # Send Email Notifications based on member status
+        if status == STATUS_ACTIVE:
+            send_new_active_user_email(guest, request.base_url)
+            send_welcome_to_maap_active_user_email(guest, request.base_url)
+        else:
+            send_new_suspended_user_email(guest, request.base_url)
+            send_welcome_to_maap_suspended_user_email(guest, request.base_url)
 
         member_schema = MemberSchema()
         return json.loads(member_schema.dumps(guest))
