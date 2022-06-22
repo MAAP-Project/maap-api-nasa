@@ -13,6 +13,8 @@ from enum import Enum
 log = logging.getLogger(__name__)
 CHARSET = "utf-8"
 
+SCRIPT_PATH = os.path.abspath(os.path.dirname(__file__))
+
 
 class EmailFormats(Enum):
     PLAIN = 'plain'
@@ -78,7 +80,7 @@ def send_new_active_user_email(member: Member, base_url):
 
     # Build HTML body
     email_message_html = ""
-    template_file = os.getcwd() + "/api/utils/email_templates/new_active_user_admin_alert.html"
+    template_file = SCRIPT_PATH + "email_templates/new_active_user_admin_alert.html"
     with open(template_file, "r", encoding=CHARSET) as file:
         email_message_html = file.read().format(
             environment_info=environment_info,
@@ -89,7 +91,7 @@ def send_new_active_user_email(member: Member, base_url):
 
     # Build Text body
     email_message_txt = ""
-    template_file = os.getcwd() + "/api/utils/email_templates/new_active_user_admin_alert.txt"
+    template_file = SCRIPT_PATH + "email_templates/new_active_user_admin_alert.txt"
     with open(template_file, "r", encoding=CHARSET) as file:
         email_message_txt = file.read().format(
             environment_info=environment_info,
@@ -121,7 +123,7 @@ def send_new_suspended_user_email(member: Member, base_url):
 
     # Build HTML body
     email_message_html = ""
-    template_file = os.getcwd() + "/api/utils/email_templates/new_suspended_user_admin_alert.html"
+    template_file = SCRIPT_PATH + "email_templates/new_suspended_user_admin_alert.html"
     with open(template_file, "r", encoding=CHARSET) as file:
         email_message_html = file.read().format(
             environment_info=environment_info,
@@ -132,7 +134,7 @@ def send_new_suspended_user_email(member: Member, base_url):
 
     # Build Text body
     email_message_txt = ""
-    template_file = os.getcwd() + "/api/utils/email_templates/new_suspended_user_admin_alert.txt"
+    template_file = SCRIPT_PATH + "email_templates/new_suspended_user_admin_alert.txt"
     with open(template_file, "r", encoding=CHARSET) as file:
         email_message_txt = file.read().format(
             environment_info=environment_info,
@@ -164,7 +166,7 @@ def send_user_status_update_active_user_email(member: Member, base_url):
 
     # Build HTML body
     email_message_html = ""
-    template_file = os.getcwd() + "/api/utils/email_templates/user_status_update_active_user_alert.html"
+    template_file = SCRIPT_PATH + "email_templates/user_status_update_active_user_alert.html"
     with open(template_file, "r", encoding=CHARSET) as file:
         email_message_html = file.read().format(
             environment_info=environment_info,
@@ -174,7 +176,7 @@ def send_user_status_update_active_user_email(member: Member, base_url):
 
     # Build Text body
     email_message_txt = ""
-    template_file = os.getcwd() + "/api/utils/email_templates/user_status_update_active_user_alert.txt"
+    template_file = SCRIPT_PATH + "email_templates/user_status_update_active_user_alert.txt"
     with open(template_file, "r", encoding=CHARSET) as file:
         email_message_txt = file.read().format(
             environment_info=environment_info,
@@ -205,7 +207,7 @@ def send_user_status_update_suspended_user_email(member: Member, base_url):
 
     # Build HTML body
     email_message_html = ""
-    template_file = os.getcwd() + "/api/utils/email_templates/user_status_update_suspended_user_alert.html"
+    template_file = SCRIPT_PATH + "email_templates/user_status_update_suspended_user_alert.html"
     with open(template_file, "r", encoding=CHARSET) as file:
         email_message_html = file.read().format(
             environment_info=environment_info,
@@ -216,7 +218,7 @@ def send_user_status_update_suspended_user_email(member: Member, base_url):
 
     # Build Text body
     email_message_txt = ""
-    template_file = os.getcwd() + "/api/utils/email_templates/user_status_update_suspended_user_alert.txt"
+    template_file = SCRIPT_PATH + "email_templates/user_status_update_suspended_user_alert.txt"
     with open(template_file, "r", encoding=CHARSET) as file:
         email_message_txt = file.read().format(
             environment_info=environment_info,
@@ -248,7 +250,7 @@ def send_welcome_to_maap_active_user_email(member: Member, base_url):
 
     # Build HTML body
     email_message_html = ""
-    template_file = os.getcwd() + "/api/utils/email_templates/welcome_to_maap_active_user_alert.html"
+    template_file = SCRIPT_PATH + "email_templates/welcome_to_maap_active_user_alert.html"
     with open(template_file, "r", encoding=CHARSET) as file:
         email_message_html = file.read().format(
             environment_info=environment_info,
@@ -258,7 +260,7 @@ def send_welcome_to_maap_active_user_email(member: Member, base_url):
 
     # Build Text body
     email_message_txt = ""
-    template_file = os.getcwd() + "/api/utils/email_templates/welcome_to_maap_active_user_alert.txt"
+    template_file = SCRIPT_PATH + "email_templates/welcome_to_maap_active_user_alert.txt"
     with open(template_file, "r", encoding=CHARSET) as file:
         email_message_txt = file.read().format(
             environment_info=environment_info,
@@ -289,7 +291,7 @@ def send_welcome_to_maap_suspended_user_email(member: Member, base_url):
 
     # Build HTML body
     email_message_html = ""
-    template_file = os.getcwd() + "/api/utils/email_templates/welcome_to_maap_suspended_user_alert.html"
+    template_file = SCRIPT_PATH + "email_templates/welcome_to_maap_suspended_user_alert.html"
     with open(template_file, "r", encoding=CHARSET) as file:
         email_message_html = file.read().format(
             environment_info=environment_info,
@@ -300,7 +302,7 @@ def send_welcome_to_maap_suspended_user_email(member: Member, base_url):
 
     # Build Text body
     email_message_txt = ""
-    template_file = os.getcwd() + "/api/utils/email_templates/welcome_to_maap_suspended_user_alert.txt"
+    template_file = SCRIPT_PATH + "email_templates/welcome_to_maap_suspended_user_alert.txt"
     with open(template_file, "r", encoding=CHARSET) as file:
         email_message_txt = file.read().format(
             environment_info=environment_info,
