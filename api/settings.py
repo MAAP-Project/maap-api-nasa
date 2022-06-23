@@ -86,3 +86,6 @@ EMAIL_NO_REPLY = ""
 EMAIL_SUPPORT = ""
 EMAIL_ADMIN = ""
 EMAIL_JPL_ADMINS = ""   # Use a comma to delimit emails, if more than one
+
+# PORTAL PATHS
+PORTAL_ADMIN_DASHBOARD_PATH = ''

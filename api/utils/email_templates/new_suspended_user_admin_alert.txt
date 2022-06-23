@@ -10,7 +10,7 @@ User Information:
 
 Action:
 -------
-  Review this user's account using the MAAP ({environment_info[env]}) Admin Interface, located at located at {environment_info[urls][portal][maap_admin]}.
+  Review this user's account using the MAAP ({environment_info[env]}) Admin Dashboard, located at located at {environment_info[urls][portal][maap_admin]}.
 
 Thank you,
 

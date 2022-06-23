@@ -366,7 +366,7 @@ def get_environment_info(base_url):
             'logo': portal_base_url + '/wp-content/uploads/2021/10/nasamaaplogo3.png',
             'portal': {
                 'base_url': portal_base_url,
-                'maap_admin': portal_base_url + '/maap-admin/',
+                'maap_admin': portal_base_url + settings.PORTAL_ADMIN_DASHBOARD_PATH,
                 'open_policies': portal_base_url + "/open-policies/",
                 'privacy_policy': 'https://www.nasa.gov/about/highlights/HP_Privacy.html',
                 'tos': portal_base_url + "/terms-of-service/",
