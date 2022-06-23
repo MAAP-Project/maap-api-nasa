@@ -180,7 +180,8 @@ def write_dockerfile(repo_name, dockerfile_content):
     write_file(path, "Dockerfile", dockerfile_content)
 
 
-def create_config_file(repo_name, repo_url_w_token, repo_branch, docker_container_url=settings.CONTAINER_URL):
+def create_config_file(repo_name, repo_url_w_token, repo_branch, docker_container_url=settings.CONTAINER_URL,
+                       build_command=None):
     """
     Creates the contents of config.txt file
     Contains the information needed for the job container
@@ -199,8 +200,10 @@ def create_config_file(repo_name, repo_url_w_token, repo_branch, docker_containe
     :param repo_url_w_token:
     :param repo_branch:
     :param docker_container_url:
+    :param build_command:
     :return: config.txt content
     """
+    
     config_content = "BASE_IMAGE_NAME={}\n".format(docker_container_url)
     config_content += "REPO_URL_WITH_TOKEN={}\n".format(repo_url_w_token)
     config_content += "REPO_NAME={}\n".format(repo_name)
@@ -209,6 +212,9 @@ def create_config_file(repo_name, repo_url_w_token, repo_branch, docker_containe
     config_content += "MAAP_API_URL={}\n".format(settings.MAAP_API_URL)
     config_content += "MOZART_URL={}\n".format(settings.MOZART_V1_URL)
     config_content += "S3_CODE_BUCKET={}".format(settings.S3_CODE_BUCKET)
+
+    if build_command:
+        config_content += "\nBUILD_CMD={}".format(build_command)
 
     return config_content
 
