@@ -80,6 +80,10 @@ def parse_execute_request(request_xml):
                     dedup = value.text
                 if input.attrib.get("id") == "queue":
                     queue = value.text
+                if input.attrib.get("id") == "identifier":
+                    # an identifier is used to tag the jobs, helpful for bulk submissions
+                    # users can later use the identifier to find all the jobs they submitted
+                    identifier = value.text
                 else:
                     try:
                         params[input.attrib.get("id")] = json.loads(value.text)
@@ -88,7 +92,7 @@ def parse_execute_request(request_xml):
 
     output = root.find('wps:Output', ns).attrib.get("id")
 
-    return job_type, params, queue, output, dedup
+    return job_type, params, queue, output, dedup, identifier
 
 
 def execute_response(job_id, job_status, output):

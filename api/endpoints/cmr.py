@@ -6,7 +6,7 @@ from api import settings
 from zipfile import ZipFile
 import tempfile
 from flask import request, json, Response, stream_with_context
-from flask_restplus import Resource
+from flask_restx import Resource
 from api.restplus import api
 from api.cas.cas_auth import get_authorized_user
 from api.maap_database import db
@@ -120,8 +120,10 @@ class CmrGranules(Resource):
 class CmrGranuleData(Resource):
     """
     CMR granule data
+
         Download granule by file URI
         file_uri: a UTF-8 encoded URI
+
         Example:
         https://api.maap-project.org/api/cmr/granules/https%3A%2F%2Fdata.ornldaac.earthdata.nasa.gov%2Fprotected%2Fgedi%2FGEDI_L3_Land_Surface_Metrics%2Fdata%2FGEDI03_elev_lowestmode_stddev_2019108_2020106_001_08.tif/data
     """
@@ -189,4 +191,3 @@ def respond(response):
             return response_text, response.status_code, {'Content-Type': 'application/xml'}
         else:
             return json.loads(response.text)
-

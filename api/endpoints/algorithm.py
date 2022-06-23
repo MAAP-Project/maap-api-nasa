@@ -1,8 +1,9 @@
 import logging
 from flask import request, Response
-from flask_restplus import Resource, reqparse
+from flask_restx import Resource, reqparse
 from api.restplus import api
 import re
+import json
 import traceback
 import api.utils.github_util as git
 import api.utils.hysds_util as hysds
@@ -13,8 +14,6 @@ from api.maap_database import db
 from api.models.member_algorithm import MemberAlgorithm
 from sqlalchemy import or_, and_
 from datetime import datetime
-from flask_restplus import reqparse
-import json
 
 log = logging.getLogger(__name__)
 
@@ -62,6 +61,9 @@ class Register(Resource):
             "code_version": "master",
             "environment_name": "ubuntu",
             "docker_container_url": "http://url/to/container",
+            "disk_space": "minimum free disk usage required to run job specified as "\d+(GB|MB|KB)", e.g. "100GB", "20MB", "10KB"",
+            "queue": "name of worker based on required memory for algorithm",
+            "ade_webhook_url": "url to send algo registration updates to",
             "algorithm_params": [
                 {
                 "field": "param_name1",
@@ -76,22 +78,21 @@ class Register(Resource):
         Sample JSON to post:
         { "script_command" : "python /app/plant.py",
          "algorithm_name" : "plant_test",
-         "label" : "test plant algorithm",
          "code_version": "master",
          "algorithm_description" : "Test Plant",
          "environment_name": "ubuntu",
          "docker_container_url": "http://url/to/container",
          "repo_url": "http://url/to/repo",
-
-
-
+         "disk_space": "10GB",
+         "queue": "maap-worker-8gb",
+         "ade_webhook_url": "http://ade/url/webhook",
          "algorithm_params" : [
               {
               "field": "localize_urls",
               "download": true
               },
               {
-              "field": "username"
+              "field": "parameter1"
               }
             ]
         }
@@ -157,12 +158,11 @@ class Register(Resource):
             return response_body, 500
 
         try:
-
+            # validate if input queue is valid
             if resource not in hysds.get_mozart_queues():
                 response_body["code"] = 500
                 response_body["message"] = "The resource {} is invalid. Please select from one of {}".format(resource, hysds.get_mozart_queues())
                 response_body["error"] = "Invalid queue in request: {}".format(req_data)
-
             # clean up any old specs from the repo
             repo = git.clean_up_git_repo(repo, repo_name=settings.REPO_NAME)
             # creating hysds-io file
@@ -215,39 +215,52 @@ class Register(Resource):
             return response_body, 500
 
         try:
-            git.update_git_repo(repo, repo_name=settings.REPO_NAME,
-                                algorithm_name=hysds.get_algorithm_file_name(algorithm_name))
-            log.debug("Updated Git Repo")
+            commit_hash = git.update_git_repo(repo, repo_name=settings.REPO_NAME,
+                                              algorithm_name=hysds.get_algorithm_file_name(algorithm_name))
+            logging.info("Updated Git Repo with hash {}".format(commit_hash))
         except Exception as ex:
             tb = traceback.format_exc()
             response_body["code"] = 500
-            response_body["message"] = "Failed to register {}".format(algorithm_name)
+            response_body["message"] = "Failed to register {}.".format(algorithm_name)
             response_body["error"] = "{} Traceback: {}".format(ex.message, tb)
             return response_body, 500
 
-        algorithm_id = "{}:{}".format(algorithm_name, req_data.get("code_version"))
-
         try:
-            # add algorithm to maap db if authenticated
-            m = get_authorized_user()
-
-            if m is not None:
-                ma = MemberAlgorithm(member_id=m.id, algorithm_key=algorithm_id, is_public=False,
-                                     creation_date=datetime.utcnow())
-                db.session.add(ma)
-                db.session.commit()
-
+            # Check and return the pipeline info and status
+            if commit_hash is None:
+                raise Exception("Commit Hash can not be None.")
+            gitlab_response = git.get_git_pipeline_status(project_id=settings.REGISTER_JOB_REPO_ID,
+                                                          commit_hash=commit_hash)
         except Exception as ex:
-            log.debug(ex)
+            tb = traceback.format_exc()
+            response_body["code"] = 500
+            response_body["message"] = "Failed to get registration build information."
+            response_body["error"] = "{} Traceback: {}".format(ex, tb)
+            return response_body, 500
+
+        # try:
+        #     # add algorithm registration record to maap db if authenticated
+        #     m = get_authorized_user()
+        #
+        #     if m is not None:
+        #         ade_hook = req_data.get("ade_webhook_url", None)
+        #         mar = MemberAlgorithmRegistration(member_id=m.id, algorithm_key=algorithm_id,
+        #                                           creation_date=datetime.utcnow(), commit_hash=commit_hash,
+        #                                           ade_webhook=ade_hook)
+        #         db.session.add(mar)
+        #         db.session.commit()
+        #
+        # except Exception as ex:
+        #     log.debug(ex)
 
         response_body["code"] = 200
-        response_body["message"] = "Successfully registered {}".format(algorithm_id)
+        response_body["message"] = gitlab_response
         """
         <?xml version="1.0" encoding="UTF-8"?>
         <AlgorithmName></AlgorithmName>
         """
 
-        return response_body
+        return response_body, 200
 
     @api.expect(algorithm_visibility_param)
     def get(self):
@@ -259,7 +272,7 @@ class Register(Resource):
         vis = request.args.get('visibility', None)
 
         try:
-            member_algorithms = self._get_algorithms(vis if vis is not None else 'public')
+            member_algorithms = self._get_algorithms(vis if vis is not None else visibility_all)
             algo_list = list(map(lambda a: {'type': a.algorithm_key.split(":")[0],
                                             'version': a.algorithm_key.split(":")[1]}, member_algorithms))
 
@@ -286,17 +299,17 @@ class Register(Resource):
     def _get_algorithms(self, visibility):
         member = get_authorized_user()
 
-        #if visibility == visibility_private:
-        #    return [] if member is None else db.session.query(MemberAlgorithm).filter(and_(MemberAlgorithm.member_id == member.id,
-        #                                                                                   not MemberAlgorithm.is_public)).all()
-        #elif visibility == visibility_all:
-        return list(map(lambda a: MemberAlgorithm(algorithm_key=re.sub('^job-', '', a)), hysds.get_algorithms()))
-        #else:
-        #    if member is None:
-        #        return db.session.query(MemberAlgorithm).filter(MemberAlgorithm.is_public).all()
-        #    else:
-        #        return db.session.query(MemberAlgorithm).filter(or_(MemberAlgorithm.member_id == member.id,
-        #                                                            MemberAlgorithm.is_public)).all()
+        if visibility == visibility_private:
+            return [] if member is None else db.session.query(MemberAlgorithm).filter(and_(MemberAlgorithm.member_id == member.id,
+                                                                                           not MemberAlgorithm.is_public)).all()
+        elif visibility == visibility_all:
+            return list(map(lambda a: MemberAlgorithm(algorithm_key=re.sub('^job-', '', a)), hysds.get_algorithms()))
+        else:
+            if member is None:
+                return db.session.query(MemberAlgorithm).filter(MemberAlgorithm.is_public).all()
+            else:
+                return db.session.query(MemberAlgorithm).filter(or_(MemberAlgorithm.member_id == member.id,
+                                                                    MemberAlgorithm.is_public)).all()
 
 
 @ns.route('/algorithm/<string:algo_id>')
@@ -343,6 +356,7 @@ class Describe(Resource):
             response_body["error"] = "{} Traceback: {}".format(ex, tb)
             return response_body, 404
 
+
 @ns.route('/algorithm/resource')
 class ResourceList(Resource):
     def get(self):
@@ -363,6 +377,7 @@ class ResourceList(Resource):
                                               ex_message="Failed to get list of queues. {}.".format(ex)),
                             status=500,
                             mimetype='text/xml')
+
 
 @ns.route('/build')
 class Build(Resource):

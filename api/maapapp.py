@@ -16,8 +16,10 @@ from api.endpoints.environment import ns as environment_namespace
 from api.restplus import api
 from api.maap_database import db
 from api.models import initialize_sql
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
 app.secret_key = settings.CAS_SECRET_KEY
 logging_conf_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '../logging.conf'))
 logging.config.fileConfig(logging_conf_path)
@@ -37,9 +39,8 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.app_context().push()
 db.init_app(app)
 initialize_sql(db.engine)
-#Base.ini .metadata.create_all(db.engine)
-# db.create_all()
-# db.session.commit()
+# Create any new tables
+db.create_all()
 
 
 @app.route('/')
