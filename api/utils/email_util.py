@@ -87,7 +87,7 @@ def send_user_status_change_email(member: Member, is_new, is_active, base_url):
     else:
         subject = "User " + ("Activated" if is_active else "Deactivated")
 
-    email_message_subj = "MAAP ({}): {}}".format(environment_info['env'], subject)
+    email_message_subj = "MAAP ({}): {}".format(environment_info['env'], subject)
 
     # Build HTML body
     email_message_html = ""
