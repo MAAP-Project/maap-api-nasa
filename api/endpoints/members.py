@@ -8,9 +8,8 @@ from api.maap_database import db
 from api.utils import github_util
 from api.models.member import Member as Member_db, MemberSchema
 from api.utils.email_util import send_user_status_update_active_user_email, \
-    send_user_status_update_suspended_user_email, send_new_active_user_email, \
-    send_new_suspended_user_email, send_welcome_to_maap_active_user_email, \
-    send_welcome_to_maap_suspended_user_email
+    send_user_status_update_suspended_user_email, send_user_status_change_email, \
+    send_welcome_to_maap_active_user_email, send_welcome_to_maap_suspended_user_email
 from api.models.pre_approved import PreApproved, PreApprovedSchema
 from datetime import datetime
 import json
@@ -147,10 +146,10 @@ class Member(Resource):
 
         # Send Email Notifications based on member status
         if status == STATUS_ACTIVE:
-            send_new_active_user_email(guest, request.base_url)
+            send_user_status_change_email(guest, True, True, request.base_url)
             send_welcome_to_maap_active_user_email(guest, request.base_url)
         else:
-            send_new_suspended_user_email(guest, request.base_url)
+            send_user_status_change_email(guest, True, False, request.base_url)
             send_welcome_to_maap_suspended_user_email(guest, request.base_url)
 
         member_schema = MemberSchema()
@@ -272,13 +271,15 @@ class MemberStatus(Resource):
                 member.gitlab_username = member.username
                 db.session.commit()
 
-        # Send "Account Activated" email notification to Member
+        # Send "Account Activated" email notification to Member & Admins
         if activated:
             send_user_status_update_active_user_email(member, request.base_url)
+            send_user_status_change_email(member, False, True, request.base_url)
 
-        # Send "Account Deactivated" email notification to Member
+        # Send "Account Deactivated" email notification to Member & Admins
         if deactivated:
             send_user_status_update_suspended_user_email(member, request.base_url)
+            send_user_status_change_email(member, False, False, request.base_url)
 
         member_schema = MemberSchema()
         return json.loads(member_schema.dumps(member))
