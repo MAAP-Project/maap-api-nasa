@@ -73,14 +73,26 @@ class Email(object):
         return self.email.as_string()
 
 
-def send_new_active_user_email(member: Member, base_url):
+def send_user_status_change_email(member: Member, is_new, is_active, base_url):
 
     environment_info = get_environment_info(base_url)
-    email_message_subj = "MAAP ({}): New Registered User".format(environment_info['env'])
+
+    template_key_status = "active" if is_active else "suspended"
+    template_key_user = "new" if is_new else "existing"
+
+    if is_new:
+        subject = "New Registered User"
+        if not is_active:
+            subject += " (Action Needed)"
+    else:
+        subject = "User " + ("Activated" if is_active else "Deactivated")
+
+    email_message_subj = "MAAP ({}): {}}".format(environment_info['env'], subject)
 
     # Build HTML body
     email_message_html = ""
-    template_file = SCRIPT_PATH + "/email_templates/new_active_user_admin_alert.html"
+    template_file = SCRIPT_PATH + "/email_templates/{}_{}_user_admin_alert.html".format(template_key_user,
+                                                                                        template_key_status)
     with open(template_file, "r", encoding=CHARSET) as file:
         email_message_html = file.read().format(
             environment_info=environment_info,
@@ -91,7 +103,8 @@ def send_new_active_user_email(member: Member, base_url):
 
     # Build Text body
     email_message_txt = ""
-    template_file = SCRIPT_PATH + "/email_templates/new_active_user_admin_alert.txt"
+    template_file = SCRIPT_PATH + "/email_templates/{}_{}_user_admin_alert.txt".format(template_key_user,
+                                                                                       template_key_status)
     with open(template_file, "r", encoding=CHARSET) as file:
         email_message_txt = file.read().format(
             environment_info=environment_info,
@@ -108,52 +121,11 @@ def send_new_active_user_email(member: Member, base_url):
         email_message_html,
         email_message_txt
     )
-    log.info("Sending 'New Active User' email for {} to JPL Admins ({})".format(
+    log.info("Sending '{} {} user' email for {} to JPL Admins ({})".format(
         member.get_display_name(),
-        settings.EMAIL_JPL_ADMINS
-    ))
-    email_message.send()
-    log.info("Email Sent!")
-
-
-def send_new_suspended_user_email(member: Member, base_url):
-
-    environment_info = get_environment_info(base_url)
-    email_message_subj = "MAAP ({}): New Registered User (Action Needed)".format(environment_info['env'])
-
-    # Build HTML body
-    email_message_html = ""
-    template_file = SCRIPT_PATH + "/email_templates/new_suspended_user_admin_alert.html"
-    with open(template_file, "r", encoding=CHARSET) as file:
-        email_message_html = file.read().format(
-            environment_info=environment_info,
-            member_email=member.email,
-            member_display_name=member.get_display_name(),
-            title=email_message_subj,
-        )
-
-    # Build Text body
-    email_message_txt = ""
-    template_file = SCRIPT_PATH + "/email_templates/new_suspended_user_admin_alert.txt"
-    with open(template_file, "r", encoding=CHARSET) as file:
-        email_message_txt = file.read().format(
-            environment_info=environment_info,
-            member_email=member.email,
-            member_display_name=member.get_display_name(),
-            title=email_message_subj,
-        )
-
-    # Create and send the email
-    email_message = Email(
-        settings.EMAIL_NO_REPLY,
-        settings.EMAIL_JPL_ADMINS.split(","),
-        email_message_subj,
-        email_message_html,
-        email_message_txt
-    )
-    log.info("Sending 'New Suspended User' email for {} to JPL Admins ({})".format(
-        member.get_display_name(),
-        settings.EMAIL_JPL_ADMINS
+        settings.EMAIL_JPL_ADMINS,
+        template_key_user,
+        template_key_status
     ))
     email_message.send()
     log.info("Email Sent!")
