@@ -252,7 +252,7 @@ def get_environment_info(base_url):
 
     email_header = {
         EmailFormats.PLAIN.value: '',
-        EmailFormats.HTML.value: '',
+        EmailFormats.HTML.value: ''
     }
     if env != Environments.OPS:
         email_header = {
