@@ -132,54 +132,22 @@ def send_user_status_change_email(member: Member, is_new, is_active, base_url):
 
 
 def send_user_status_update_active_user_email(member: Member, base_url):
-
-    environment_info = get_environment_info(base_url)
-    email_message_subj = "Your MAAP account has been activated"
-
-    # Build HTML body
-    email_message_html = ""
-    template_file = SCRIPT_PATH + "/email_templates/user_status_update_active_user_alert.html"
-    with open(template_file, "r", encoding=CHARSET) as file:
-        email_message_html = file.read().format(
-            environment_info=environment_info,
-            member_first_name=member.first_name,
-            title=email_message_subj,
-        )
-
-    # Build Text body
-    email_message_txt = ""
-    template_file = SCRIPT_PATH + "/email_templates/user_status_update_active_user_alert.txt"
-    with open(template_file, "r", encoding=CHARSET) as file:
-        email_message_txt = file.read().format(
-            environment_info=environment_info,
-            member_first_name=member.first_name,
-            title=email_message_subj,
-        )
-
-    # Create and send the email
-    email_message = Email(
-        settings.EMAIL_SUPPORT,
-        [member.email],
-        email_message_subj,
-        email_message_html,
-        email_message_txt
-    )
-    log.info("Sending 'User Status Update (Active)' email for {} to {}".format(
-        member.get_display_name(),
-        member.email
-    ))
-    email_message.send()
-    log.info("Email Sent!")
+    send_user_status_update_email(member, True, base_url)
 
 
 def send_user_status_update_suspended_user_email(member: Member, base_url):
+    send_user_status_update_email(member, False, base_url)
+
+
+def send_user_status_update_email(member: Member, is_active, base_url):
 
     environment_info = get_environment_info(base_url)
-    email_message_subj = "Your MAAP account has been deactivated"
+    email_message_subj = "Your MAAP account has been {}".format("activated" if is_active else "deactivated")
+    template_key_status = "active" if is_active else "suspended"
 
     # Build HTML body
     email_message_html = ""
-    template_file = SCRIPT_PATH + "/email_templates/user_status_update_suspended_user_alert.html"
+    template_file = SCRIPT_PATH + "/email_templates/user_status_update_{}_user_alert.html".format(template_key_status)
     with open(template_file, "r", encoding=CHARSET) as file:
         email_message_html = file.read().format(
             environment_info=environment_info,
@@ -190,7 +158,7 @@ def send_user_status_update_suspended_user_email(member: Member, base_url):
 
     # Build Text body
     email_message_txt = ""
-    template_file = SCRIPT_PATH + "/email_templates/user_status_update_suspended_user_alert.txt"
+    template_file = SCRIPT_PATH + "/email_templates/user_status_update_{}_user_alert.txt".format(template_key_status)
     with open(template_file, "r", encoding=CHARSET) as file:
         email_message_txt = file.read().format(
             environment_info=environment_info,
@@ -207,7 +175,8 @@ def send_user_status_update_suspended_user_email(member: Member, base_url):
         email_message_html,
         email_message_txt
     )
-    log.info("Sending 'User Status Update (Suspended)' email for {} to {}".format(
+    log.info("Sending 'User Status Update ({})' email for {} to {}".format(
+        template_key_status,
         member.get_display_name(),
         member.email
     ))
@@ -216,54 +185,22 @@ def send_user_status_update_suspended_user_email(member: Member, base_url):
 
 
 def send_welcome_to_maap_active_user_email(member: Member, base_url):
-
-    environment_info = get_environment_info(base_url)
-    email_message_subj = "Welcome to the Multi-Mission Algorithm and Analysis Platform (MAAP)!"
-
-    # Build HTML body
-    email_message_html = ""
-    template_file = SCRIPT_PATH + "/email_templates/welcome_to_maap_active_user_alert.html"
-    with open(template_file, "r", encoding=CHARSET) as file:
-        email_message_html = file.read().format(
-            environment_info=environment_info,
-            member_first_name=member.first_name,
-            title=email_message_subj,
-        )
-
-    # Build Text body
-    email_message_txt = ""
-    template_file = SCRIPT_PATH + "/email_templates/welcome_to_maap_active_user_alert.txt"
-    with open(template_file, "r", encoding=CHARSET) as file:
-        email_message_txt = file.read().format(
-            environment_info=environment_info,
-            member_first_name=member.first_name,
-            title=email_message_subj,
-        )
-
-    # Create and send the email
-    email_message = Email(
-        settings.EMAIL_SUPPORT,
-        [member.email],
-        email_message_subj,
-        email_message_html,
-        email_message_txt
-    )
-    log.info("Sending 'Welcome to MAAP (Active User)' email for {} to {}".format(
-        member.get_display_name(),
-        member.email
-    ))
-    email_message.send()
-    log.info("Email Sent!")
+    send_welcome_to_maap_user_email(member, True, base_url)
 
 
 def send_welcome_to_maap_suspended_user_email(member: Member, base_url):
+    send_welcome_to_maap_user_email(member, False, base_url)
+
+
+def send_welcome_to_maap_user_email(member: Member, is_active, base_url):
 
     environment_info = get_environment_info(base_url)
     email_message_subj = "Welcome to the Multi-Mission Algorithm and Analysis Platform (MAAP)!"
+    template_key_status = "active" if is_active else "suspended"
 
     # Build HTML body
     email_message_html = ""
-    template_file = SCRIPT_PATH + "/email_templates/welcome_to_maap_suspended_user_alert.html"
+    template_file = SCRIPT_PATH + "/email_templates/welcome_to_maap_{}_user_alert.html".format(template_key_status)
     with open(template_file, "r", encoding=CHARSET) as file:
         email_message_html = file.read().format(
             environment_info=environment_info,
@@ -274,7 +211,7 @@ def send_welcome_to_maap_suspended_user_email(member: Member, base_url):
 
     # Build Text body
     email_message_txt = ""
-    template_file = SCRIPT_PATH + "/email_templates/welcome_to_maap_suspended_user_alert.txt"
+    template_file = SCRIPT_PATH + "/email_templates/welcome_to_maap_{}_user_alert.txt".format(template_key_status)
     with open(template_file, "r", encoding=CHARSET) as file:
         email_message_txt = file.read().format(
             environment_info=environment_info,
@@ -291,7 +228,8 @@ def send_welcome_to_maap_suspended_user_email(member: Member, base_url):
         email_message_html,
         email_message_txt
     )
-    log.info("Sending 'Welcome to MAAP (Suspended User)' email for {} to {}".format(
+    log.info("Sending 'Welcome to MAAP ({} User)' email for {} to {}".format(
+        template_key_status,
         member.get_display_name(),
         member.email
     ))
@@ -313,8 +251,8 @@ def get_environment_info(base_url):
         env = Environments.OPS
 
     email_header = {
-        EmailFormats.PLAIN: '',
-        EmailFormats.HTML: '',
+        EmailFormats.PLAIN.value: '',
+        EmailFormats.HTML.value: '',
     }
     if env != Environments.OPS:
         email_header = {
