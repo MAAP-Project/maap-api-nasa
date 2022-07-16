@@ -251,8 +251,8 @@ def get_environment_info(base_url):
         env = Environments.OPS
 
     email_header = {
-        EmailFormats.PLAIN: '',
-        EmailFormats.HTML: '',
+        EmailFormats.PLAIN.value: '',
+        EmailFormats.HTML.value: '',
     }
     if env != Environments.OPS:
         email_header = {
