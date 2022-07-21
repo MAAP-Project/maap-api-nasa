@@ -122,10 +122,10 @@ def send_user_status_change_email(member: Member, is_new, is_active, base_url):
         email_message_txt
     )
     log.info("Sending '{} {} user' email for {} to JPL Admins ({})".format(
-        member.get_display_name(),
-        settings.EMAIL_JPL_ADMINS,
         template_key_user,
-        template_key_status
+        template_key_status,
+        member.get_display_name(),
+        settings.EMAIL_JPL_ADMINS
     ))
     email_message.send()
     log.info("Email Sent!")
