@@ -450,7 +450,7 @@ def get_mozart_jobs(username, page_size=10, offset=0):
 
     try:
         param_list = ""
-        for key, value in params:
+        for key, value in params.items():
             param_list += "&{}={}".format(key, value)
 
         url = "{}/job/list?{}".format(settings.MOZART_URL, param_list[1:])
