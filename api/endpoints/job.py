@@ -231,7 +231,11 @@ class Metrics(Resource):
             time_end = job_info.get("cmd_end")
             time_duration = job_info.get("cmd_duration")
 
-            docker_metrics = job_info.get("metrics").get("usage_stats")[0].get("cgroups")
+            if job_info.get("metrics").get("usage_stats"):
+                docker_metrics = job_info.get("metrics").get("usage_stats")[0].get("cgroups")
+            else:
+                docker_metrics = None
+            
             if docker_metrics is not None:
                 cpu_stats = docker_metrics.get("cpu_stats").get("cpu_usage").get("total_usage")
                 memory_stats = docker_metrics.get("memory_stats")
