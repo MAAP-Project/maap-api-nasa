@@ -581,12 +581,12 @@ def get_jobs_info(job_list):
     try:
         for job_id in job_list:
             job = dict()
-            url = "{}/job/info?id={}".format(settings.MOZART_URL, job_id)
+            url = "{}/job/info?id={}".format(settings.MOZART_URL, job_id['id'])
             logging.info("GET request to find job information: {}".format(url))
             mozart_response = session.get(url).json()
             success = mozart_response.get("success")
             if success is True:
-                job[job_id] = mozart_response.get("result").get("job").get("params")
+                job[job_id['id']] = mozart_response.get("result")
             else:
                 job[job_id] = {"message": "Failed to get job info"}
             jobs_info.append(job)
