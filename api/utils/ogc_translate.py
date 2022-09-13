@@ -86,7 +86,7 @@ def parse_execute_request(request_xml):
                     identifier = value.text
                 else:
                     try:
-                        if value and value.text:
+                        if value.text:
                             params[input.attrib.get("id")] = json.loads(value.text)
                         else:
                             params[input.attrib.get("id")] = ""
