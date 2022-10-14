@@ -10,11 +10,12 @@ boto3==1.9.199
 owslib~=0.18.0
 requests_file~=1.4.3
 natsort~=6.0.0
-pillow~=6.1.0
-pyproj==1.9.6
-psycopg2
+pillow
+pyproj
+psycopg2 ; sys_platform == 'linux'
+psycopg2-binary ; sys_platform == 'darwin'
 flask_sqlalchemy
-Werkzeug==2.0.1
+Werkzeug
 marshmallow-sqlalchemy
 mapproxy~=1.12
 pycryptodome
