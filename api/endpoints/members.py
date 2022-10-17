@@ -467,36 +467,46 @@ class AwsAccessEdcCredentials(Resource):
         return response
 
 
-def creds_expiration_utc_timestamp(_key, creds, _now) -> float:
-    """Return the expiration time of a credentials object converted to the
-    number of seconds (fractional) since the epoch in UTC, minus 5 minutes."""
+def creds_expiration_utc(_key, creds, now_utc: datetime) -> datetime:
+    """Return the UTC time that is halfway between now and the expiration time
+    of a credentials object.
 
-    expiration = creds.get('expiration')
+    Assume ``creds`` is an object containing the key ``'expiration'`` associated
+    to a ``str`` value representing the expiration date/time of the credentials
+    in the format ``'%Y-%m-%d %H:%M:%S%z'``.
+
+    If there is no such key, or the associated value cannot be successfully
+    parsed into a ``datetime`` value using the format above, return ``now_utc``.
+    Otherwise, return a datetime value halfway between ``now_utc`` and the
+    parsed expiration value (converted to UTC).
+
+    Note that if the parsed value is prior to ``now_utc``, the returned value
+    will also be prior to ``now_utc``, halfway between both values.
+    """
 
     try:
+        expiration = creds['expiration']
         expiration_dt = datetime.strptime(expiration, "%Y-%m-%d %H:%M:%S%z")
-    except (TypeError, ValueError):
-        expiration_dt = datetime.now()
+        expiration_dt_utc = expiration_dt.astimezone(timezone.utc)
+    except (KeyError, ValueError):
+        expiration_dt_utc = now_utc
 
-    expiration_dt_utc = expiration_dt.astimezone(timezone.utc)
-
-    # Subtract 5 minutes for "wiggle room"
-    return (expiration_dt_utc - timedelta(minutes=5)).timestamp()
-
-
-def now_utc_timestamp() -> float:
-    """Return the timestamp of the current UTC time in seconds (fractional)
-    since the epoch."""
-    return datetime.now(timezone.utc).timestamp()
+    # Expire creds in half the actual expiration time
+    return expiration_dt_utc - (expiration_dt_utc - now_utc) / 2
 
 
-@cached(TLRUCache(ttu=creds_expiration_utc_timestamp, timer=now_utc_timestamp))
+def now_utc() -> datetime:
+    """Return the current datetime value in UTC."""
+    return datetime.now(timezone.utc)
+
+
+@cached(TLRUCache(ttu=creds_expiration_utc, timer=now_utc))
 def get_edc_credentials(endpoint_uri, user):
     """Get EDC credentials for a user from an endpoint.
 
-    Credentials are cached for the given endpoint and user until 5 minutes prior
-    to expiry to avoid unnecessary generation of new credentials and to minimize
-    load on the endpoint.
+    Credentials are cached for the given endpoint and user for half the time the
+    credentials are valid to avoid unnecessary generation of new credentials and
+    to minimize load on the endpoint, while also ensuring reasonable "freshness".
     """
     urs_token = db.session.query(Member_db).filter_by(id=user.id).first().urs_token
 
