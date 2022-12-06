@@ -18,3 +18,4 @@ Werkzeug==2.0.1
 marshmallow-sqlalchemy
 mapproxy~=1.12
 pycryptodome
+pythena
