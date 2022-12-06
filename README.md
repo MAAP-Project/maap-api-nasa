@@ -19,7 +19,7 @@ To run the MAAP API locally using PyCharm, create a Python Configuration with th
 
 ## II. Local development using python virtualenv
 
-**Pre-requisites:**
+**Prerequisites:**
 
 * postgresql
   * Linux: `sudo apt-get install postgresql python-psycopy2 libpq-dev`
@@ -27,9 +27,8 @@ To run the MAAP API locally using PyCharm, create a Python Configuration with th
 * pip, python3.7 and virtualenv
 
 ```bash
-python3 -m venv maap-api-nasa # or whatever environment name you choose
+python3 -m venv venv
 source maap-api-nasa/bin/activate
-# Note: For installing on Mac OSx you may need to replace "psycopg2" with "psycopg2-binary"
 pip3 install -r requirements.txt
 ```
 
@@ -210,4 +209,3 @@ The MAAP API is written in [Flask](http://flask.pocoo.org/), and commonly deploy
     `service apache2 restart`
 
     ..
-

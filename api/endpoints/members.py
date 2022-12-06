@@ -1,4 +1,5 @@
 import logging
+from cachetools import TLRUCache, cached
 from flask_restx import Resource, reqparse
 from flask import request, jsonify, Response
 from api.restplus import api
@@ -11,7 +12,7 @@ from api.utils.email_util import send_user_status_update_active_user_email, \
     send_user_status_update_suspended_user_email, send_user_status_change_email, \
     send_welcome_to_maap_active_user_email, send_welcome_to_maap_suspended_user_email
 from api.models.pre_approved import PreApproved, PreApprovedSchema
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import json
 import boto3
 import requests
@@ -447,36 +448,83 @@ class AwsAccessEdcCredentials(Resource):
     """
     @login_required
     def get(self, endpoint_uri):
-
-        s = requests.Session()
         maap_user = get_authorized_user()
 
-        if maap_user is None:
+        if not maap_user:
             return Response('Unauthorized', status=401)
-        else:
-            urs_token = db.session.query(Member_db).filter_by(id=maap_user.id).first().urs_token
-            s.headers.update({'Authorization': f'Bearer {urs_token},Basic {settings.MAAP_EDL_CREDS}',
-                              'Connection': 'close'})
 
-            endpoint = parse.unquote(endpoint_uri)
-            login_resp = s.get(
-                endpoint, allow_redirects=False
-            )
-            login_resp.raise_for_status()
+        creds = get_edc_credentials(endpoint_uri, maap_user)
 
-            edl_response = s.get(url=login_resp.headers['location'])
-            json_response = json.loads(edl_response.content)
+        response = jsonify(
+            accessKeyId=creds['accessKeyId'],
+            secretAccessKey=creds['secretAccessKey'],
+            sessionToken=creds['sessionToken'],
+            expiration=creds['expiration']
+        )
 
-            response = jsonify(
-                accessKeyId=json_response['accessKeyId'],
-                secretAccessKey=json_response['secretAccessKey'],
-                sessionToken=json_response['sessionToken'],
-                expiration=json_response['expiration']
-            )
+        response.headers.add('Access-Control-Allow-Origin', '*')
 
-            response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
 
-            return response
+
+def creds_expiration_utc(_key, creds, now_utc: datetime) -> datetime:
+    """Return the UTC time that is halfway between now and the expiration time
+    of a credentials object.
+
+    Assume ``creds`` is an object containing the key ``'expiration'`` associated
+    to a ``str`` value representing the expiration date/time of the credentials
+    in the format ``'%Y-%m-%d %H:%M:%S%z'``.
+
+    If there is no such key, or the associated value cannot be successfully
+    parsed into a ``datetime`` value using the format above, return ``now_utc``.
+    Otherwise, return a datetime value halfway between ``now_utc`` and the
+    parsed expiration value (converted to UTC).
+
+    Note that if the parsed value is prior to ``now_utc``, the returned value
+    will also be prior to ``now_utc``, halfway between both values.
+    """
+
+    try:
+        expiration = creds['expiration']
+        expiration_dt = datetime.strptime(expiration, "%Y-%m-%d %H:%M:%S%z")
+        expiration_dt_utc = expiration_dt.astimezone(timezone.utc)
+    except (KeyError, ValueError):
+        expiration_dt_utc = now_utc
+
+    # Expire creds in half the actual expiration time
+    return expiration_dt_utc - (expiration_dt_utc - now_utc) / 2
+
+
+def now_utc() -> datetime:
+    """Return the current datetime value in UTC."""
+    return datetime.now(timezone.utc)
+
+
+@cached(TLRUCache(ttu=creds_expiration_utc, timer=now_utc))
+def get_edc_credentials(endpoint_uri, user):
+    """Get EDC credentials for a user from an endpoint.
+
+    Credentials are cached for the given endpoint and user for half the time the
+    credentials are valid to avoid unnecessary generation of new credentials and
+    to minimize load on the endpoint, while also ensuring reasonable "freshness".
+    """
+    urs_token = db.session.query(Member_db).filter_by(id=user.id).first().urs_token
+
+    with requests.Session() as s:
+        s.headers.update(
+            {
+                'Authorization': f'Bearer {urs_token},Basic {settings.MAAP_EDL_CREDS}',
+                'Connection': 'close'
+            }
+        )
+
+        endpoint = parse.unquote(endpoint_uri)
+        login_resp = s.get(endpoint, allow_redirects=False)
+        login_resp.raise_for_status()
+
+        edl_response = s.get(url=login_resp.headers['location'])
+
+        return json.loads(edl_response.content)
 
 
 @ns.route('/pre-approved')
@@ -556,8 +604,3 @@ class PreApprovedEmails(Resource):
         db.session.commit()
 
         return {"code": 200, "message": "Successfully deleted {}.".format(email)}
-
-
-
-
-
