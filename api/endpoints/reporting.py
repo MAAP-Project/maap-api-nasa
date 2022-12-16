@@ -8,6 +8,7 @@ from api.maap_database import db
 from api.utils import github_util
 from api.models.member import Member as Member_db, MemberSchema
 from datetime import datetime
+from datetime import timedelta
 import json
 import boto3
 import requests
@@ -29,19 +30,81 @@ def err_response(msg, code=400):
 
 @ns.route('/ade-usage')
 class AdeUsage(Resource):
+    parser = api.parser()
+    parser.add_argument('start', required=False, type=str,
+                        help="Report start date")
+    parser.add_argument('end', required=False, type=str,
+                        help="Report end date")
 
     @login_required
     def get(self):
-        athena_client = pythena.Athena("mydatabase")
 
-        # Returns results as a pandas dataframe
-        df = athena_client.execute("select * from mytable")
+        start = request.form.get('start', request.args.get('start', datetime.now() + timedelta(days=-8)))
+        end = request.form.get('end', request.args.get('end', datetime.now() + timedelta(days=1)))
 
-        print(df.sample(n=2))  # Prints 2 rows from your dataframe
+        if not isinstance(start, str):
+            start = start.strftime('%Y-%m-%d')
 
-        member_schema = MemberSchema()
-        result = [json.loads(member_schema.dumps(m)) for m in members]
-        return result
+        if not isinstance(end, str):
+            end = end.strftime('%Y-%m-%d')
+
+        athena_client = pythena.Athena("maap_logging")
+
+        usage = athena_client.execute(f"""
+            select 
+                date_format(u.logged, '%Y-%m-%d') as log_dt, 
+                COUNT(DISTINCT workspace) as workspace_cont, 
+                COUNT(DISTINCT err.logged) as error_cont, 
+                count(*) as log_ct
+            from ade_usage u left join ade_errors err 
+                on date_format(u.logged, '%Y-%m-%d') = date_format(err.logged, '%Y-%m-%d')
+            where u.logged between timestamp '{start}' and timestamp '{end}'
+            group by date_format(u.logged, '%Y-%m-%d')
+            order by date_format(u.logged, '%Y-%m-%d')""")[0]
+
+        tuples = list(usage.itertuples(index=False, name=None))
+        report = [{"date": d, "workspaces": w, "errors": e} for d, w, e, c in tuples]
+        return report
+
+
+@ns.route('/ade-metrics')
+class AdeUsage(Resource):
+    parser = api.parser()
+    parser.add_argument('start', required=False, type=str,
+                        help="Report start date")
+    parser.add_argument('end', required=False, type=str,
+                        help="Report end date")
+
+    @login_required
+    def get(self):
+
+        start = request.form.get('start', request.args.get('start', datetime.now() + timedelta(hours=-8)))
+        end = request.form.get('end', request.args.get('end', datetime.now() + timedelta(hours=1)))
+
+        if not isinstance(start, str):
+            start = start.strftime('%Y-%m-%d %H:%M:%S')
+
+        if not isinstance(end, str):
+            end = end.strftime('%Y-%m-%d %H:%M:%S')
+
+        athena_client = pythena.Athena("maap_logging")
+
+        usage = athena_client.execute(f"""
+            select 
+                date_format(u.logged, '%Y-%m-%d-%h') as log_dt,
+                AVG(cpu) as cpu, 
+                AVG(memory) as memory, 
+                COUNT(DISTINCT err.logged) as error_cont, 
+                count(*) as log_ct
+            from ade_usage u left join ade_errors err 
+                on date_format(u.logged, '%Y-%m-%d-%h') = date_format(err.logged, '%Y-%m-%d-%h')
+            where u.logged between timestamp '{start}' and timestamp '{end}'
+            group by date_format(u.logged, '%Y-%m-%d-%h')
+            order by date_format(u.logged, '%Y-%m-%d-%h')""")[0]
+
+        tuples = list(usage.itertuples(index=False, name=None))
+        report = [{"date": d, "cpu": w, "memory": e, "errors": c} for d, w, e, c, h in tuples]
+        return report
 
 
 
