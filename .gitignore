@@ -9,3 +9,4 @@ __pycache__
 .cache
 maap.wmts.xml
 *.DS_Store
+/docker/data
