@@ -72,7 +72,7 @@ AWS_SHARED_WORKSPACE_BUCKET_PATH = 'shared'
 AWS_REQUESTER_PAYS_BUCKET_ARN = 'arn:aws:iam::???:role/???'
 
 # DB
-DATABASE_URL = 'postgresql://localhost/maap_dev'
+DATABASE_URL = 'postgresql://maapuser:mysecretpassword@db/maap'
 
 # SMTP
 SMTP_HOSTNAME = 'my_smtp_hostname'
