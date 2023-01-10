@@ -500,7 +500,7 @@ def now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
-@cached(TLRUCache(ttu=creds_expiration_utc, timer=now_utc))
+@cached(TLRUCache(ttu=creds_expiration_utc, timer=now_utc, maxsize=None))
 def get_edc_credentials(endpoint_uri, user):
     """Get EDC credentials for a user from an endpoint.
 
