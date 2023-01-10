@@ -3,19 +3,12 @@ The joint ESA-NASA Multi-Mission Algorithm and Analysis Platform (MAAP) focuses 
 
 Development server: https://api.dit.maap-project.org/api
 
-## I. Getting Started
+## I. Local development using docker
 
-To run the MAAP API locally using PyCharm, create a Python Configuration with the following settings:
-
-- Script path: `./api/maapapp.py`
-- Environment variables: `PYTHONUNBUFFERED=1`
-- Python interpreter: `Python 3.7`
-- Working directory: `./api`
-
-### Comments:
-
-- Working directory is maap-api-nasa
-- export PYTHONUNBUFFERED=1
+```bash
+cd docker
+docker-compose up
+```
 
 ## II. Local development using python virtualenv
 
@@ -52,6 +45,13 @@ psql # or $ sudo -u postgres psql
 (in postgres shell): create database maap_dev;
 (in postgres shell): \q
 ```
+
+3. OPTIONAL: PyCharm configuration, if using the PyCharm IDE:
+
+- Script path: `./api/maapapp.py`
+- Environment variables: `PYTHONUNBUFFERED=1`
+- Python interpreter: `Python 3.7`
+- Working directory: `./api`
 
 #### Config Titiler endpoint and maap-api-host
 
