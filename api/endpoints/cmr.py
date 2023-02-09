@@ -149,7 +149,7 @@ class CmrGranuleData(Resource):
 
         return Response(
             response=stream_with_context(response.iter_content(chunk_size=1024 * 10)),
-            content_type=response.headers["Content-Type"],
+            content_type=(response.headers['Content-Type'] if 'Content-Type' in response.headers else None),
             direct_passthrough=True)
 
 
