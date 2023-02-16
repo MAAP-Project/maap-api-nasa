@@ -1,6 +1,5 @@
 from api.models import Base
 from api.maap_database import db
-from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 
 
 class Member(Base):
@@ -27,12 +26,5 @@ class Member(Base):
 
     def __repr__(self):
         return "<Member(username={self.username!r})>".format(self=self)
-
-
-class MemberSchema(SQLAlchemyAutoSchema):
-    class Meta:
-        model = Member
-        include_relationships = True
-        load_instance = True
 
 

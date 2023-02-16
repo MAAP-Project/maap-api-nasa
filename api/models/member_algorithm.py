@@ -1,7 +1,5 @@
 from api.models import Base
 from api.maap_database import db
-# from datetime import datetime
-from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 
 
 class MemberAlgorithm(Base):
@@ -16,10 +14,3 @@ class MemberAlgorithm(Base):
 
     def __repr__(self):
         return "<MemberAlgorithm(algorithm_key={self.algorithm_key!r})>".format(self=self)
-
-
-class MemberAlgorithmSchema(SQLAlchemyAutoSchema):
-    class Meta:
-        model = MemberAlgorithm
-        include_fk = True
-        load_instance = True

@@ -1,7 +1,5 @@
 from api.models import Base
 from api.maap_database import db
-# from datetime import datetime
-from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 
 
 class MemberSession(Base):
@@ -15,11 +13,4 @@ class MemberSession(Base):
 
     def __repr__(self):
         return "<MemberSession(session_key={self.session_key!r})>".format(self=self)
-
-
-class MemberSessionSchema(SQLAlchemyAutoSchema):
-    class Meta:
-        model = MemberSession
-        include_fk = True
-        load_instance = True
 

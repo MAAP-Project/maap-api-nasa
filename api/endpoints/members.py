@@ -7,11 +7,13 @@ import api.settings as settings
 from api.cas.cas_auth import get_authorized_user, login_required, dps_authorized, get_dps_user
 from api.maap_database import db
 from api.utils import github_util
-from api.models.member import Member as Member_db, MemberSchema
+from api.models.member import Member as Member_db
+from api.schemas.member_schema import MemberSchema
 from api.utils.email_util import send_user_status_update_active_user_email, \
     send_user_status_update_suspended_user_email, send_user_status_change_email, \
     send_welcome_to_maap_active_user_email, send_welcome_to_maap_suspended_user_email
-from api.models.pre_approved import PreApproved, PreApprovedSchema
+from api.models.pre_approved import PreApproved
+from api.schemas.pre_approved_schema import PreApprovedSchema
 from datetime import datetime, timedelta, timezone
 import json
 import boto3
