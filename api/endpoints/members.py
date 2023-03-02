@@ -19,6 +19,7 @@ import json
 import boto3
 import requests
 from urllib import parse
+from api.utils.url_util import proxied_url
 
 
 log = logging.getLogger(__name__)
@@ -149,11 +150,11 @@ class Member(Resource):
 
         # Send Email Notifications based on member status
         if status == STATUS_ACTIVE:
-            send_user_status_change_email(guest, True, True, request.base_url)
-            send_welcome_to_maap_active_user_email(guest, request.base_url)
+            send_user_status_change_email(guest, True, True, proxied_url(request))
+            send_welcome_to_maap_active_user_email(guest, proxied_url(request))
         else:
-            send_user_status_change_email(guest, True, False, request.base_url)
-            send_welcome_to_maap_suspended_user_email(guest, request.base_url)
+            send_user_status_change_email(guest, True, False, proxied_url(request))
+            send_welcome_to_maap_suspended_user_email(guest, proxied_url(request))
 
         member_schema = MemberSchema()
         return json.loads(member_schema.dumps(guest))
@@ -276,13 +277,13 @@ class MemberStatus(Resource):
 
         # Send "Account Activated" email notification to Member & Admins
         if activated:
-            send_user_status_update_active_user_email(member, request.base_url)
-            send_user_status_change_email(member, False, True, request.base_url)
+            send_user_status_update_active_user_email(member, proxied_url(request))
+            send_user_status_change_email(member, False, True, proxied_url(request))
 
         # Send "Account Deactivated" email notification to Member & Admins
         if deactivated:
-            send_user_status_update_suspended_user_email(member, request.base_url)
-            send_user_status_change_email(member, False, False, request.base_url)
+            send_user_status_update_suspended_user_email(member, proxied_url(request))
+            send_user_status_change_email(member, False, False, proxied_url(request))
 
         member_schema = MemberSchema()
         return json.loads(member_schema.dumps(member))

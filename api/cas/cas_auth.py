@@ -18,6 +18,7 @@ from Crypto.Cipher import PKCS1_v1_5
 from Crypto import Random
 from Crypto.Hash import SHA
 from base64 import b64decode
+from api.utils.url_util import proxied_url
 import ast
 
 
@@ -51,7 +52,7 @@ def validate_proxy(ticket):
     else:
         cas_validate_proxy_url = create_cas_proxy_url(
             current_app.config['CAS_SERVER'],
-            request.base_url,
+            proxied_url(request),
             decrypted_ticket
         )
 
@@ -65,7 +66,7 @@ def validate_proxy(ticket):
 
             proxy_validate_url = create_cas_proxy_validate_url(
                 current_app.config['CAS_SERVER'],
-                request.base_url,
+                proxied_url(request),
                 proxy_ticket
             )
 
