@@ -239,7 +239,7 @@ def send_welcome_to_maap_user_email(member: Member, is_active, base_url):
 
 def get_environment_info(base_url):
 
-    env = Environments.DIT
+    env = Environments.OPS
 
     if "0.0.0.0" in base_url or "127.0.0.1" in base_url or "LOCALHOST" in base_url.upper():
         env = Environments.DIT
