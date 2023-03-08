@@ -403,6 +403,7 @@ class Build(Resource):
 @ns.route('/publish')
 class Publish(Resource):
 
+    @api.doc(security='ApiKeyAuth')
     @login_required
     def post(self):
         """

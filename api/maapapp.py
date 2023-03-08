@@ -3,8 +3,11 @@
 import logging.config
 
 import os
-from flask import Flask, Blueprint
+from flask import Flask, Blueprint, request, session
 from api import settings
+from api.cas.cas_auth import validate
+from api.utils.environments import Environments, get_environment
+from api.utils.url_util import proxied_url
 from api.endpoints.cmr import ns as cmr_collections_namespace
 from api.endpoints.algorithm import ns as algorithm_namespace
 from api.endpoints.job import ns as job_namespace
@@ -30,9 +33,9 @@ api.init_app(blueprint)
 api.add_namespace(cmr_collections_namespace)
 app.register_blueprint(blueprint)
 
-
 app.config['CAS_SERVER'] = settings.CAS_SERVER_NAME
 app.config['CAS_AFTER_LOGIN'] = settings.CAS_AFTER_LOGIN
+app.config['CAS_USERNAME_SESSION_KEY'] = 'cas_token_session_key'
 app.config['SQLALCHEMY_DATABASE_URI'] = settings.DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -45,7 +48,31 @@ db.create_all()
 
 @app.route('/')
 def index():
-    return '<a href=/api/>MAAP API</a>'
+
+    html = '<a href="/api/">MAAP API</a>'
+    env = get_environment(proxied_url(request))
+
+    if env == Environments.DIT:
+        html += '<a href="{}/login?service={}" style="float: right"><b>Authorize</b></a>'\
+            .format(settings.CAS_SERVER_NAME, proxied_url(request, True))
+
+        cas_token_session_key = app.config['CAS_USERNAME_SESSION_KEY']
+
+        if 'ticket' in request.args:
+            session[cas_token_session_key] = request.args['ticket']
+
+        if cas_token_session_key in session:
+            member_session = validate(proxied_url(request, True), session[cas_token_session_key])
+            if member_session is None:
+                del session[cas_token_session_key]
+            else:
+                html += '<br><br><div style="float:right; text-align: right">'\
+                    'Username:<br>'\
+                    '<b>{}</b><br><br>'\
+                    'Proxy ticket:<br>'\
+                    '<b>{}</b></div>'.format(member_session.member.username, member_session.session_key)
+
+    return html
 
 
 def configure_app(flask_app):
@@ -59,6 +86,7 @@ def configure_app(flask_app):
     flask_app.config['TILER_ENDPOINT'] = settings.TILER_ENDPOINT
     flask_app.config['QS_STATE_MACHINE_ARN'] = settings.QS_STATE_MACHINE_ARN
     flask_app.config['QS_RESULT_BUCKET'] = settings.QS_RESULT_BUCKET
+    flask_app.config['SESSION_TYPE'] = 'filesystem'
 
 
 def initialize_app(flask_app):

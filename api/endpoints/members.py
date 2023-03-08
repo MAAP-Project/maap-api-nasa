@@ -4,7 +4,7 @@ from flask_restx import Resource, reqparse
 from flask import request, jsonify, Response
 from api.restplus import api
 import api.settings as settings
-from api.cas.cas_auth import get_authorized_user, login_required, dps_authorized, get_dps_user
+from api.cas.cas_auth import get_authorized_user, login_required
 from api.maap_database import db
 from api.utils import github_util
 from api.models.member import Member as Member_db
@@ -40,6 +40,7 @@ def err_response(msg, code=400):
 @ns.route('')
 class Member(Resource):
 
+    @api.doc(security='ApiKeyAuth')
     @login_required
     def get(self):
         members = db.session.query(
@@ -60,6 +61,7 @@ class Member(Resource):
 @ns.route('/<string:key>')
 class Member(Resource):
 
+    @api.doc(security='ApiKeyAuth')
     @login_required
     def get(self, key):
 
@@ -71,6 +73,7 @@ class Member(Resource):
         member_schema = MemberSchema()
         return json.loads(member_schema.dumps(member))
 
+    @api.doc(security='ApiKeyAuth')
     @login_required
     def post(self, key):
 
@@ -159,6 +162,7 @@ class Member(Resource):
         member_schema = MemberSchema()
         return json.loads(member_schema.dumps(guest))
 
+    @api.doc(security='ApiKeyAuth')
     @login_required
     def put(self, key):
 
@@ -222,6 +226,7 @@ class Member(Resource):
 @ns.route('/<string:key>/status')
 class MemberStatus(Resource):
 
+    @api.doc(security='ApiKeyAuth')
     @login_required
     def post(self, key):
 
@@ -292,6 +297,7 @@ class MemberStatus(Resource):
 @ns.route('/self')
 class Self(Resource):
 
+    @api.doc(security='ApiKeyAuth')
     @login_required
     def get(self):
         member = get_authorized_user()
@@ -306,6 +312,7 @@ class Self(Resource):
 @ns.route('/selfTest')
 class SelfTest(Resource):
 
+    @api.doc(security='ApiKeyAuth')
     @login_required
     def get(self):
         member = get_authorized_user()
@@ -317,6 +324,7 @@ class SelfTest(Resource):
 @ns.route('/self/sshKey')
 class PublicSshKeyUpload(Resource):
 
+    @api.doc(security='ApiKeyAuth')
     @login_required
     def post(self):
         if 'file' not in request.files:
@@ -339,6 +347,7 @@ class PublicSshKeyUpload(Resource):
         member_schema = MemberSchema()
         return json.loads(member_schema.dumps(member))
 
+    @api.doc(security='ApiKeyAuth')
     @login_required
     def delete(self):
         member = get_authorized_user()
@@ -361,6 +370,7 @@ class PresignedUrlS3(Resource):
     expiration_param.add_argument('exp', type=int, required=False, default=60 * 60 * 12)
     expiration_param.add_argument('ws', type=str, required=False, default="")
 
+    @api.doc(security='ApiKeyAuth')
     @login_required
     @api.expect(expiration_param)
     def get(self, bucket, key):
@@ -396,23 +406,13 @@ class PresignedUrlS3(Resource):
             return key
 
 
-@ns.route('/dps/userImpersonationToken')
-class DPS(Resource):
-
-    @dps_authorized
-    def get(self):
-        dps_user = get_dps_user()
-        response = jsonify(user_token=dps_user.urs_token, app_token=settings.MAAP_EDL_CREDS)
-
-        return response
-
-
 @ns.route('/self/awsAccess/requesterPaysBucket')
 class AwsAccessRequesterPaysBucket(Resource):
 
     expiration_param = reqparse.RequestParser()
     expiration_param.add_argument('exp', type=int, required=False, default=60 * 60 * 12)
 
+    @api.doc(security='ApiKeyAuth')
     @login_required
     @api.expect(expiration_param)
     def get(self):
@@ -449,6 +449,7 @@ class AwsAccessEdcCredentials(Resource):
         Example:
         https://api.maap-project.org/api/self/edcCredentials/https%3A%2F%2Fdata.lpdaac.earthdatacloud.nasa.gov%2Fs3credentials
     """
+    @api.doc(security='ApiKeyAuth')
     @login_required
     def get(self, endpoint_uri):
         maap_user = get_authorized_user()
@@ -533,6 +534,7 @@ def get_edc_credentials(endpoint_uri, user):
 @ns.route('/pre-approved')
 class PreApprovedEmails(Resource):
 
+    @api.doc(security='ApiKeyAuth')
     @login_required
     def get(self):
         pre_approved = db.session.query(
@@ -544,6 +546,7 @@ class PreApprovedEmails(Resource):
         result = [json.loads(pre_approved_schema.dumps(p)) for p in pre_approved]
         return result
 
+    @api.doc(security='ApiKeyAuth')
     @login_required
     def post(self):
 
@@ -591,6 +594,7 @@ class PreApprovedEmails(Resource):
 @ns.route('/pre-approved/<string:email>')
 class PreApprovedEmails(Resource):
 
+    @api.doc(security='ApiKeyAuth')
     @login_required
     def delete(self, email):
 
