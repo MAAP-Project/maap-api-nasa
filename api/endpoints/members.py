@@ -4,7 +4,7 @@ from flask_restx import Resource, reqparse
 from flask import request, jsonify, Response
 from api.restplus import api
 import api.settings as settings
-from api.cas.cas_auth import get_authorized_user, login_required, dps_authorized, get_dps_user
+from api.cas.cas_auth import get_authorized_user, login_required
 from api.maap_database import db
 from api.utils import github_util
 from api.models.member import Member as Member_db
@@ -404,17 +404,6 @@ class PresignedUrlS3(Resource):
             return key.replace(settings.WORKSPACE_MOUNT_SHARED, settings.AWS_SHARED_WORKSPACE_BUCKET_PATH)
         else:
             return key
-
-
-@ns.route('/dps/userImpersonationToken')
-class DPS(Resource):
-
-    @dps_authorized
-    def get(self):
-        dps_user = get_dps_user()
-        response = jsonify(user_token=dps_user.urs_token, app_token=settings.MAAP_EDL_CREDS)
-
-        return response
 
 
 @ns.route('/self/awsAccess/requesterPaysBucket')
