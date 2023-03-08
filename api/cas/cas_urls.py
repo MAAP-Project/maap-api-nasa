@@ -63,7 +63,7 @@ def create_cas_login_url(cas_url, cas_route, service, renew=None, gateway=None):
     ...     '/cas',
     ...     'http://localhost:5000',
     ... )
-    'https://auth.maap.govcas?service=http%3A%2F%2Flocalhost%3A5000'
+    'https://auth.maap.gov/cas?service=http%3A%2F%2Flocalhost%3A5000'
     """
     return create_url(
         cas_url,
@@ -71,6 +71,30 @@ def create_cas_login_url(cas_url, cas_route, service, renew=None, gateway=None):
         ('service', service),
         ('renew', renew),
         ('gateway', gateway),
+    )
+
+
+def create_cas_validate_url(cas_url, service, ticket, renew=None):
+    """ Create a CAS validate URL.
+    Keyword arguments:
+    cas_url -- The url to the CAS (ex. http://sso.pdx.edu)
+    service -- (ex.  http://localhost:5000/login)
+    ticket -- (ex. 'ST-58274-x839euFek492ou832Eena7ee-cas')
+    renew -- "true" or "false"
+    Example usage:
+    >>> create_cas_validate_url(
+    ...     'https://auth.maap.gov',
+    ...     'http://localhost:5000/login',
+    ...     'ST-58274-x839euFek492ou832Eena7ee-cas'
+    ... )
+    'https://auth.maap.gov/cas/validate?service=http%3A%2F%2Flocalhost%3A5000%2Flogin&ticket=ST-58274-x839euFek492ou832Eena7ee-cas'
+    """
+    return create_url(
+        cas_url,
+        '/cas/validate',
+        ('service', service),
+        ('ticket', ticket),
+        ('renew', renew),
     )
 
 

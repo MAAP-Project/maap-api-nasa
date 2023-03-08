@@ -5,8 +5,7 @@ import requests
 from flask import abort, request, json
 from xmltodict import parse
 from flask import current_app
-from .cas_urls import create_cas_proxy_url
-from .cas_urls import create_cas_proxy_validate_url
+from .cas_urls import create_cas_proxy_url, create_cas_validate_url, create_cas_proxy_validate_url
 from api.maap_database import db
 from api.models.member import Member
 from api.models.member_session import MemberSession
@@ -32,7 +31,42 @@ blueprint = flask.Blueprint('cas', __name__)
 PROXY_TICKET_PREFIX = "PGT-"
 
 
-def validate_proxy(ticket):
+def validate(service, ticket):
+    """
+    Will attempt to validate the ticket. If validation fails False
+    is returned. If validation is successful then True is returned
+    and the validated username is saved in the session under the
+    key `CAS_USERNAME_SESSION_KEY`.
+    """
+
+    current_app.logger.debug("validating token {}".format(ticket))
+
+    cas_validate_url = create_cas_validate_url(
+        current_app.config['CAS_SERVER'],
+        '/cas/p3/serviceValidate',
+        service,
+        ticket) + '&pgtUrl=' + current_app.config['CAS_SERVER']
+
+    current_app.logger.debug("Making GET request to {}".format(
+        cas_validate_url))
+
+    try:
+        xmldump = urlopen(cas_validate_url).read().strip().decode('utf8', 'ignore')
+        xml_from_dict = parse(xmldump)
+        isValid = True if "cas:authenticationSuccess" in xml_from_dict["cas:serviceResponse"] or \
+                           "cas:proxySuccess" in xml_from_dict["cas:serviceResponse"] else False
+
+        if isValid:
+            attributes = xml_from_dict["cas:serviceResponse"]["cas:authenticationSuccess"]["cas:attributes"]
+            return validate_proxy(get_cas_attribute_value(attributes, 'proxyGrantingTicket'), True)
+
+    except ValueError:
+        current_app.logger.error("CAS returned unexpected result")
+
+    return None
+
+
+def validate_proxy(ticket, auto_create_member=False):
     """
     Will attempt to validate the proxy ticket. If validation fails, then None
     is returned. If validation is successful, then a Member object is returned
@@ -73,7 +107,7 @@ def validate_proxy(ticket):
             cas_proxy_response = validate_cas_request(proxy_validate_url)
 
             if cas_proxy_response[0]:
-                return start_member_session(cas_proxy_response, decrypted_ticket)
+                return start_member_session(cas_proxy_response, decrypted_ticket, auto_create_member)
 
     current_app.logger.debug("invalid proxy granting ticket")
     return None
@@ -143,7 +177,7 @@ def validate_cas_request(cas_url):
     return is_valid, xml_from_dict
 
 
-def start_member_session(cas_response, ticket):
+def start_member_session(cas_response, ticket, auto_create_member=False):
 
     xml_from_dict = cas_response[1]["cas:serviceResponse"]["cas:authenticationSuccess"]
     attributes = xml_from_dict.get("cas:attributes", {})
@@ -151,7 +185,18 @@ def start_member_session(cas_response, ticket):
 
     member = db.session.query(Member).filter_by(username=usr).first()
     urs_access_token = get_cas_attribute_value(attributes, 'access_token')
-    member.urs_token = urs_access_token
+
+    if member is None and auto_create_member:
+        member = Member(first_name=get_cas_attribute_value(attributes, 'given_name'),
+                        last_name=get_cas_attribute_value(attributes, 'family_name'),
+                        username=usr,
+                        email=get_cas_attribute_value(attributes, 'email'),
+                        organization=get_cas_attribute_value(attributes, 'organization'),
+                        urs_token=urs_access_token)
+        db.session.add(member)
+    else:
+        member.urs_token = urs_access_token
+
     db.session.commit()
 
     member_session = MemberSession(member_id=member.id, session_key=ticket, creation_date=datetime.utcnow())
