@@ -5,7 +5,7 @@ import os
 
 from api import settings
 from api.models.member import Member
-from api.utils.environments import Environments
+from api.utils.environments import Environments, get_environment
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from enum import Enum
@@ -239,16 +239,7 @@ def send_welcome_to_maap_user_email(member: Member, is_active, base_url):
 
 def get_environment_info(base_url):
 
-    env = Environments.OPS
-
-    if "0.0.0.0" in base_url or "127.0.0.1" in base_url or "LOCALHOST" in base_url.upper():
-        env = Environments.DIT
-    elif Environments.DIT.value in base_url.upper():
-        env = Environments.DIT
-    elif Environments.UAT.value in base_url.upper():
-        env = Environments.UAT
-    elif Environments.OPS.value in base_url.upper():
-        env = Environments.OPS
+    env = get_environment(base_url)
 
     email_header = {
         EmailFormats.PLAIN.value: '',
