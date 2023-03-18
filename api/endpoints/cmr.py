@@ -8,7 +8,7 @@ import tempfile
 from flask import request, json, Response, stream_with_context
 from flask_restx import Resource
 from api.restplus import api
-from api.cas.cas_auth import get_authorized_user
+from api.cas.cas_auth import get_authorized_user, edl_federated_request
 from api.maap_database import db
 from api.models.member import Member
 from urllib import parse
@@ -129,28 +129,16 @@ class CmrGranuleData(Resource):
     """
 
     def get(self, file_uri):
-        s = requests.Session()
-        response = s.get(parse.unquote(file_uri), stream=True)
+        response = edl_federated_request(parse.unquote(file_uri), stream=True)
 
-        if response.status_code == 401:
-            maap_user = get_authorized_user()
-
-            if maap_user is None:
-                return Response(response.text, status=401)
-            else:
-                urs_token = db.session.query(Member).filter_by(id=maap_user.id).first().urs_token
-                s.headers.update({'Authorization': f'Bearer {urs_token},Basic {settings.MAAP_EDL_CREDS}',
-                                  'Connection': 'close'})
-
-                response = s.get(url=response.url, stream=True)
-
-                if response.status_code == 401:
-                    return Response(response.text, status=401)
-
-        return Response(
-            response=stream_with_context(response.iter_content(chunk_size=1024 * 10)),
-            content_type=response.headers.get('Content-Type'),
-            direct_passthrough=True)
+        if response.status_code == 200:
+            return Response(
+                response=stream_with_context(response.iter_content(chunk_size=1024 * 10)),
+                content_type=response.headers.get('Content-Type'),
+                direct_passthrough=True)
+        else:
+            # Propagate the error
+            return response
 
 
 def get_search_headers():

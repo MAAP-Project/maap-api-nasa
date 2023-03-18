@@ -4,7 +4,7 @@ from flask_restx import Resource, reqparse
 from flask import request, jsonify, Response
 from api.restplus import api
 import api.settings as settings
-from api.cas.cas_auth import get_authorized_user, login_required
+from api.cas.cas_auth import get_authorized_user, login_required, edl_federated_request
 from api.maap_database import db
 from api.utils import github_util
 from api.models.member import Member as Member_db
@@ -526,7 +526,10 @@ def get_edc_credentials(endpoint_uri, user):
         login_resp = s.get(endpoint, allow_redirects=False)
         login_resp.raise_for_status()
 
-        edl_response = s.get(url=login_resp.headers['location'])
+        if login_resp.status_code == 307:
+            edl_response = s.get(url=login_resp.headers['location'])
+        else:
+            edl_response = edl_federated_request(url=endpoint)
 
         return json.loads(edl_response.content)
 
