@@ -273,4 +273,6 @@ def edl_federated_request(url, stream_response=False):
             if response.status_code == 401:
                 return Response(response.text, status=401)
 
+            return response
+
 

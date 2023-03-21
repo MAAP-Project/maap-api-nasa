@@ -524,7 +524,6 @@ def get_edc_credentials(endpoint_uri, user):
 
         endpoint = parse.unquote(endpoint_uri)
         login_resp = s.get(endpoint, allow_redirects=False)
-        login_resp.raise_for_status()
 
         if login_resp.status_code == 307:
             edl_response = s.get(url=login_resp.headers['location'])
