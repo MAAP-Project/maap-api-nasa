@@ -1,6 +1,7 @@
 import logging
 from flask import request, Response
 from flask_restx import Resource
+from flask_api import status
 from api.restplus import api
 import api.utils.hysds_util as hysds
 import api.utils.ogc_translate as ogc
@@ -40,17 +41,6 @@ class Submit(Resource):
         logging.info("Dedup: {}".format(dedup))
         logging.info("Identifier: {}".format(identifier))
 
-        # validate the inputs provided by user against the registered spec for the job
-        # try:
-        #     hysdsio_type = job_type.replace("job-", "hysds-io-")
-        #     hysds_io = hysds.get_hysds_io(hysdsio_type)
-        #     logging.info("Found HySDS-IO: {}".format(hysds_io))
-        #     params = hysds.validate_job_submit(hysds_io, input_params)
-        # except Exception as ex:
-        #     return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",
-        #                                       ex_message="Failed to submit job of type {}. Exception Message: {}"
-        #                                       .format(job_type, ex)), status=500)
-
         try:
             dedup = "false" if dedup is None else dedup
             queue = hysds.get_recommended_queue(job_type=job_type) if queue is None or queue is "" else queue
@@ -72,7 +62,7 @@ class Submit(Resource):
             logging.info("Error submitting job: {}".format(ex))
             return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",
                             ex_message="Failed to submit job of type {}. Exception Message: {}"
-                            .format(job_type, ex)), status=500)                         
+                            .format(job_type, ex)), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def get(self):
         """
@@ -90,7 +80,7 @@ class Submit(Resource):
                                               ex_message="Failed to get server capabilities. {}. {}"
                                               .format(ex.message, tb)),
                             mimetype='text/xml',
-                            status=500)
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def _log_job_submission(self, job_id, params={}):
         _user_id = self._get_user_id(params)
@@ -136,7 +126,7 @@ class Describe(Resource):
             tb = traceback.format_exc()
             return Response(ogc.get_exception(type="FailedDescribeProcess", origin_process="DescribeProcess",
                                               ex_message="Failed to get parameters for algorithm. {} Traceback: {}"
-                                              .format(ex, tb)), status=500, mimetype='text/xml')
+                                              .format(ex, tb)), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='text/xml')
 
 
 @ns.route('/job/<string:job_id>')
@@ -173,7 +163,8 @@ class Result(Resource):
                                               ex_message="Failed to get job result of job with id: {}. " \
                                                          "{}. If you don't see expected results," \
                                                          " please contact administrator " \
-                                                         "of DPS".format(job_id, ex)), mimetype='text/xml', status=500)
+                                                         "of DPS".format(job_id, ex)), mimetype='text/xml',
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @ns.route('/job/<string:job_id>/status')
@@ -197,7 +188,8 @@ class Status(Resource):
                                               "Please check back a little later for " \
                                               "job execution status. If still not found," \
                                               " please contact administrator " \
-                                              "of DPS".format(job_id)), mimetype='text/xml', status=500)
+                                              "of DPS".format(job_id)), mimetype='text/xml',
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @ns.route('/job/<string:job_id>/metrics')
@@ -311,13 +303,14 @@ class Metrics(Resource):
                 async_io_stats.text = str(async_io_stats)
                 total_io_stats = SubElement(xml_response, "total_io_stats")
                 total_io_stats.text = str(total_io_stats)
-            return Response(tostring(xml_response), mimetype="text/xml", status=200)
+            return Response(tostring(xml_response), mimetype="text/xml", status=status.HTTP_200_OK)
         except Exception as ex:
             print("Metrics Exception: {}".format(ex))
             return Response(ogc.get_exception(type="FailedGetMetrics", origin_process="GetMetrics",
                                               ex_message="Failed to get job metrics. {}." \
                                               " Please contact administrator " \
-                                              "of DPS for clarification if needed".format(ex)), mimetype='text/xml', status=500)
+                                              "of DPS for clarification if needed".format(ex)), mimetype='text/xml',
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @ns.route('/job/<string:username>/list')
@@ -346,7 +339,7 @@ class Jobs(Resource):
                 # get job info per job
                 job_list = hysds.get_jobs_info(job_list)
             response_body = dict()
-            response_body["code"] = 200
+            response_body["code"] = status.HTTP_200_OK
             response_body["jobs"] = job_list
             response_body["message"] = "success"
             """
@@ -368,7 +361,8 @@ class Jobs(Resource):
             return Response(ogc.get_exception(type="FailedGetJobs", origin_process="GetJobs",
                                               ex_message="Failed to get jobs for user {}. " \
                                               " please contact administrator " \
-                                              "of DPS".format(username)), mimetype='text/xml', status=500)
+                                              "of DPS".format(username)), mimetype='text/xml',
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @ns.route('/job/revoke/<string:job_id>')
@@ -407,9 +401,9 @@ class StopJobs(Resource):
                                                   ex_message="Failed to dismiss job {}. Please try again or"
                                                              " contact DPS administrator".format(job_id)),
                                 mimetype='text/xml',
-                                status=500)
+                                status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception as ex:
             return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",
                                               ex_message="Failed to dismiss job {}. Please try again or "
                                                          "contact DPS administrator. {}".format(job_id, ex)),
-                            mimetype='text/xml', status=500)
+                            mimetype='text/xml', status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -2,6 +2,7 @@ import logging
 from cachetools import TLRUCache, cached
 from flask_restx import Resource, reqparse
 from flask import request, jsonify, Response
+from flask_api import status
 from api.restplus import api
 import api.settings as settings
 from api.cas.cas_auth import get_authorized_user, login_required, edl_federated_request
@@ -30,7 +31,7 @@ STATUS_ACTIVE = "active"
 STATUS_SUSPENDED = "suspended"
 
 
-def err_response(msg, code=400):
+def err_response(msg, code=status.HTTP_400_BAD_REQUEST):
     return {
         'code': code,
         'message': msg
@@ -68,7 +69,7 @@ class Member(Resource):
         member = db.session.query(Member_db).filter_by(username=key).first()
 
         if member is None:
-            return err_response(msg="No member found with key " + key, code=404)
+            return err_response(msg="No member found with key " + key, code=status.HTTP_404_NOT_FOUND)
 
         member_schema = MemberSchema()
         return json.loads(member_schema.dumps(member))
@@ -525,7 +526,7 @@ def get_edc_credentials(endpoint_uri, user):
         endpoint = parse.unquote(endpoint_uri)
         login_resp = s.get(endpoint, allow_redirects=False)
 
-        if login_resp.status_code == 307:
+        if login_resp.status_code == status.HTTP_307_TEMPORARY_REDIRECT:
             edl_response = s.get(url=login_resp.headers['location'])
         else:
             edl_response = edl_federated_request(url=endpoint)
@@ -612,4 +613,4 @@ class PreApprovedEmails(Resource):
         db.session.query(PreApproved).filter_by(email=email).delete()
         db.session.commit()
 
-        return {"code": 200, "message": "Successfully deleted {}.".format(email)}
+        return {"code": status.HTTP_200_OK, "message": "Successfully deleted {}.".format(email)}

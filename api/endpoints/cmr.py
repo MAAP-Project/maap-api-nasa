@@ -7,6 +7,7 @@ from zipfile import ZipFile
 import tempfile
 from flask import request, json, Response, stream_with_context
 from flask_restx import Resource
+from flask_api import status
 from api.restplus import api
 from api.cas.cas_auth import get_authorized_user, edl_federated_request
 from api.maap_database import db
@@ -131,7 +132,7 @@ class CmrGranuleData(Resource):
     def get(self, file_uri):
         response = edl_federated_request(parse.unquote(file_uri), stream=True)
 
-        if response.status_code == 200:
+        if response.status_code == status.HTTP_200_OK:
             return Response(
                 response=stream_with_context(response.iter_content(chunk_size=1024 * 10)),
                 content_type=response.headers.get('Content-Type'),
@@ -170,7 +171,7 @@ def req(query_string, search_type):
 
 
 def respond(response):
-    response_text = response.text if response.status_code == 200 else 'CMR Error %s' % response.text
+    response_text = response.text if response.status_code == status.HTTP_200_OK else 'CMR Error %s' % response.text
 
     if response.text == '':
         return {}

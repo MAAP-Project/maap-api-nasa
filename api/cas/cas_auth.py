@@ -3,6 +3,7 @@ from datetime import timedelta, datetime
 import flask
 import requests
 from flask import abort, request, Response, json
+from flask_api import status
 from xmltodict import parse
 from flask import current_app
 from .cas_urls import create_cas_proxy_url, create_cas_validate_url, create_cas_proxy_validate_url
@@ -124,7 +125,7 @@ def validate_bearer(token):
     resp = requests.get(current_app.config['CAS_SERVER'] + '/oauth2.0/profile',
                         headers={'Authorization': 'Bearer ' + token})
 
-    if resp.status_code == 200:
+    if resp.status_code == status.HTTP_200_OK:
         return json.loads(resp.text)
 
     current_app.logger.debug("invalid bearer token")
@@ -249,7 +250,7 @@ def login_required(wrapped_function):
             if authorized is not None:
                 return wrapped_function(*args, **kwargs)
 
-        abort(403, description="Not authorized.")
+        abort(status.HTTP_403_FORBIDDEN, description="Not authorized.")
 
     return wrap
 
@@ -258,11 +259,11 @@ def edl_federated_request(url, stream_response=False):
     s = requests.Session()
     response = s.get(url, stream=stream_response)
 
-    if response.status_code == 401:
+    if response.status_code == status.HTTP_401_UNAUTHORIZED:
         maap_user = get_authorized_user()
 
         if maap_user is None:
-            return Response(response.text, status=401)
+            return Response(response.text, status=status.HTTP_401_UNAUTHORIZED)
         else:
             urs_token = db.session.query(Member).filter_by(id=maap_user.id).first().urs_token
             s.headers.update({'Authorization': f'Bearer {urs_token},Basic {settings.MAAP_EDL_CREDS}',
@@ -270,8 +271,8 @@ def edl_federated_request(url, stream_response=False):
 
             response = s.get(url=response.url, stream=stream_response)
 
-            if response.status_code == 401:
-                return Response(response.text, status=401)
+            if response.status_code == status.HTTP_401_UNAUTHORIZED:
+                return Response(response.text, status=status.HTTP_401_UNAUTHORIZED)
 
             return response
 

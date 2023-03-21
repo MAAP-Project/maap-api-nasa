@@ -1,6 +1,7 @@
 import json
 import logging
 import uuid
+from flask_api import status
 
 import boto3
 from flask import jsonify, request, redirect
@@ -28,7 +29,7 @@ def get_signed_url(key: str, expiration: int = 60 * 60 * 24):
     )
 
 
-def err_response(msg, code=400):
+def err_response(msg, code=status.HTTP_400_BAD_REQUEST):
     return {
         'code': code,
         'message': msg
@@ -159,4 +160,4 @@ class QueryServiceResults(Resource):
         """
         Return redirect to query results
         """
-        return redirect(get_signed_url(query_id), code=302)
+        return redirect(get_signed_url(query_id), code=status.HTTP_302_FOUND)
