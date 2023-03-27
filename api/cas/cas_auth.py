@@ -262,18 +262,13 @@ def edl_federated_request(url, stream_response=False):
     if response.status_code == status.HTTP_401_UNAUTHORIZED:
         maap_user = get_authorized_user()
 
-        if maap_user is None:
-            return Response(response.text, status=status.HTTP_401_UNAUTHORIZED)
-        else:
+        if maap_user is not None:
             urs_token = db.session.query(Member).filter_by(id=maap_user.id).first().urs_token
             s.headers.update({'Authorization': f'Bearer {urs_token},Basic {settings.MAAP_EDL_CREDS}',
                               'Connection': 'close'})
 
             response = s.get(url=response.url, stream=stream_response)
 
-            if response.status_code == status.HTTP_401_UNAUTHORIZED:
-                return Response(response.text, status=status.HTTP_401_UNAUTHORIZED)
-
-            return response
+    return response
 
 
