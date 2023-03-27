@@ -1,6 +1,7 @@
 import logging
 from flask import request, Response
 from flask_restx import Resource, reqparse
+from flask_api import status
 from api.restplus import api
 import re
 import json
@@ -115,10 +116,10 @@ class Register(Resource):
         except Exception as ex:
             tb = traceback.format_exc()
             log.debug(ex.message)
-            response_body["code"] = 500
+            response_body["code"] = status.HTTP_500_INTERNAL_SERVER_ERROR
             response_body["message"] = "Error during git clone"
             response_body["error"] = "{} Traceback: {}".format(ex.message, tb)
-            return response_body, 500
+            return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
 
         try:
             invalid_attributes = ['timestamp']
@@ -147,7 +148,7 @@ class Register(Resource):
             log.debug("disk_space: {}".format(disk_space))
         except Exception as ex:
             tb = traceback.format_exc()
-            response_body["code"] = 500
+            response_body["code"] = status.HTTP_500_INTERNAL_SERVER_ERROR
             response_body["message"] = "Failed to parse parameters"
             try:
                 log.debug(ex.message)
@@ -155,12 +156,12 @@ class Register(Resource):
             except AttributeError:
                 log.debug(ex)
                 response_body["error"] = "{} Traceback: {}".format(ex, tb)
-            return response_body, 500
+            return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
 
         try:
             # validate if input queue is valid
             if resource not in hysds.get_mozart_queues():
-                response_body["code"] = 500
+                response_body["code"] = status.HTTP_500_INTERNAL_SERVER_ERROR
                 response_body["message"] = "The resource {} is invalid. Please select from one of {}".format(resource, hysds.get_mozart_queues())
                 response_body["error"] = "Invalid queue in request: {}".format(req_data)
             # clean up any old specs from the repo
@@ -194,10 +195,10 @@ class Register(Resource):
                                                   build_command=req_data.get("build_command"))
                 hysds.write_file("{}/{}".format(settings.REPO_PATH, settings.REPO_NAME), "config.txt", config)
             else:
-                response_body["code"] = 500
+                response_body["code"] = status.HTTP_500_INTERNAL_SERVER_ERROR
                 response_body["message"] = "Please include repo URL in the request"
                 response_body["error"] = "Missing key repo_url in request: {}".format(req_data)
-                return response_body, 500
+                return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
 
             # creating file whose contents are returned on ci build success
             if req_data.get("code_version") is not None:
@@ -209,10 +210,10 @@ class Register(Resource):
             log.debug("Created spec files")
         except Exception as ex:
             tb = traceback.format_exc()
-            response_body["code"] = 500
+            response_body["code"] = status.HTTP_500_INTERNAL_SERVER_ERROR
             response_body["message"] = "Failed to create spec files"
             response_body["error"] = "{} Traceback: {}".format(ex, tb)
-            return response_body, 500
+            return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
 
         try:
             commit_hash = git.update_git_repo(repo, repo_name=settings.REPO_NAME,
@@ -220,10 +221,10 @@ class Register(Resource):
             logging.info("Updated Git Repo with hash {}".format(commit_hash))
         except Exception as ex:
             tb = traceback.format_exc()
-            response_body["code"] = 500
+            response_body["code"] = status.HTTP_500_INTERNAL_SERVER_ERROR
             response_body["message"] = "Failed to register {}.".format(algorithm_name)
             response_body["error"] = "{} Traceback: {}".format(ex.message, tb)
-            return response_body, 500
+            return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
 
         try:
             # Check and return the pipeline info and status
@@ -233,34 +234,19 @@ class Register(Resource):
                                                           commit_hash=commit_hash)
         except Exception as ex:
             tb = traceback.format_exc()
-            response_body["code"] = 500
+            response_body["code"] = status.HTTP_500_INTERNAL_SERVER_ERROR
             response_body["message"] = "Failed to get registration build information."
             response_body["error"] = "{} Traceback: {}".format(ex, tb)
-            return response_body, 500
+            return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
 
-        # try:
-        #     # add algorithm registration record to maap db if authenticated
-        #     m = get_authorized_user()
-        #
-        #     if m is not None:
-        #         ade_hook = req_data.get("ade_webhook_url", None)
-        #         mar = MemberAlgorithmRegistration(member_id=m.id, algorithm_key=algorithm_id,
-        #                                           creation_date=datetime.utcnow(), commit_hash=commit_hash,
-        #                                           ade_webhook=ade_hook)
-        #         db.session.add(mar)
-        #         db.session.commit()
-        #
-        # except Exception as ex:
-        #     log.debug(ex)
-
-        response_body["code"] = 200
+        response_body["code"] = status.HTTP_200_OK
         response_body["message"] = gitlab_response
         """
         <?xml version="1.0" encoding="UTF-8"?>
         <AlgorithmName></AlgorithmName>
         """
 
-        return response_body, 200
+        return response_body, status.HTTP_200_OK
 
     @api.expect(algorithm_visibility_param)
     def get(self):
@@ -276,7 +262,7 @@ class Register(Resource):
             algo_list = list(map(lambda a: {'type': a.algorithm_key.split(":")[0],
                                             'version': a.algorithm_key.split(":")[1]}, member_algorithms))
 
-            response_body["code"] = 200
+            response_body["code"] = status.HTTP_200_OK
             response_body["algorithms"] = algo_list
             response_body["message"] = "success"
             """
@@ -293,7 +279,7 @@ class Register(Resource):
             msg = str(ex) if ex.message is None else ex.message
             return Response(ogc.get_exception(type="FailedSearch", origin_process="GetAlgorithms",
                             ex_message="Failed to get list of jobs. {}. {}".format(msg, tb)),
-                            status=500,
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             mimetype='text/xml')
 
     def _get_algorithms(self, visibility):
@@ -331,7 +317,7 @@ class Describe(Resource):
             return Response(
                 ogc.get_exception(type="FailedDescribeAlgo", origin_process="DescribeProcess",
                                   ex_message="Failed to get parameters for algorithm. {} Traceback: {}"
-                                  .format(ex, tb)), status=500, mimetype='text/xml')
+                                  .format(ex, tb)), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='text/xml')
 
     def delete(self, algo_id):
         """
@@ -342,7 +328,7 @@ class Describe(Resource):
         try:
             algo_id = "job-{}".format(algo_id)
             hysds.delete_mozart_job_type(algo_id)
-            response_body["code"] = 200
+            response_body["code"] = status.HTTP_200_OK
             response_body["message"] = "successfully deleted {}".format(algo_id)
             """
             <?xml version="1.0" encoding="UTF-8"?>
@@ -351,10 +337,10 @@ class Describe(Resource):
             return response_body
         except Exception as ex:
             tb = traceback.format_exc()
-            response_body["code"] = 500
+            response_body["code"] = status.HTTP_500_INTERNAL_SERVER_ERROR
             response_body["message"] = "Failed to process request to delete {}".format(algo_id)
             response_body["error"] = "{} Traceback: {}".format(ex, tb)
-            return response_body, 404
+            return response_body, status.HTTP_404_NOT_FOUND
 
 
 @ns.route('/algorithm/resource')
@@ -368,14 +354,14 @@ class ResourceList(Resource):
         try:
             response_body = {"code": None, "message": None}
             queues = hysds.get_mozart_queues()
-            response_body["code"] = 200
+            response_body["code"] = status.HTTP_200_OK
             response_body["queues"] = queues
             response_body["message"] = "success"
             return response_body
         except Exception as ex:
             return Response(ogc.get_exception(type="FailedResource", origin_process="GetAlgorithmsQueues",
                                               ex_message="Failed to get list of queues. {}.".format(ex)),
-                            status=500,
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                             mimetype='text/xml')
 
 
@@ -392,7 +378,7 @@ class Build(Resource):
 
         response_body = dict()
         response_body["message"] = "Successfully completed registration of job type {}".format(job_type)
-        response_body["code"] = 200
+        response_body["code"] = status.HTTP_200_OK
         response_body["success"] = True
 
         # add endpoint call to front end
@@ -422,7 +408,7 @@ class Publish(Resource):
 
         response_body = dict()
         response_body["message"] = "Successfully published algorithm {}".format(algo_id)
-        response_body["code"] = 200
+        response_body["code"] = status.HTTP_200_OK
         response_body["success"] = True
 
         return response_body
