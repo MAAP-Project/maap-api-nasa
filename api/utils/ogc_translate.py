@@ -72,6 +72,7 @@ def parse_execute_request(request_xml):
     params = dict()
     dedup = None
     queue = None
+    identifier = None
     job_type = root.find('ows:Identifier', ns).text
     for input in root.findall('wps:Input', ns):
         for data in input.findall('wps:Data', ns):
