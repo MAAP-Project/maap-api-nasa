@@ -106,6 +106,7 @@ def sync_gitlab_account(is_active, username, email, first_name, last_name):
         else:
             # Unblock user
             requests.post("{}/{}/unblock".format(api_url_users, gitlab_user["id"]), headers=auth_headers)
+            return gitlab_user
     else:
         if gitlab_user is not None:
             # Block user
