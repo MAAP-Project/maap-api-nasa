@@ -473,7 +473,7 @@ class Jobs(Resource):
             logging.info("Found Jobs: {}".format(job_list))
             #if settings.HYSDS_VERSION == "v4.0":
             # get job info per job
-            job_list = hysds.get_jobs_info(job_list)
+            job_list = hysds.get_jobs_info(x.get("id") for x in job_list)
             response_body = dict()
             response_body["code"] = status.HTTP_200_OK
             response_body["jobs"] = job_list

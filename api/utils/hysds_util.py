@@ -644,6 +644,7 @@ def get_jobs_info(job_list):
                 job[job_id] = {"message": "Failed to get job info"}
             jobs_info.append(job)
     except Exception as ex:
+        logging.exception(ex)
         raise ex
 
     return jobs_info
