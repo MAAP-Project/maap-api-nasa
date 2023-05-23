@@ -1,10 +1,10 @@
 from git import Repo
+import logging
 import os
 import shutil
-import logging
+import time
 from string import Template
 import copy
-import time
 import api.settings as settings
 import requests
 import uuid
@@ -25,9 +25,7 @@ def update_git_repo(repo, repo_name, algorithm_name):
     file_list = [
         '{}/{}/docker/hysds-io.json.{}'.format(settings.REPO_PATH, repo_name, algorithm_name),
         '{}/{}/docker/job-spec.json.{}'.format(settings.REPO_PATH, repo_name, algorithm_name),
-        '{}/{}/config.txt'.format(settings.REPO_PATH, repo_name),
-        '{}/{}/code_config.json'.format(settings.REPO_PATH, repo_name),
-        '{}/{}/job-submission.json'.format(settings.REPO_PATH, repo_name)
+        '{}/{}/config.txt'.format(settings.REPO_PATH, repo_name)
     ]
 
     try:
@@ -45,6 +43,7 @@ def update_git_repo(repo, repo_name, algorithm_name):
 
 def clean_up_git_repo(repo, repo_name):
     files_list = os.listdir(os.path.join(settings.REPO_PATH, repo_name, "docker"))
+    print(files_list)
     for file in files_list:
         if file != "Dockerfile":
             print("Removing file : {}".format(file))

@@ -5,9 +5,17 @@ import re
 import requests
 import api.settings as settings
 import time
+import copy
 
 log = logging.getLogger(__name__)
 
+def get_mozart_job_info(job_id):
+    params = dict()
+    params["id"] = job_id
+    session = requests.Session()
+    session.verify = False
+    mozart_response = session.get("{}/job/info".format(settings.MOZART_URL), params=params).json()
+    return mozart_response
 
 def get_es_query_by_job_id(job_id):
     """
@@ -79,12 +87,23 @@ def write_file(path, file_name, body):
     new_file.write(body)
     new_file.close()
 
+def set_hysds_io_type(data_type):
+    if data_type is not None:
+        if data_type in ["text", "number", " datetime", "date", "boolean", "enum", "email",
+                                      "textarea", "region", "passthrough", "object"]:
+            return data_type
+        else:
+            return "text"
+    else:
+        return "text"
 
-def create_hysds_io(algorithm_description, algorithm_params, submission_type="individual"):
+
+def create_hysds_io(algorithm_description, inputs, verified=False, submission_type="individual"):
     """
     Creates the contents of HySDS IO file
     :param algorithm_description:
-    :param algorithm_params:
+    :param inputs:
+    :param verified: indicated whether algorithm is EcoSML verified
     :param submission_type:
     :return:
     """
@@ -93,63 +112,81 @@ def create_hysds_io(algorithm_description, algorithm_params, submission_type="in
     hysds_io["submission_type"] = submission_type
     params = list()
 
-    for param in algorithm_params:
-        param_spec = dict()
-        param_spec["name"] = param.get("field")
-        param_spec["from"] = "submitter"
-        param_spec["type"] = "text"
-        if param.get("default") is not None:
-            param_spec["default"] = param.get("default")
-        params.append(param_spec)
+    for param_type in inputs:
+        for param in inputs.get(param_type):
+            param_spec = dict()
+            param_spec["name"] = param.get("name")
+            param_spec["from"] = "submitter"
+            """ Future code to support hardcoded values
+            param_spec["from"] = "value"
+            param_spec["value"] = param.get("value")
+            """
+            param_spec["type"] = set_hysds_io_type(param.get("data_type"))
+            if param.get("default") is not None:
+                param_spec["default"] = param.get("default")
+            params.append(param_spec)
+
+    if verified:
+        verified_param = dict()
+        verified_param["name"] = "publish_to_cmr"
+        verified_param["from"] = "submitter"
+        verified_param["type"] = "boolean"
+        verified_param["default"] = "false"
+        cmr_met_param = dict()
+        cmr_met_param["name"] = "cmr_collection_id"
+        cmr_met_param["from"] = "submitter"
+        cmr_met_param["type"] = "text"
+        cmr_met_param["default"] = ""
+        params.append(verified_param)
+        params.append(cmr_met_param)
 
     hysds_io["params"] = params
     return hysds_io
 
-
-def create_job_spec(script_command, algorithm_params, disk_usage, queue_name=settings.DEFAULT_QUEUE):
+def create_job_spec(run_command, inputs, disk_usage, queue_name=settings.DEFAULT_QUEUE, verified=False):
     """
     Creates the contents of the job spec file
-    :param script_command:
-    :param algorithm_params:
+    :param run_command:
+    :param inputs:
     :param disk_usage: minimum free disk usage required to run job specified as
     "\d+(GB|MB|KB)", e.g. "100GB", "20MB", "10KB"
     :param queue_name: set the recommended queue to run the algorithm on
+    :param verified: indicated whether algorithm is EcoSML verified
     :return:
     """
     job_spec = dict()
-    job_spec["command"] = "/app/dps_wrapper.sh '{}'".format(script_command)
+    job_spec["command"] = "/app/dps_wrapper.sh '{}'".format(run_command)
     job_spec["disk_usage"] = disk_usage
     job_spec["imported_worker_files"] = {
         "$HOME/.netrc": "/home/ops/.netrc",
         "$HOME/.aws": "/home/ops/.aws",
         "/tmp": ["/tmp", "rw"]
     }
+    job_spec["post"] = ["hysds.utils.triage"]
     job_spec["recommended-queues"] = [queue_name]
     params = list()
-    for param in algorithm_params:
-        destination = "positional"
-        if param.get("download", False):
+    for param_type in inputs:
+        if param_type == "file":
             destination = "localize"
-        for key in param:
-            if key != "download":
-                param_spec = dict()
-                param_spec["name"] = param[key]
-                param_spec["destination"] = destination
-                params.append(param_spec)
-        # TODO: Add support for 3 types of inputs: file, positional and config.
-        # Uncomment below when ready to introduce to MAAP
-        """
-        if param.get("type") == "file":
-            destination = "localize"
-        elif param.get("type") == "positional":
+        elif param_type == "positional":
             destination = "positional"
-        elif param.get("type") == "config":
+        elif param_type == "config":
             destination = "context"
-        param_spec = dict()
-        param_spec["name"] = param.get("field")
-        param_spec["destination"] = destination
-        params.append(param_spec)
-        """
+        for param in inputs.get(param_type):
+            param_spec = dict()
+            param_spec["name"] = param.get("name")
+            param_spec["destination"] = destination
+            params.append(param_spec)
+
+    if verified:
+        verified_param = dict()
+        verified_param["name"] = "publish_to_cmr"
+        verified_param["destination"] = "context"
+        cmr_met_param = dict()
+        cmr_met_param["name"] = "cmr_collection_id"
+        cmr_met_param["destination"] = "context"
+        params.append(verified_param)
+        params.append(cmr_met_param)
     job_spec["params"] = params
     return job_spec
 
@@ -180,7 +217,8 @@ def write_dockerfile(repo_name, dockerfile_content):
     write_file(path, "Dockerfile", dockerfile_content)
 
 
-def create_config_file(repo_name, repo_url_w_token, repo_branch, docker_container_url=settings.CONTAINER_URL,
+def create_config_file(repo_name, repo_url_w_token, repo_branch, verified=False,
+                       docker_container_url=settings.CONTAINER_URL,
                        build_command=None):
     """
     Creates the contents of config.txt file
@@ -199,6 +237,7 @@ def create_config_file(repo_name, repo_url_w_token, repo_branch, docker_containe
     :param repo_name:
     :param repo_url_w_token:
     :param repo_branch:
+    :param verified: Indicated if algorithm is EcoSML verified
     :param docker_container_url:
     :param build_command:
     :return: config.txt content
@@ -211,7 +250,7 @@ def create_config_file(repo_name, repo_url_w_token, repo_branch, docker_containe
     config_content += "GRQ_REST_URL={}\n".format(settings.GRQ_REST_URL)
     config_content += "MAAP_API_URL={}\n".format(settings.MAAP_API_URL)
     config_content += "MOZART_URL={}\n".format(settings.MOZART_V1_URL)
-    config_content += "S3_CODE_BUCKET={}".format(settings.S3_CODE_BUCKET)
+    config_content += "S3_CODE_BUCKET={}\n".format(settings.S3_CODE_BUCKET)
 
     if build_command:
         config_content += "\nBUILD_CMD={}".format(build_command)
@@ -319,6 +358,7 @@ def mozart_submit_job(job_type, params={}, queue=settings.DEFAULT_QUEUE, dedup="
     :param params:
     :param queue:
     :param dedup:
+    :param identifier:
     :return:
     """
 
@@ -356,10 +396,36 @@ def mozart_submit_job(job_type, params={}, queue=settings.DEFAULT_QUEUE, dedup="
     try:
         mozart_response = session.post("{}/job/submit".format(settings.MOZART_URL),
                                        params=job_payload, headers=headers,
-                                       verify=False)
+                                       verify=False).json()
     except Exception as ex:
         raise ex
-    return mozart_response.json()
+
+    job_id = mozart_response.get("result")
+
+    try:
+        # Adding check to see if job was deduped
+        time.sleep(5)
+        status = mozart_job_status(job_id).get("status")
+        if status == "job-deduped":
+            try:
+                logging.info("Submitted job was deduped. Looking for original job.")
+                logging.info(f"Deduped job mozart response: {json.dumps(mozart_response)}")
+                job_info_response = get_mozart_job_info(job_id)
+                orig_job_id = job_info_response.get("result").get("dedup_job")
+                logging.info(f"Found original job id: {orig_job_id}")
+                updated_mozart_response = copy.deepcopy(mozart_response)
+                updated_mozart_response.update({"result": orig_job_id})
+                orig_job_status = mozart_job_status(orig_job_id).get("status")
+                # overwriting deduped job's mozart response with original job id.
+                updated_mozart_response.update({"orig_job_status": orig_job_status})
+                mozart_response = updated_mozart_response
+                logging.info(f"Updated job mozart response with original job: {json.dumps(mozart_response)}")
+            except Exception as ex:
+                raise ex
+    except Exception:
+        # Tried to query mozart too soon after job submission. Just return the job submission response from mozart
+        return mozart_response
+    return mozart_response
 
 
 def get_username_from_job_submission(params={}):
@@ -437,8 +503,9 @@ def get_hysds_io(hysdsio_type):
     session.verify = False
 
     try:
-        grq_response = session.get("{}/hysds_io/type?id={}".format(settings.GRQ_REST_URL, hysdsio_type), headers=headers,
+        grq_response = session.get("{}/hysds_io/type?id={}".format(settings.GRQ_URL, hysdsio_type), headers=headers,
                                    verify=False)
+        logging.debug(grq_response)
     except Exception as ex:
         raise ex
 
@@ -493,16 +560,11 @@ def validate_job_submit(hysds_io, user_params):
     return validated_params
 
 
-def get_mozart_job_info(job_id):
-    params = dict()
-    params["id"] = job_id
-    session = requests.Session()
-    session.verify = False
-
+def get_mozart_job(job_id):
     job_status = mozart_job_status(job_id).get("status")
     if job_status == "job-completed" or job_status == "job-failed":
         try:
-            mozart_response = session.get("{}/job/info".format(settings.MOZART_URL), params=params).json()
+            mozart_response = get_mozart_job_info(job_id)
             result = mozart_response.get("result")
             return result
         except Exception as ex:
@@ -522,9 +584,6 @@ def get_mozart_queues():
             try:
                 queues_list = mozart_response.get("result").get("queues")
                 result = [queue for queue in queues_list if queue.startswith(settings.PROJECT_QUEUE_PREFIX)]
-                
-                if not result:
-                    result = [settings.DEFAULT_QUEUE]
                 return result
             except Exception as ex:
                 raise ex
@@ -542,10 +601,7 @@ def get_mozart_jobs(username, page_size=10, offset=0):
         """
     params = dict()
     params["page_size"] = page_size
-    params["id"] = offset  # this is specifies the offset
-    params["username"] = username
-    params["detailed"] = True
-    params["paginate"] = True
+    params["offset"] = offset  # this is specifies the offset
 
     session = requests.Session()
     session.verify = False
@@ -554,11 +610,14 @@ def get_mozart_jobs(username, page_size=10, offset=0):
         param_list = ""
         for key, value in params.items():
             param_list += "&{}={}".format(key, value)
+
         if settings.HYSDS_VERSION == "v3.0":
+            if username is not None:
+                param_list += f"&username={username}"
             url = "{}/job/list?{}".format(settings.MOZART_URL, param_list[1:])
         elif settings.HYSDS_VERSION == "v4.0":
             url = "{}/job/user/{}?{}".format(settings.MOZART_URL, username, param_list[1:])
-        print("GET request to: {}".format(url))
+        logging.info("GET request to find jobs: {}".format(url))
         mozart_response = session.get(url)
 
     except Exception as ex:
@@ -573,24 +632,19 @@ def get_jobs_info(job_list):
     :param job_list:
     :return:
     """
-
-    session = requests.Session()
-    session.verify = False
     jobs_info = list()
-
     try:
         for job_id in job_list:
             job = dict()
-            url = "{}/job/info?id={}".format(settings.MOZART_URL, job_id['id'])
-            logging.info("GET request to find job information: {}".format(url))
-            mozart_response = session.get(url).json()
+            mozart_response = get_mozart_job_info(job_id)
             success = mozart_response.get("success")
             if success is True:
-                job[job_id['id']] = mozart_response.get("result")
+                job[job_id] = mozart_response.get("result")
             else:
                 job[job_id] = {"message": "Failed to get job info"}
             jobs_info.append(job)
     except Exception as ex:
+        logging.exception(ex)
         raise ex
 
     return jobs_info
@@ -645,12 +699,16 @@ def revoke_mozart_job(job_id):
         "operation": "revoke"
     }
     logging.info("Submitting job of type {} with params {}".format(job_type, json.dumps(params)))
-    submit_response = mozart_submit_job(job_type=job_type, params=params, queue = settings.LW_QUEUE)
+    submit_response = mozart_submit_job(job_type=job_type, params=params, queue=settings.LW_QUEUE)
     lw_job_id = submit_response.get("result")
     logging.info(lw_job_id)
 
     # keep polling mozart until the purge job is finished.
     return poll_for_completion(lw_job_id)
+
+
+def pele_get_product_by_id(id):
+    return
 
 
 

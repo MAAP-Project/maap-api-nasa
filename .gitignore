@@ -8,5 +8,7 @@ pyvenv.cfg
 __pycache__
 .cache
 maap.wmts.xml
+local_notes.txt
+local
 *.DS_Store
 /docker/data

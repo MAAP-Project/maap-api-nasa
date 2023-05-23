@@ -18,14 +18,26 @@ CMR_TOKEN_SERVICE_URL = 'https://cmr.earthdata.nasa.gov/legacy-services/rest/tok
 CMR_URL = 'https://cmr.maap-project.org'
 CMR_API_TOKEN = ''
 CMR_CLIENT_ID = ''
+###
+# Inherited from sister, currently not used on MAAP
+# TODO: Remove references in code
+CMR_PROVIDER = 'MAAP'
+UMM_C_VERSION = '1.9'
+UMM_G_VERSION = '1.6'
+# END Sister inherited section
+###
 MAAP_WMTS_XML = '/maap-api-nasa/api/maap.wmts.xml'
 MAAP_EDL_CREDS = ''
 
 # GIT settings
 GIT_REPO_URL = 'https://gitlab-ci-token:$TOKEN@repo.dit.maap-project.org/root/register-job.git'
+GIT_API_URL = 'https://repo.dit.maap-project.org/api/v4/projects'
+REGISTER_JOB_REPO_ID = ''  # Enter project ID for register job repo
 
 # GTILAB Settings
 GITLAB_TOKEN = 'foobar'
+GITLAB_API_TOKEN = ''  # New setting inherited from sister, remove comment after API is stable
+
 MAAP_ENVIRONMENT_FILE = 'https://raw.githubusercontent.com/MAAP-Project/maap-jupyter-ide/develop/maap_environments.json'
 
 REPO_NAME = 'register-job'
@@ -37,8 +49,10 @@ SUPPORTED_EXTENSIONS = ['py', 'java', 'sh']
 CONTAINER_URL = 'registry.dit.maap-project.org/root/dps_plot:master'
 
 # HySDS Settings
-HYSDS_VERSION = "v3.0"
+HYSDS_VERSION = "v4.0"
 MOZART_URL = 'https://[MOZART_IP]/mozart/api/v0.2'
+MOZART_V1_URL = 'https://[MOZART_IP]/mozart/api/v0.1'  # new from sister
+GRQ_URL = 'http://[GRQ_IP]:8878/api/v0.1'  # new from sister
 DEFAULT_QUEUE = 'test-job_worker-large'
 LW_QUEUE = 'system-jobs-queue'
 HYSDS_LW_VERSION = 'v0.0.5'
@@ -85,7 +99,7 @@ SMTP_DEBUG_LEVEL = 1
 EMAIL_NO_REPLY = ""
 EMAIL_SUPPORT = ""
 EMAIL_ADMIN = ""
-EMAIL_JPL_ADMINS = ""   # Use a comma to delimit emails, if more than one
+EMAIL_JPL_ADMINS = ""  # Use a comma to delimit emails, if more than one
 
 # PORTAL PATHS
 PORTAL_ADMIN_DASHBOARD_PATH = ''
