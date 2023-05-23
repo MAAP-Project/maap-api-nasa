@@ -4,7 +4,7 @@ from api.maapapp import app
 from api.maap_database import db
 from api.models import initialize_sql
 from api.models.member import Member
-from api.utils.email_util import Email, send_new_active_user_email, send_new_suspended_user_email, \
+from api.utils.email_util import Email, send_user_status_change_email, \
     send_user_status_update_active_user_email, send_user_status_update_suspended_user_email, \
     send_welcome_to_maap_active_user_email, send_welcome_to_maap_suspended_user_email
 from api import settings
@@ -69,10 +69,10 @@ class EmailCase(unittest.TestCase):
         email.send()
 
     def test_send_new_active_user_email(self):
-        send_new_active_user_email(self.member, self.base_url)
+        send_user_status_change_email(self.member, True, True, self.base_url)
 
     def test_send_new_suspended_user_email(self):
-        send_new_suspended_user_email(self.member, self.base_url)
+        send_user_status_change_email(self.member, True, False, self.base_url)
 
     def test_send_user_status_update_active_user_email(self):
         send_user_status_update_active_user_email(self.member, self.base_url)

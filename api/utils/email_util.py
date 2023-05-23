@@ -245,21 +245,23 @@ def get_environment_info(base_url):
         EmailFormats.PLAIN.value: '',
         EmailFormats.HTML.value: ''
     }
-    if env != Environments.OPS:
+    if env != Environments.OLD_OPS and env != Environments.NEW_OPS:
         email_header = {
             EmailFormats.PLAIN.value: "*** THIS EMAIL WAS SENT FROM THE MAAP {} ENVIRONMENT ***".format(
-                env.value.upper()),
+                env.value['label'].upper()),
             EmailFormats.HTML.value: """
                     <div style="width:100%;padding:10px;margin-bottom:10px;text-align:center;background-color:#FFC107;color:#000000;">
                         <strong>*** THIS EMAIL WAS SENT FROM THE MAAP {} ENVIRONMENT ***</strong>
                     </div>
-                """.format(env.value.upper())
+                """.format(env.value['label'].upper())
         }
 
-    portal_base_url = "https://{}.maap-project.org".format(env.value.lower())
+    portal_base_url = "https://maap-project.org"
+    if env != Environments.NEW_OPS:
+        portal_base_url = "https://{}.maap-project.org".format(env.value['cname'].lower())
 
     data = {
-        'env': env.value.upper(),
+        'env': env.value['label'].upper(),
         'template': {
             'header': email_header
         },
