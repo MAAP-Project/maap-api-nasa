@@ -242,12 +242,24 @@ def login_required(wrapped_function):
             if authorized is not None:
                 return wrapped_function(*args, **kwargs)
 
+        if 'cpticket' in request.headers:
+            authorized = validate_proxy(request.headers['cpticket'])
+
+            if authorized is not None:
+                return wrapped_function(*args, **kwargs)
+
         if 'Authorization' in request.headers:
             bearer = request.headers.get('Authorization')
             token = bearer.split()[1]
             authorized = validate_bearer(token)
 
             if authorized is not None:
+                return wrapped_function(*args, **kwargs)
+
+        if 'cas-authorization' in request.headers:
+            authorized = validate_cas_request(request.headers['cas-authorization'])
+
+            if authorized:
                 return wrapped_function(*args, **kwargs)
 
         abort(status.HTTP_403_FORBIDDEN, description="Not authorized.")
