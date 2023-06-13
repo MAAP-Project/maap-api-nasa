@@ -106,19 +106,7 @@ def sync_gitlab_account(is_active, username, email, first_name, last_name):
             # Unblock user
             requests.post("{}/{}/unblock".format(api_url_users, gitlab_user["id"]), headers=auth_headers)
 
-            # Get account info
-            headers = {
-                "PRIVATE-TOKEN": "{}".format(settings.GITLAB_API_TOKEN),
-                "Content-Type": "application/json",
-                "Accept": "application/json"
-            }
-
-            gitlab_id = gitlab_user["id"]
-            response = requests.get("{}/{}/impersonation_tokens".format(
-                api_url_users, gitlab_id), headers=headers)
-            response.raise_for_status()
-            query_response = response.json()
-            gitlab_token = query_response["token"]
+            gitlab_token = create_gitlab_impersonation_token(gitlab_id)
 
             return dict(gitlab_id=gitlab_id, gitlab_token=gitlab_token)
     else:
@@ -149,8 +137,16 @@ def create_gitlab_user(username, email, first_name, last_name):
     # Create Gitlab identity
     payload = dict(provider="cas3", extern_uid=email)
     requests.put("{}/{}".format(api_url_users, gitlab_id), data=payload, headers=auth_headers)
+    
+    gitlab_token = create_gitlab_impersonation_token(gitlab_id)
 
-    # Create Gitlab impersonation token
+    return dict(gitlab_id=gitlab_id, gitlab_token=gitlab_token)
+
+
+def create_gitlab_impersonation_token(gitlab_id):
+    api_url_users = settings.GIT_API_URL.replace("/projects/", "/users")
+    auth_headers = {"PRIVATE-TOKEN": "{}".format(settings.GITLAB_API_TOKEN)}
+
     payload = {
         'name': 'MAAP',
         'expires_at': '2038-01-19',
@@ -165,9 +161,8 @@ def create_gitlab_user(username, email, first_name, last_name):
         api_url_users,   gitlab_id), data=json.dumps(payload), headers=headers)
     response.raise_for_status()
     query_response = response.json()
-    gitlab_token = query_response["token"]
 
-    return dict(gitlab_id=gitlab_id, gitlab_token=gitlab_token)
+    return query_response["token"]
 
 
 def get_gitlab_user(username, email):
