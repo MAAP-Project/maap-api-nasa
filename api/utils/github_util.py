@@ -103,9 +103,12 @@ def sync_gitlab_account(is_active, username, email, first_name, last_name):
         if gitlab_user is None:
             return create_gitlab_user(username, email, first_name, last_name)
         else:
+            gitlab_id = gitlab_user["id"]
+            
             # Unblock user
-            requests.post("{}/{}/unblock".format(api_url_users, gitlab_user["id"]), headers=auth_headers)
-
+            requests.post("{}/{}/unblock".format(api_url_users, gitlab_id), headers=auth_headers)
+            
+            #Regenerate token
             gitlab_token = create_gitlab_impersonation_token(gitlab_id)
 
             return dict(gitlab_id=gitlab_id, gitlab_token=gitlab_token)
