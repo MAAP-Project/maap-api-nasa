@@ -162,7 +162,7 @@ def create_job_spec(run_command, inputs, disk_usage, queue_name=settings.DEFAULT
         "$HOME/.aws": "/home/ops/.aws",
         "/tmp": ["/tmp", "rw"]
     }
-    job_spec["post"] = ["hysds.utils.triage"]
+    job_spec["post"] = ["hysds.triage.triage"]
     job_spec["recommended-queues"] = [queue_name]
     params = list()
     for param_type in inputs:
