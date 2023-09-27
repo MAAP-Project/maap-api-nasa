@@ -331,7 +331,23 @@ class Self(Resource):
     @api.doc(security='ApiKeyAuth')
     @login_required
     def get(self):
-        member = get_authorized_user()
+        authorized_user = get_authorized_user()
+
+        cols = [
+            Member_db.id,
+            Member_db.username,
+            Member_db.first_name,
+            Member_db.last_name,
+            Member_db.email,
+            Member_db.status,
+            Member_db.creation_date
+        ]
+
+        member = db.session \
+            .query(Member_db) \
+            .with_entities(*cols) \
+            .filter_by(username=authorized_user.username) \
+            .first()
 
         if 'proxy-ticket' in request.headers:
             member_schema = MemberSchema()
