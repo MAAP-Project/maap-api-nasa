@@ -460,6 +460,8 @@ class Jobs(Resource):
     parser.add_argument('offset', required=False, type=str,
                         help="Job Listing Pagination Offset")
 
+    @api.doc(security='ApiKeyAuth')
+    @login_required
     def get(self, username):
         """
         This will return run a list of jobs for a specified user
@@ -506,6 +508,8 @@ class Jobs(Resource):
 @ns.route('/job/revoke/<string:job_id>')
 class StopJobs(Resource):
 
+    @api.doc(security='ApiKeyAuth')
+    @login_required
     def delete(self, job_id):
         try:
             # check if job is non-running
