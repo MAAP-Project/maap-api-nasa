@@ -14,7 +14,7 @@ import json
 import os
 import requests
 import traceback
-from api.cas.cas_auth import get_authorized_user
+from api.cas.cas_auth import get_authorized_user, login_required
 from api.maap_database import db
 from api.models.member_job import MemberJob
 from api.models.member import Member
@@ -31,6 +31,8 @@ ns = api.namespace('dps', description='Operations to interface with HySDS Mozart
 @ns.route('/job')
 class Submit(Resource):
 
+    @api.doc(security='ApiKeyAuth')
+    @login_required
     def post(self):
         """
         This will submit jobs to the Job Execution System (HySDS)
