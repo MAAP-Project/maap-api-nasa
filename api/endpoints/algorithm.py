@@ -90,6 +90,8 @@ class Register(Resource):
               }
             ]""")
 
+    @api.doc(security='ApiKeyAuth')
+    @login_required
     def post(self):
         """
         This will create the hysds spec files and commit to git
@@ -419,6 +421,8 @@ class Describe(Resource):
                                   ex_message="Failed to get parameters for algorithm. {} Traceback: {}"
                                   .format(ex, tb)), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='text/xml')
 
+    @api.doc(security='ApiKeyAuth')
+    @login_required
     def delete(self, algo_id):
         """
         delete a registered algorithm

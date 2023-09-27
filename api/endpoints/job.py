@@ -14,7 +14,7 @@ import json
 import os
 import requests
 import traceback
-from api.cas.cas_auth import get_authorized_user
+from api.cas.cas_auth import get_authorized_user, login_required
 from api.maap_database import db
 from api.models.member_job import MemberJob
 from api.models.member import Member
@@ -31,6 +31,8 @@ ns = api.namespace('dps', description='Operations to interface with HySDS Mozart
 @ns.route('/job')
 class Submit(Resource):
 
+    @api.doc(security='ApiKeyAuth')
+    @login_required
     def post(self):
         """
         This will submit jobs to the Job Execution System (HySDS)
@@ -458,6 +460,8 @@ class Jobs(Resource):
     parser.add_argument('offset', required=False, type=str,
                         help="Job Listing Pagination Offset")
 
+    @api.doc(security='ApiKeyAuth')
+    @login_required
     def get(self, username):
         """
         This will return run a list of jobs for a specified user
@@ -504,6 +508,8 @@ class Jobs(Resource):
 @ns.route('/job/revoke/<string:job_id>')
 class StopJobs(Resource):
 
+    @api.doc(security='ApiKeyAuth')
+    @login_required
     def delete(self, job_id):
         try:
             # check if job is non-running
