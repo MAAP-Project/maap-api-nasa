@@ -5,11 +5,13 @@ from flask import request, jsonify, Response
 from flask_api import status
 from api.restplus import api
 import api.settings as settings
-from api.cas.cas_auth import get_authorized_user, login_required, edl_federated_request
+from api.cas.cas_auth import get_authorized_user, login_required, edl_federated_request, valid_dps_request
 from api.maap_database import db
 from api.utils import github_util
 from api.models.member import Member as Member_db
+from api.models.member_session import MemberSession as MemberSession_db
 from api.schemas.member_schema import MemberSchema
+from api.schemas.member_session_schema import MemberSessionSchema
 from api.utils.email_util import send_user_status_update_active_user_email, \
     send_user_status_update_suspended_user_email, send_user_status_change_email, \
     send_welcome_to_maap_active_user_email, send_welcome_to_maap_suspended_user_email
@@ -66,13 +68,41 @@ class Member(Resource):
     @login_required
     def get(self, key):
 
-        member = db.session.query(Member_db).filter_by(username=key).first()
+        cols = [
+            Member_db.id,
+            Member_db.username,
+            Member_db.first_name,
+            Member_db.last_name,
+            Member_db.email,
+            Member_db.status,
+            Member_db.creation_date
+        ]
+
+        member = db.session\
+            .query(Member_db)\
+            .with_entities(*cols)\
+            .filter_by(username=key)\
+            .first()
 
         if member is None:
             return err_response(msg="No member found with key " + key, code=status.HTTP_404_NOT_FOUND)
 
         member_schema = MemberSchema()
-        return json.loads(member_schema.dumps(member))
+        result = json.loads(member_schema.dumps(member))
+
+        if valid_dps_request():
+            pgt_ticket = db.session\
+                .query(MemberSession_db)\
+                .with_entities(MemberSession_db.session_key)\
+                .filter_by(member_id=member.id)\
+                .order_by(MemberSession_db.id.desc())\
+                .first()
+
+            member_session_schema = MemberSessionSchema()
+            pgt_result = json.loads(member_session_schema.dumps(pgt_ticket))
+            result = json.loads(json.dumps(dict(result.items() | pgt_result.items())))
+
+        return result
 
     @api.doc(security='ApiKeyAuth')
     @login_required

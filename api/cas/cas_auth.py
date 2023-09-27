@@ -262,9 +262,18 @@ def login_required(wrapped_function):
             if authorized:
                 return wrapped_function(*args, **kwargs)
 
+        if 'dps-token' in request.headers and valid_dps_request():
+            return wrapped_function(*args, **kwargs)
+
         abort(status.HTTP_403_FORBIDDEN, description="Not authorized.")
 
     return wrap
+
+
+def valid_dps_request():
+    if 'dps-token' in request.headers:
+        return settings.DPS_MACHINE_TOKEN == request.headers['dps-token']
+    return False
 
 
 def edl_federated_request(url, stream_response=False):
