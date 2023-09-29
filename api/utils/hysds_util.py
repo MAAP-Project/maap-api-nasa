@@ -464,7 +464,7 @@ def mozart_delete_job_type(job_type):
     session.verify = False
 
     try:
-        mozart_response = session.get("{}/job_spec/remove".format(settings.MOZART_URL), params=params)
+        mozart_response = session.get("{}/job_spec/remove".format(settings.MOZART_V1_URL), params=params)
     except Exception as ex:
         raise ex
 
