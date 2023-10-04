@@ -1,7 +1,5 @@
 from api.models import Base
 from api.maap_database import db
-# from datetime import datetime
-from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 
 
 class MemberAlgorithmRegistration(Base):
@@ -21,10 +19,3 @@ class MemberAlgorithmRegistration(Base):
 
     def __repr__(self):
         return "<MemberAlgorithmRegistration(registration_key={self.registration_key!r})>".format(self=self)
-
-
-class MemberAlgorithmRegistrationSchema(SQLAlchemyAutoSchema):
-    class Meta:
-        model = MemberAlgorithmRegistration
-        include_fk = True
-        load_instance = True

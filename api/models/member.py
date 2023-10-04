@@ -1,6 +1,5 @@
 from api.models import Base
 from api.maap_database import db
-from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 
 
 class Member(Base):
@@ -15,16 +14,17 @@ class Member(Base):
     public_ssh_key = db.Column(db.String())
     public_ssh_key_name = db.Column(db.String())
     public_ssh_key_modified_date = db.Column(db.DateTime())
+    urs_token = db.Column(db.String())
+    status = db.Column(db.String())
+    gitlab_id = db.Column(db.String())
+    gitlab_username = db.Column(db.String())
+    gitlab_token = db.Column(db.String())
     creation_date = db.Column(db.DateTime())
+
+    def get_display_name(self):
+        return "{} {}".format(self.first_name,self.last_name)
 
     def __repr__(self):
         return "<Member(username={self.username!r})>".format(self=self)
-
-
-class MemberSchema(SQLAlchemyAutoSchema):
-    class Meta:
-        model = Member
-        include_relationships = True
-        load_instance = True
 
 

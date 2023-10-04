@@ -1,0 +1,13 @@
+{environment_info[template][header][plain]}
+
+Hello {member_first_name},
+
+Thank you for registering with the Multi-Mission Algorithm and Analysis Platform (MAAP)!
+
+Your account is pending activation by a MAAP Administrator. Once your account is activated, you will have access to the MAAP Algorithm Development Environment (ADE). If you have a question about your account's activation, email {support_email}.
+
+In the meanwhile, to learn how to get started with MAAP after your account is activated, please visit our User Guides ({environment_info[urls][portal][user_guides]}). If you have an idea to help us improve MAAP, or encounter an issue while using MAAP, submit an issue report on our GitHub Account ({environment_info[urls][github][issues]}).
+
+Thank you,
+
+The MAAP Team

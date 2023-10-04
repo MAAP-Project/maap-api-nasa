@@ -2,13 +2,23 @@ import logging
 from flask import jsonify
 
 
-from flask_restplus import Api
+from flask_restx import Api
 from api import settings
 
 log = logging.getLogger(__name__)
 
-api = Api(version='0.1', title='MAAP API',
-          description='API for querying multi-mission data and algorithms collaboration.')
+authorizations = {
+    'ApiKeyAuth': {
+        'type': 'apiKey',
+        'in': 'header',
+        'name': 'proxy-ticket'
+    },
+}
+
+api = Api(version='0.1',
+          title='MAAP API',
+          description='API for querying multi-mission data and algorithms collaboration.',
+          authorizations=authorizations)
 
 
 class CmrError(Exception):

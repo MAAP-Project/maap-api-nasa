@@ -3,23 +3,16 @@ The joint ESA-NASA Multi-Mission Algorithm and Analysis Platform (MAAP) focuses 
 
 Development server: https://api.dit.maap-project.org/api
 
-## I. Getting Started
+## I. Local development using docker
 
-To run the MAAP API locally using PyCharm, create a Python Configuration with the following settings:
-
-- Script path: `./api/maapapp.py`
-- Environment variables: `PYTHONUNBUFFERED=1`
-- Python interpreter: `Python 3.7`
-- Working directory: `./api`
-
-### Comments:
-
-- Working directory is maap-api-nasa
-- export PYTHONUNBUFFERED=1
+```bash
+cd docker
+docker-compose up
+```
 
 ## II. Local development using python virtualenv
 
-**Pre-requisites:**
+**Prerequisites:**
 
 * postgresql
   * Linux: `sudo apt-get install postgresql python-psycopy2 libpq-dev`
@@ -27,9 +20,8 @@ To run the MAAP API locally using PyCharm, create a Python Configuration with th
 * pip, python3.7 and virtualenv
 
 ```bash
-python3 -m venv maap-api-nasa # or whatever environment name you choose
+python3 -m venv venv
 source maap-api-nasa/bin/activate
-# Note: For installing on Mac OSx you may need to replace "psycopg2" with "psycopg2-binary"
 pip3 install -r requirements.txt
 ```
 
@@ -53,6 +45,13 @@ psql # or $ sudo -u postgres psql
 (in postgres shell): create database maap_dev;
 (in postgres shell): \q
 ```
+
+3. OPTIONAL: PyCharm configuration, if using the PyCharm IDE:
+
+- Script path: `./api/maapapp.py`
+- Environment variables: `PYTHONUNBUFFERED=1`
+- Python interpreter: `Python 3.7`
+- Working directory: `./api`
 
 #### Config Titiler endpoint and maap-api-host
 
@@ -153,7 +152,7 @@ The MAAP API is written in [Flask](http://flask.pocoo.org/), and commonly deploy
 5. Create a virtual environment and activate it:
     - `python3 -m venv yourenvironment`
     - `source yourenvironment/bin/activate`
-6. Configure Apache conf file to load our new Flask app using WSGI. If using Let's Encrypt, the conf file will likely be `/etc/apache2/sites-available/000-default-le-ssl.conf`. Below is a sample conf file used on https://api.dit.maap-project.org/api/:
+6. Configure Apache conf file to load our new Flask app using WSGI. If using Let's Encrypt, the conf file will likely be `/etc/apache2/sites-available/000-default-le-ssl.conf`. Below is a sample conf file used on https://api.maap.xyz/api/:
 
     ```XML
     <IfModule mod_ssl.c>
@@ -199,9 +198,9 @@ The MAAP API is written in [Flask](http://flask.pocoo.org/), and commonly deploy
             #Include conf-available/serve-cgi-bin.conf
 
 
-    ServerName api.dit.maap-project.org
-    SSLCertificateFile /etc/letsencrypt/live/api.dit.maap-project.org/fullchain.pem
-    SSLCertificateKeyFile /etc/letsencrypt/live/api.dit.maap-project.org/privkey.pem
+    ServerName api.maap.xyz
+    SSLCertificateFile /etc/letsencrypt/live/api.maap.xyz/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/api.maap.xyz/privkey.pem
     Include /etc/letsencrypt/options-ssl-apache.conf
     </VirtualHost>
     </IfModule>

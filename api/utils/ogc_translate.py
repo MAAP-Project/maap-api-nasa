@@ -72,6 +72,7 @@ def parse_execute_request(request_xml):
     params = dict()
     dedup = None
     queue = None
+    identifier = None
     job_type = root.find('ows:Identifier', ns).text
     for input in root.findall('wps:Input', ns):
         for data in input.findall('wps:Data', ns):
@@ -80,15 +81,22 @@ def parse_execute_request(request_xml):
                     dedup = value.text
                 if input.attrib.get("id") == "queue":
                     queue = value.text
+                if input.attrib.get("id") == "identifier":
+                    # an identifier is used to tag the jobs, helpful for bulk submissions
+                    # users can later use the identifier to find all the jobs they submitted
+                    identifier = value.text
                 else:
                     try:
-                        params[input.attrib.get("id")] = json.loads(value.text)
+                        if value.text:
+                            params[input.attrib.get("id")] = json.loads(value.text)
+                        else:
+                            params[input.attrib.get("id")] = ""
                     except ValueError:
                         params[input.attrib.get("id")] = value.text
 
     output = root.find('wps:Output', ns).attrib.get("id")
 
-    return job_type, params, queue, output, dedup
+    return job_type, params, queue, output, dedup, identifier
 
 
 def execute_response(job_id, job_status, output):
@@ -233,7 +241,7 @@ def get_op(op_ele, op_name, get_url = None, post_url = None):
     return op_ele
 
 
-def get_capabilities(job_list):
+def get_capabilities(base_url, job_list):
     """
     This creates a response containing service metadata such as the service name, keywords, and contact information for
     the organization operating the server.
@@ -277,10 +285,10 @@ def get_capabilities(job_list):
     ET.SubElement(address, "ows:ElectronicMailAddress")
 
     op_met = ET.SubElement(response, "ows:OperationsMetadata")
-    op_met = get_op(op_met, "GetCapabilities", get_url="https://api.dit.maap-project.org/api/dps/job?")
-    op_met = get_op(op_met, "Execute", post_url="https://api.dit.maap-project.org/api/dps/job")
-    op_met = get_op(op_met, "GetStatus", get_url="https://api.dit.maap-project.org/api/dps/job/<job_id>")
-    op_met = get_op(op_met, "DescribeProcess", get_url="https://api.dit.maap-project.org/api/mas/algorithm/<algorithm_id>")
+    op_met = get_op(op_met, "GetCapabilities", get_url=base_url + "api/dps/job?")
+    op_met = get_op(op_met, "Execute", post_url=base_url + "api/dps/job")
+    op_met = get_op(op_met, "GetStatus", get_url=base_url + "api/dps/job/<job_id>")
+    op_met = get_op(op_met, "DescribeProcess", get_url=base_url + "api/mas/algorithm/<algorithm_id>")
 
     lang = ET.SubElement(response, "ows:Languages")
     ET.SubElement(lang, "ows.Language").text = "en-US"
@@ -297,7 +305,7 @@ def get_capabilities(job_list):
         ET.SubElement(proc_summ, "ows:Identifier").text = job_type.strip("job-")
         proc_metadata = ET.SubElement(proc_summ, "ows:Metadata")
         proc_metadata.set("xlin:role", "Process description")
-        proc_metadata.set("xlin:href", "https://api.dit.maap-project.org/api/dps/job/describeprocess/{}%3A{}"
+        proc_metadata.set("xlin:href", base_url + "api/dps/job/describeprocess/{}%3A{}"
                           .format(job_type.strip("job-").split(":")[0],
                                   job_type.strip("job-").split(":")[1]))
     return tostring(response)
@@ -409,15 +417,6 @@ def get_exception(type, origin_process, ex_message):
     ET.SubElement(exception, "ows:ExceptionText").text = ex_message
 
     return tostring(response)
-
-
-
-
-
-
-
-
-
 
 
 

@@ -40,7 +40,8 @@ class MembersCase(unittest.TestCase):
                            organization="NASA",
                            public_ssh_key="ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCzN22QMC8fL4UjwuizV2o52P5mPXBUAnIziUIW77flHBc186aXR13VfaquOqsWKGx51bM8H4PC7yMdoEgKFq2DCx2FeY6BosW3QmnHDc7+Ov3+jDJh8OefBWpaolfGMzgH/te2SswVr2zv1/SSHSLN8L3PQBM6ul/UM4EA0VvXuHz7g+5t5FWDSMjz7LEvafhaxa85r5iV9kICta7F09QAVWr/tugRnQs004fTL/wwak4SICaKh5fXrxU+UyxXfz2QDpKXvvDz1JU7yb4UT6CRz86L3tTK+nWXg7rwSok+H1CchYYEP4/WJTVACJ4iPUQN0RNPCwPekDdpR7kjJnOh brian.p.satorius@jpl.nasa.gov, IMCE Infrastructure Development sd",
                            public_ssh_key_modified_date=datetime.utcnow(),
-                           public_ssh_key_name="id_rsa_satorius")
+                           public_ssh_key_name="id_rsa_satorius",
+                           urs_token="EDL-Of35fb098...")
 
             db.session.add(guest)
             db.session.commit()

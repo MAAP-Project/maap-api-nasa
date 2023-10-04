@@ -1,0 +1,17 @@
+{environment_info[template][header][plain]}
+
+The following user has been SUSPENDED for the MAAP ({environment_info[env]}) account.
+
+User Information:
+-----------------
+  Name: {member_display_name}
+  Email: {member_email}
+  Account Status: Suspended
+
+Action:
+-------
+  Review this user's account using the MAAP ({environment_info[env]}) Admin Dashboard, located at located at {environment_info[urls][portal][maap_admin]}.
+
+Thank you,
+
+The MAAP Team

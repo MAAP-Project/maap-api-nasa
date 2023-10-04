@@ -1,0 +1,11 @@
+{environment_info[template][header][plain]}
+
+Hello {member_first_name},
+
+Thank you for registering with the Multi-Mission Algorithm and Analysis Platform (MAAP)!
+
+For help on getting started, please visit our User Guides ({environment_info[urls][portal][user_guides]}). If you have an idea to help us improve MAAP, or encounter an issue while using MAAP, submit an issue report on our GitHub Account ({environment_info[urls][github][issues]}).
+
+Thank you,
+
+The MAAP Team

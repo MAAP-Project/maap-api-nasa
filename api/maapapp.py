@@ -3,23 +3,26 @@
 import logging.config
 
 import os
-from flask import Flask, Blueprint
+from flask import Flask, Blueprint, request, session
 from api import settings
+from api.cas.cas_auth import validate
+from api.utils.environments import Environments, get_environment
+from api.utils.url_util import proxied_url
 from api.endpoints.cmr import ns as cmr_collections_namespace
 from api.endpoints.algorithm import ns as algorithm_namespace
 from api.endpoints.job import ns as job_namespace
 from api.endpoints.wmts import ns as wmts_namespace
 from api.endpoints.wms import ns as wms_namespace
 from api.endpoints.members import ns as members_namespace
-from api.endpoints.query_service import ns as query_service_namespace
-from api.endpoints.three_dimensional_tiles import ns as three_d_tiles_namespace
 from api.endpoints.environment import ns as environment_namespace
 from api.endpoints.ogcapi_features import ns as ogcapi_features_namespace
 from api.restplus import api
 from api.maap_database import db
 from api.models import initialize_sql
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
 app.secret_key = settings.CAS_SECRET_KEY
 logging_conf_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '../logging.conf'))
 logging.config.fileConfig(logging_conf_path)
@@ -30,23 +33,47 @@ api.init_app(blueprint)
 api.add_namespace(cmr_collections_namespace)
 app.register_blueprint(blueprint)
 
-
 app.config['CAS_SERVER'] = settings.CAS_SERVER_NAME
 app.config['CAS_AFTER_LOGIN'] = settings.CAS_AFTER_LOGIN
+app.config['CAS_USERNAME_SESSION_KEY'] = 'cas_token_session_key'
 app.config['SQLALCHEMY_DATABASE_URI'] = settings.DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'isolation_level': 'AUTOCOMMIT'}
 
 app.app_context().push()
 db.init_app(app)
 initialize_sql(db.engine)
-#Base.ini .metadata.create_all(db.engine)
-# db.create_all()
-# db.session.commit()
+# Create any new tables
+db.create_all()
 
 
 @app.route('/')
 def index():
-    return '<a href=/api/>MAAP API</a>'
+
+    html = '<a href="/api/">MAAP API</a>'
+    env = get_environment(proxied_url(request))
+
+    if env == Environments.DIT:
+        html += '<a href="{}/login?service={}" style="float: right"><b>Authorize</b></a>'\
+            .format(settings.CAS_SERVER_NAME, proxied_url(request, True))
+
+        cas_token_session_key = app.config['CAS_USERNAME_SESSION_KEY']
+
+        if 'ticket' in request.args:
+            session[cas_token_session_key] = request.args['ticket']
+
+        if cas_token_session_key in session:
+            member_session = validate(proxied_url(request, True), session[cas_token_session_key])
+            if member_session is None:
+                del session[cas_token_session_key]
+            else:
+                html += '<br><br><div style="float:right; text-align: right">'\
+                    'Username:<br>'\
+                    '<b>{}</b><br><br>'\
+                    'Proxy ticket:<br>'\
+                    '<b>{}</b></div>'.format(member_session.member.username, member_session.session_key)
+
+    return html
 
 
 def configure_app(flask_app):
@@ -58,11 +85,9 @@ def configure_app(flask_app):
     flask_app.config['RESTPLUS_MASK_SWAGGER'] = settings.RESTPLUS_MASK_SWAGGER
     flask_app.config['ERROR_404_HELP'] = settings.RESTPLUS_ERROR_404_HELP
     flask_app.config['TILER_ENDPOINT'] = settings.TILER_ENDPOINT
-    flask_app.config['OGCAPI_FEATURES_ENDPOINT'] = settings.OGCAPI_FEATURES_ENDPOINT
-    flask_app.config['_3DTILES_API_ENDPOINT'] = settings._3DTILES_API_ENDPOINT
-    flask_app.config['DATA_SYSTEM_FILES_PATH'] = settings.DATA_SYSTEM_FILES_PATH
     flask_app.config['QS_STATE_MACHINE_ARN'] = settings.QS_STATE_MACHINE_ARN
     flask_app.config['QS_RESULT_BUCKET'] = settings.QS_RESULT_BUCKET
+    flask_app.config['SESSION_TYPE'] = 'filesystem'
 
 
 def initialize_app(flask_app):
@@ -76,8 +101,6 @@ def initialize_app(flask_app):
     api.add_namespace(wmts_namespace)
     api.add_namespace(wms_namespace)
     api.add_namespace(members_namespace)
-    api.add_namespace(query_service_namespace)
-    api.add_namespace(three_d_tiles_namespace)
     api.add_namespace(environment_namespace)
     api.add_namespace(ogcapi_features_namespace)
     flask_app.register_blueprint(blueprint)

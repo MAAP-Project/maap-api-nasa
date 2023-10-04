@@ -2,14 +2,15 @@ from datetime import timedelta, datetime
 
 import flask
 import requests
-from flask import abort, request, json
+from flask import abort, request, Response, json
+from flask_api import status
 from xmltodict import parse
 from flask import current_app
-from .cas_urls import create_cas_proxy_url
-from .cas_urls import create_cas_proxy_validate_url
+from .cas_urls import create_cas_proxy_url, create_cas_validate_url, create_cas_proxy_validate_url
 from api.maap_database import db
 from api.models.member import Member
 from api.models.member_session import MemberSession
+from api.models.member_job import MemberJob
 from api import settings
 from functools import wraps
 from Crypto.PublicKey import RSA
@@ -17,6 +18,7 @@ from Crypto.Cipher import PKCS1_v1_5
 from Crypto import Random
 from Crypto.Hash import SHA
 from base64 import b64decode
+from api.utils.url_util import proxied_url
 import ast
 
 
@@ -30,7 +32,42 @@ blueprint = flask.Blueprint('cas', __name__)
 PROXY_TICKET_PREFIX = "PGT-"
 
 
-def validate_proxy(ticket):
+def validate(service, ticket):
+    """
+    Will attempt to validate the ticket. If validation fails False
+    is returned. If validation is successful then True is returned
+    and the validated username is saved in the session under the
+    key `CAS_USERNAME_SESSION_KEY`.
+    """
+
+    current_app.logger.debug("validating token {}".format(ticket))
+
+    cas_validate_url = create_cas_validate_url(
+        current_app.config['CAS_SERVER'],
+        '/cas/p3/serviceValidate',
+        service,
+        ticket) + '&pgtUrl=' + current_app.config['CAS_SERVER']
+
+    current_app.logger.debug("Making GET request to {}".format(
+        cas_validate_url))
+
+    try:
+        xmldump = urlopen(cas_validate_url).read().strip().decode('utf8', 'ignore')
+        xml_from_dict = parse(xmldump)
+        isValid = True if "cas:authenticationSuccess" in xml_from_dict["cas:serviceResponse"] or \
+                           "cas:proxySuccess" in xml_from_dict["cas:serviceResponse"] else False
+
+        if isValid:
+            attributes = xml_from_dict["cas:serviceResponse"]["cas:authenticationSuccess"]["cas:attributes"]
+            return validate_proxy(get_cas_attribute_value(attributes, 'proxyGrantingTicket'), True)
+
+    except ValueError:
+        current_app.logger.error("CAS returned unexpected result")
+
+    return None
+
+
+def validate_proxy(ticket, auto_create_member=False):
     """
     Will attempt to validate the proxy ticket. If validation fails, then None
     is returned. If validation is successful, then a Member object is returned
@@ -50,7 +87,7 @@ def validate_proxy(ticket):
     else:
         cas_validate_proxy_url = create_cas_proxy_url(
             current_app.config['CAS_SERVER'],
-            request.base_url,
+            proxied_url(request),
             decrypted_ticket
         )
 
@@ -64,14 +101,14 @@ def validate_proxy(ticket):
 
             proxy_validate_url = create_cas_proxy_validate_url(
                 current_app.config['CAS_SERVER'],
-                request.base_url,
+                proxied_url(request),
                 proxy_ticket
             )
 
             cas_proxy_response = validate_cas_request(proxy_validate_url)
 
             if cas_proxy_response[0]:
-                return start_member_session(cas_proxy_response, decrypted_ticket)
+                return start_member_session(cas_proxy_response, decrypted_ticket, auto_create_member)
 
     current_app.logger.debug("invalid proxy granting ticket")
     return None
@@ -80,9 +117,7 @@ def validate_proxy(ticket):
 def validate_bearer(token):
     """
     Will attempt to validate the bearer token. If validation fails, then None
-    is returned. If validation is successful, then a Member object is returned
-    and the validated bearer token is saved in the session db table while the
-    validated attributes are saved under member db table.
+    is returned. If validation is successful, then a Member object is returned.
     """
 
     current_app.logger.debug("validating token {0}".format(token))
@@ -90,11 +125,20 @@ def validate_bearer(token):
     resp = requests.get(current_app.config['CAS_SERVER'] + '/oauth2.0/profile',
                         headers={'Authorization': 'Bearer ' + token})
 
-    if resp.status_code == 200:
+    if resp.status_code == status.HTTP_200_OK:
         return json.loads(resp.text)
 
     current_app.logger.debug("invalid bearer token")
     return None
+
+
+def validate_cas_request(token):
+    """
+    Will attempt to validate a CAS machine token. Return True if validation succeeds.
+    """
+
+    current_app.logger.debug("validating cas request token {0}".format(token))
+    return token == settings.CAS_SECRET_KEY
 
 
 def validate_cas_request(cas_url):
@@ -116,69 +160,33 @@ def validate_cas_request(cas_url):
     return is_valid, xml_from_dict
 
 
-def start_member_session(cas_response, ticket):
+def start_member_session(cas_response, ticket, auto_create_member=False):
 
     xml_from_dict = cas_response[1]["cas:serviceResponse"]["cas:authenticationSuccess"]
     attributes = xml_from_dict.get("cas:attributes", {})
     usr = get_cas_attribute_value(attributes, 'preferred_username')
 
     member = db.session.query(Member).filter_by(username=usr).first()
+    urs_access_token = get_cas_attribute_value(attributes, 'access_token')
 
-    if member is None:
+    if member is None and auto_create_member:
         member = Member(first_name=get_cas_attribute_value(attributes, 'given_name'),
                         last_name=get_cas_attribute_value(attributes, 'family_name'),
                         username=usr,
                         email=get_cas_attribute_value(attributes, 'email'),
-                        organization=get_cas_attribute_value(attributes, 'organization'))
+                        organization=get_cas_attribute_value(attributes, 'organization'),
+                        urs_token=urs_access_token)
         db.session.add(member)
-        db.session.commit()
+    else:
+        member.urs_token = urs_access_token
+
+    db.session.commit()
 
     member_session = MemberSession(member_id=member.id, session_key=ticket, creation_date=datetime.utcnow())
     db.session.add(member_session)
     db.session.commit()
 
     return member_session
-
-
-def get_urs_token(ticket):
-    """
-    Will attempt to validate the urs access_token. If validation fails, then None
-    is returned. If validation is successful, then a token is returned.
-    """
-
-    current_app.logger.debug("validating ticket for urs_token {0}".format(ticket))
-
-    decrypted_ticket = decrypt_proxy_ticket(ticket)
-
-    cas_validate_proxy_url = create_cas_proxy_url(
-        current_app.config['CAS_SERVER'],
-        request.base_url,
-        decrypted_ticket
-    )
-
-    cas_response = validate_cas_request(cas_validate_proxy_url)
-
-    if cas_response[0]:
-        current_app.logger.debug("valid proxy granting ticket")
-
-        xml_from_dict = cas_response[1]["cas:serviceResponse"]["cas:proxySuccess"]
-        proxy_ticket = xml_from_dict["cas:proxyTicket"]
-
-        proxy_validate_url = create_cas_proxy_validate_url(
-            current_app.config['CAS_SERVER'],
-            request.base_url,
-            proxy_ticket
-        )
-
-        cas_proxy_response = validate_cas_request(proxy_validate_url)
-
-        if cas_proxy_response[0]:
-            xml_from_dict = cas_proxy_response[1]["cas:serviceResponse"]["cas:authenticationSuccess"]
-            attributes = xml_from_dict.get("cas:attributes", {})
-            return get_cas_attribute_value(attributes, 'access_token')
-
-    current_app.logger.debug("invalid proxy granting ticket")
-    return None
 
 
 def get_cas_attribute_value(attributes, attribute_key):
@@ -234,6 +242,12 @@ def login_required(wrapped_function):
             if authorized is not None:
                 return wrapped_function(*args, **kwargs)
 
+        if 'cpticket' in request.headers:
+            authorized = validate_proxy(request.headers['cpticket'])
+
+            if authorized is not None:
+                return wrapped_function(*args, **kwargs)
+
         if 'Authorization' in request.headers:
             bearer = request.headers.get('Authorization')
             token = bearer.split()[1]
@@ -242,7 +256,40 @@ def login_required(wrapped_function):
             if authorized is not None:
                 return wrapped_function(*args, **kwargs)
 
-        abort(403, description="Not authorized.")
+        if 'cas-authorization' in request.headers:
+            authorized = validate_cas_request(request.headers['cas-authorization'])
+
+            if authorized:
+                return wrapped_function(*args, **kwargs)
+
+        if 'dps-token' in request.headers and valid_dps_request():
+            return wrapped_function(*args, **kwargs)
+
+        abort(status.HTTP_403_FORBIDDEN, description="Not authorized.")
 
     return wrap
+
+
+def valid_dps_request():
+    if 'dps-token' in request.headers:
+        return settings.DPS_MACHINE_TOKEN == request.headers['dps-token']
+    return False
+
+
+def edl_federated_request(url, stream_response=False):
+    s = requests.Session()
+    response = s.get(url, stream=stream_response)
+
+    if response.status_code == status.HTTP_401_UNAUTHORIZED:
+        maap_user = get_authorized_user()
+
+        if maap_user is not None:
+            urs_token = db.session.query(Member).filter_by(id=maap_user.id).first().urs_token
+            s.headers.update({'Authorization': f'Bearer {urs_token},Basic {settings.MAAP_EDL_CREDS}',
+                              'Connection': 'close'})
+
+            response = s.get(url=response.url, stream=stream_response)
+
+    return response
+
 
