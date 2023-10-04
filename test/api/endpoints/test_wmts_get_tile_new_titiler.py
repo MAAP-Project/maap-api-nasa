@@ -11,7 +11,7 @@ import pdb
 
 g1 = {
     'granule_ur': 'uavsar_AfriSAR_v1_SLC-lopenp_14043_16015_001_160308_L090.vrt',
-    'cog_url': 's3://nasa-maap-data-store/file-staging/circleci/AfriSAR_UAVSAR_Coreg_SLC___1/uavsar_AfriSAR_v1_SLC-lopenp_14043_16015_001_160308_L090.vrt.cog.tif',
+    'cog_url': 's3://cumulus-map-internal/file-staging/circleci/AfriSAR_UAVSAR_Coreg_SLC___1/uavsar_AfriSAR_v1_SLC-lopenp_14043_16015_001_160308_L090.vrt.cog.tif',
     'color_map': 'schwarzwald',
     'rescale': '-1,1',
     'zxy': '10/545/513'
@@ -19,19 +19,19 @@ g1 = {
 
 g2 = {
     'granule_ur': 'uavsar_AfriSAR_v1_SLC-hundre_14048_16008_007_160225_L090.vrt',
-    'cog_url': 's3://nasa-maap-data-store/file-staging/circleci/AfriSAR_UAVSAR_Coreg_SLC___1/uavsar_AfriSAR_v1_SLC-hundre_14048_16008_007_160225_L090.vrt.cog.tif'
+    'cog_url': 's3://cumulus-map-internal/file-staging/circleci/AfriSAR_UAVSAR_Coreg_SLC___1/uavsar_AfriSAR_v1_SLC-hundre_14048_16008_007_160225_L090.vrt.cog.tif'
 }
 
 g3 = {    
     'granule_ur': 'SC:AFLVIS2.001:138349020',
-    'cog_url': 's3://nasa-maap-data-store/file-staging/nasa-map/AFLVIS2___001/LVIS2_Gabon2016_0308_R1808_048492_cog.tif',
+    'cog_url': 's3://cumulus-map-internal/file-staging/nasa-map/AFLVIS2___001/LVIS2_Gabon2016_0308_R1808_048492_cog.tif',
     'rescale':'11,57',
     'zxy': '11/1077/1020',
     'indexes':'1,2'
 }
 g4 = {
     'granule_ur': 'SC:AFLVIS2.001:138348905',
-    'cog_url': 's3://nasa-maap-data-store/file-staging/nasa-map/AFLVIS2___001/LVIS2_Gabon2016_0308_R1808_049095_cog.tif',
+    'cog_url': 's3://cumulus-map-internal/file-staging/nasa-map/AFLVIS2___001/LVIS2_Gabon2016_0308_R1808_049095_cog.tif',
     'rescale':'11,57',
     'zxy': '11/1077/1020',
     'indexes':'1,2'
