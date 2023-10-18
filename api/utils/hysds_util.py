@@ -400,31 +400,6 @@ def mozart_submit_job(job_type, params={}, queue=settings.DEFAULT_QUEUE, dedup="
     except Exception as ex:
         raise ex
 
-    job_id = mozart_response.get("result")
-
-    try:
-        # Adding check to see if job was deduped
-        time.sleep(5)
-        status = mozart_job_status(job_id).get("status")
-        if status == "job-deduped":
-            try:
-                logging.info("Submitted job was deduped. Looking for original job.")
-                logging.info(f"Deduped job mozart response: {json.dumps(mozart_response)}")
-                job_info_response = get_mozart_job_info(job_id)
-                orig_job_id = job_info_response.get("result").get("dedup_job")
-                logging.info(f"Found original job id: {orig_job_id}")
-                updated_mozart_response = copy.deepcopy(mozart_response)
-                updated_mozart_response.update({"result": orig_job_id})
-                orig_job_status = mozart_job_status(orig_job_id).get("status")
-                # overwriting deduped job's mozart response with original job id.
-                updated_mozart_response.update({"orig_job_status": orig_job_status})
-                mozart_response = updated_mozart_response
-                logging.info(f"Updated job mozart response with original job: {json.dumps(mozart_response)}")
-            except Exception as ex:
-                raise ex
-    except Exception:
-        # Tried to query mozart too soon after job submission. Just return the job submission response from mozart
-        return mozart_response
     return mozart_response
 
 
