@@ -75,14 +75,14 @@ def validate_proxy(ticket, auto_create_member=False):
     validated attributes are saved under member db table.
     """
 
+    pgt_token_duration_in_days = 60
+
     current_app.logger.debug("validating token {0}".format(ticket))
-
     decrypted_ticket = decrypt_proxy_ticket(ticket)
-
     cas_session = db.session.query(MemberSession).filter_by(session_key=decrypted_ticket).first()
 
-    # Check for session created timestamp < 24 hours old
-    if cas_session is not None and cas_session.creation_date + timedelta(hours=24) > datetime.utcnow():
+    # Check for active session created within allowed timespan
+    if cas_session is not None and cas_session.creation_date + timedelta(days=pgt_token_duration_in_days) > datetime.utcnow():
         return cas_session
     else:
         cas_validate_proxy_url = create_cas_proxy_url(
