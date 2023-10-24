@@ -513,7 +513,7 @@ class StopJobs(Resource):
 
     @api.doc(security='ApiKeyAuth')
     @login_required
-    def delete(self, job_id):
+    def post(self, job_id):
         # TODO: add optional parameter wait_for_completion to wait for cancel job to complete.
         # Since this can take a long time, we don't wait by default.
         wait_for_completion = request.args.get("wait_for_completion", False)
