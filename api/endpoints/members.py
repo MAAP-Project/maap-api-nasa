@@ -537,18 +537,25 @@ class AwsAccessUserBucketCredentials(Resource):
         if not maap_user:
             return Response('Unauthorized', status=401)
 
-        # Restrict bucket access to user's own directory
+        # Allow bucket access to just the user's workspace directory
         policy = f'''{{"Version": "2012-10-17",
             "Statement": [
                 {{
-                    "Sid": "DenyListingOfNonUserFolder",
-                    "Effect": "Deny",
-                    "Action": "s3:ListBucket",
+                    "Sid": "GrantAccessToUserFolder",
+                    "Effect": "Allow",
+                    "Action": [
+                        "s3:ListBucket",
+                        "s3:DeleteObject",
+                        "s3:GetObject",
+                        "s3:PutObject",
+                        "s3:RestoreObject",
+                        "s3:ListMultipartUploadParts",
+                        "s3:AbortMultipartUpload"
+                    ],
                     "Resource": "arn:aws:s3:::{settings.WORKSPACE_BUCKET}",
                     "Condition": {{
-                        "StringNotLike": {{
+                        "StringLike": {{
                             "s3:prefix": [
-                                "",
                                 "{maap_user.username}/*"
                             ]
                         }}
