@@ -9,6 +9,15 @@ import copy
 
 log = logging.getLogger(__name__)
 
+STATUS_JOB_STARTED = "job-started"
+STATUS_JOB_COMPLETED = "job-completed"
+STATUS_JOB_QUEUED = "job-queued"
+STATUS_JOB_FAILED = "job-failed"
+STATUS_JOB_DEDUPED = "job-deduped"
+STATUS_JOB_REVOKED = "job-revoked"
+STATUS_JOB_OFFLINE = "job-offline"
+
+
 def get_mozart_job_info(job_id):
     params = dict()
     params["id"] = job_id
@@ -640,7 +649,7 @@ def delete_mozart_job_type(job_type):
         raise Exception("Failed to remove job spec. Error: {}".format(message))
 
 
-def delete_mozart_job(job_id):
+def delete_mozart_job(job_id, wait_for_completion=False):
     """
     This function deletes a job from Mozart
     :param job_id:
@@ -656,16 +665,18 @@ def delete_mozart_job(job_id):
     submit_response = mozart_submit_job(job_type=job_type, params=params, queue=settings.LW_QUEUE)
     lw_job_id = submit_response.get("result")
     logging.info(lw_job_id)
-
+    if not wait_for_completion:
+        return lw_job_id, None
     # keep polling mozart until the purge job is finished.
     return poll_for_completion(lw_job_id)
 
 
-def revoke_mozart_job(job_id):
+def revoke_mozart_job(job_id, wait_for_completion=False):
     """
     This function deletes a job from Mozart
+    :param wait_for_completion:
     :param job_id:
-    :return:
+    :return: job_id, status
     """
     job_type = "job-lw-mozart-revoke:{}".format(settings.HYSDS_LW_VERSION)
     params = {
@@ -677,7 +688,8 @@ def revoke_mozart_job(job_id):
     submit_response = mozart_submit_job(job_type=job_type, params=params, queue=settings.LW_QUEUE)
     lw_job_id = submit_response.get("result")
     logging.info(lw_job_id)
-
+    if not wait_for_completion:
+        return lw_job_id, None
     # keep polling mozart until the purge job is finished.
     return poll_for_completion(lw_job_id)
 

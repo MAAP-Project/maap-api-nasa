@@ -19,7 +19,7 @@ def set_namespaces(xml_element):
     return xml_element
 
 
-def get_status(job_status):
+def get_status(job_status, wps_compliant=False):
     """
     Translate HySDS job status to WPS status
     :param job_status:
@@ -37,6 +37,13 @@ def get_status(job_status):
         status = "Dismissed"
     elif job_status == "Deleted" or job_status is None:
         status = "Deleted"
+    elif not wps_compliant:
+        if job_status == "job-deduped":
+            status = "Deduped"
+        elif job_status == "job-offline":
+            status = "Offline"
+        else:
+            status = "Failed"
     else:
         """
         if job is deduped or offline setting it to failed
@@ -201,7 +208,7 @@ def result_response(job_id, job_result=None, error=None):
     return tostring(response)
 
 
-def status_response(job_id, job_status):
+def status_response(job_id, job_status, wps_compliant=False):
     """
     OGC GetStatus RESPONSE EXAMPLE
 
@@ -216,7 +223,7 @@ def status_response(job_id, job_status):
     :return:
     """
 
-    status = get_status(job_status)
+    status = get_status(job_status, wps_compliant)
     response = ET.Element("wps:StatusInfo")
     response = set_namespaces(response)
     ET.SubElement(response, "wps:JobID").text = job_id
