@@ -360,7 +360,7 @@ def get_algorithms():
     return maap_algo_list
 
 
-def mozart_submit_job(job_type, params={}, queue=settings.DEFAULT_QUEUE, dedup="false", identifier=["maap-api_submit"]):
+def mozart_submit_job(job_type, params={}, queue=settings.DEFAULT_QUEUE, dedup="false", identifier="maap-api_submit"):
     """
     Submit a job to Mozart
     :param job_type:
@@ -378,11 +378,12 @@ def mozart_submit_job(job_type, params={}, queue=settings.DEFAULT_QUEUE, dedup="
     job_payload["queue"] = queue
     job_payload["priority"] = 0
     if identifier is not None:
-        if type(identifier) is dict:
+        if type(identifier) is list:
             job_payload["tags"] = json.dumps(identifier)
+        elif type(identifier) is str:
+            job_payload["tags"] = str(identifier).split(",")
         else:
-            identifier_list = identifier.split(",")
-            job_payload["tags"] = json.dumps(identifier_list)
+            job_payload["tags"] = ["maap-api-submit"]
     else:
         job_payload["tags"] = json.dumps(["maap-api_submit"])
 
@@ -662,7 +663,8 @@ def delete_mozart_job(job_id, wait_for_completion=False):
         "operation": "purge"
     }
     logging.info("Submitting job of type {} with params {}".format(job_type, json.dumps(params)))
-    submit_response = mozart_submit_job(job_type=job_type, params=params, queue=settings.LW_QUEUE)
+    submit_response = mozart_submit_job(job_type=job_type, params=params, queue=settings.LW_QUEUE,
+                                        identifier=[f"purge-{job_id}"])
     lw_job_id = submit_response.get("result")
     logging.info(lw_job_id)
     if not wait_for_completion:
@@ -685,7 +687,8 @@ def revoke_mozart_job(job_id, wait_for_completion=False):
         "operation": "revoke"
     }
     logging.info("Submitting job of type {} with params {}".format(job_type, json.dumps(params)))
-    submit_response = mozart_submit_job(job_type=job_type, params=params, queue=settings.LW_QUEUE)
+    submit_response = mozart_submit_job(job_type=job_type, params=params, queue=settings.LW_QUEUE,
+                                        identifier=[f"revoke-{job_id}"])
     lw_job_id = submit_response.get("result")
     logging.info(lw_job_id)
     if not wait_for_completion:
