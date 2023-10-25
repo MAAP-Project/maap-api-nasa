@@ -21,6 +21,7 @@ from datetime import datetime, timedelta, timezone
 import json
 import boto3
 import requests
+import os
 from urllib import parse
 from api.utils.url_util import proxied_url
 
@@ -32,6 +33,7 @@ sts_client = boto3.client('sts', region_name=settings.AWS_REGION)
 
 STATUS_ACTIVE = "active"
 STATUS_SUSPENDED = "suspended"
+FILE_PATH = os.path.abspath(os.path.dirname(__file__))
 
 
 def err_response(msg, code=status.HTTP_400_BAD_REQUEST):
@@ -538,31 +540,7 @@ class AwsAccessUserBucketCredentials(Resource):
             return Response('Unauthorized', status=401)
 
         # Allow bucket access to just the user's workspace directory
-        policy = f'''{{"Version": "2012-10-17",
-            "Statement": [
-                {{
-                    "Sid": "GrantAccessToUserFolder",
-                    "Effect": "Allow",
-                    "Action": [
-                        "s3:ListBucket",
-                        "s3:DeleteObject",
-                        "s3:GetObject",
-                        "s3:PutObject",
-                        "s3:RestoreObject",
-                        "s3:ListMultipartUploadParts",
-                        "s3:AbortMultipartUpload"
-                    ],
-                    "Resource": "arn:aws:s3:::{settings.WORKSPACE_BUCKET}",
-                    "Condition": {{
-                        "StringLike": {{
-                            "s3:prefix": [
-                                "{maap_user.username}/*"
-                            ]
-                        }}
-                    }}
-                }}
-            ]
-        }}'''
+        policy = FILE_PATH + "/bucket_user_folder_policy.json".format(settings.WORKSPACE_BUCKET, maap_user.username)
 
         # Call the assume_role method of the STSConnection object
         assumed_role_object = sts_client.assume_role(
