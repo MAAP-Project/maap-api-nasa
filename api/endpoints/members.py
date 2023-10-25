@@ -28,6 +28,7 @@ from api.utils.url_util import proxied_url
 log = logging.getLogger(__name__)
 ns = api.namespace('members', description='Operations for MAAP members')
 s3_client = boto3.client('s3', region_name=settings.AWS_REGION)
+sts_client = boto3.client('sts', region_name=settings.AWS_REGION)
 
 STATUS_ACTIVE = "active"
 STATUS_SUSPENDED = "suspended"
@@ -511,6 +512,73 @@ class AwsAccessEdcCredentials(Resource):
             secretAccessKey=creds['secretAccessKey'],
             sessionToken=creds['sessionToken'],
             expiration=creds['expiration']
+        )
+
+        response.headers.add('Access-Control-Allow-Origin', '*')
+
+        return response
+
+
+@ns.route('/self/awsAccess/s3Bucket')
+class AwsAccessUserBucketCredentials(Resource):
+    """
+    User Bucket Temporary s3 Credentials
+
+        Obtain temporary s3 credentials to access a user's s3 bucket
+
+        Example:
+        https://api.maap-project.org/api/self/userBucket
+    """
+    @api.doc(security='ApiKeyAuth')
+    @login_required
+    def get(self):
+        maap_user = get_authorized_user()
+
+        if not maap_user:
+            return Response('Unauthorized', status=401)
+
+        # Allow bucket access to just the user's workspace directory
+        policy = f'''{{"Version": "2012-10-17",
+            "Statement": [
+                {{
+                    "Sid": "GrantAccessToUserFolder",
+                    "Effect": "Allow",
+                    "Action": [
+                        "s3:ListBucket",
+                        "s3:DeleteObject",
+                        "s3:GetObject",
+                        "s3:PutObject",
+                        "s3:RestoreObject",
+                        "s3:ListMultipartUploadParts",
+                        "s3:AbortMultipartUpload"
+                    ],
+                    "Resource": "arn:aws:s3:::{settings.WORKSPACE_BUCKET}",
+                    "Condition": {{
+                        "StringLike": {{
+                            "s3:prefix": [
+                                "{maap_user.username}/*"
+                            ]
+                        }}
+                    }}
+                }}
+            ]
+        }}'''
+
+        # Call the assume_role method of the STSConnection object
+        assumed_role_object = sts_client.assume_role(
+            RoleArn=settings.WORKSPACE_BUCKET_ARN,
+            RoleSessionName=f'workspace-session-{maap_user.username}',
+            Policy=policy,
+            DurationSeconds=(60 * 60)
+        )
+
+        response = jsonify(
+            aws_bucket_name=settings.WORKSPACE_BUCKET,
+            aws_bucket_prefix=maap_user.username,
+            aws_access_key_id=assumed_role_object['Credentials']['AccessKeyId'],
+            aws_secret_access_key=assumed_role_object['Credentials']['SecretAccessKey'],
+            aws_session_token=assumed_role_object['Credentials']['SessionToken'],
+            aws_session_expiration=assumed_role_object['Credentials']['Expiration'].strftime("%Y-%m-%d %H:%M:%S%z")
         )
 
         response.headers.add('Access-Control-Allow-Origin', '*')

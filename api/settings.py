@@ -79,6 +79,8 @@ QS_RESULT_BUCKET = 'maap-api-query-service-dev-query-results'
 
 # AWS
 AWS_REGION = 'us-east-1'
+WORKSPACE_BUCKET = ''
+WORKSPACE_BUCKET_ARN = ''
 WORKSPACE_MOUNT_PRIVATE = 'my-private-bucket'
 WORKSPACE_MOUNT_PUBLIC = 'my-public-bucket'
 WORKSPACE_MOUNT_SHARED = 'shared-buckets'
