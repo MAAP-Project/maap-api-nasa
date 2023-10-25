@@ -377,15 +377,13 @@ def mozart_submit_job(job_type, params={}, queue=settings.DEFAULT_QUEUE, dedup="
     job_payload["type"] = job_type
     job_payload["queue"] = queue
     job_payload["priority"] = 0
+    tags_list = ["maap-api-submit"]
     if identifier is not None:
         if type(identifier) is list:
-            job_payload["tags"] = json.dumps(identifier)
+            tags_list = identifier
         elif type(identifier) is str:
-            job_payload["tags"] = str(identifier).split(",")
-        else:
-            job_payload["tags"] = ["maap-api-submit"]
-    else:
-        job_payload["tags"] = json.dumps(["maap-api_submit"])
+            tags_list = str(identifier).split(",")
+    job_payload["tags"] = json.dumps(tags_list)
 
     # assign username to job
     if params.get("username") is not None:
