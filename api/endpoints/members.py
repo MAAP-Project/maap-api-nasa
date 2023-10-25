@@ -519,7 +519,7 @@ class AwsAccessEdcCredentials(Resource):
         return response
 
 
-@ns.route('/self/awsAccess/s3Bucket')
+@ns.route('/self/awsAccess/workspaceBucket')
 class AwsAccessUserBucketCredentials(Resource):
     """
     User Bucket Temporary s3 Credentials
@@ -527,7 +527,7 @@ class AwsAccessUserBucketCredentials(Resource):
         Obtain temporary s3 credentials to access a user's s3 bucket
 
         Example:
-        https://api.maap-project.org/api/self/userBucket
+        https://api.maap-project.org/api/self/awsAccess/workspaceBucket
     """
     @api.doc(security='ApiKeyAuth')
     @login_required
