@@ -24,7 +24,6 @@ import requests
 from urllib import parse
 from api.utils.url_util import proxied_url
 
-
 log = logging.getLogger(__name__)
 ns = api.namespace('members', description='Operations for MAAP members')
 s3_client = boto3.client('s3', region_name=settings.AWS_REGION)
@@ -79,10 +78,10 @@ class Member(Resource):
             Member_db.creation_date
         ]
 
-        member = db.session\
-            .query(Member_db)\
-            .with_entities(*cols)\
-            .filter_by(username=key)\
+        member = db.session \
+            .query(Member_db) \
+            .with_entities(*cols) \
+            .filter_by(username=key) \
             .first()
 
         if member is None:
@@ -92,11 +91,11 @@ class Member(Resource):
         result = json.loads(member_schema.dumps(member))
 
         if valid_dps_request():
-            pgt_ticket = db.session\
-                .query(MemberSession_db)\
-                .with_entities(MemberSession_db.session_key)\
-                .filter_by(member_id=member.id)\
-                .order_by(MemberSession_db.id.desc())\
+            pgt_ticket = db.session \
+                .query(MemberSession_db) \
+                .with_entities(MemberSession_db.session_key) \
+                .filter_by(member_id=member.id) \
+                .order_by(MemberSession_db.id.desc()) \
                 .first()
 
             member_session_schema = MemberSessionSchema()
@@ -413,7 +412,6 @@ class PublicSshKeyUpload(Resource):
 
 @ns.route('/self/presignedUrlS3/<string:bucket>/<path:key>')
 class PresignedUrlS3(Resource):
-
     expiration_param = reqparse.RequestParser()
     expiration_param.add_argument('exp', type=int, required=False, default=60 * 60 * 12)
     expiration_param.add_argument('ws', type=str, required=False, default="")
@@ -456,7 +454,6 @@ class PresignedUrlS3(Resource):
 
 @ns.route('/self/awsAccess/requesterPaysBucket')
 class AwsAccessRequesterPaysBucket(Resource):
-
     expiration_param = reqparse.RequestParser()
     expiration_param.add_argument('exp', type=int, required=False, default=60 * 60 * 12)
 
@@ -464,7 +461,6 @@ class AwsAccessRequesterPaysBucket(Resource):
     @login_required
     @api.expect(expiration_param)
     def get(self):
-
         member = get_authorized_user()
 
         expiration = request.args['exp']
@@ -497,26 +493,42 @@ class AwsAccessEdcCredentials(Resource):
         Example:
         https://api.maap-project.org/api/self/edcCredentials/https%3A%2F%2Fdata.lpdaac.earthdatacloud.nasa.gov%2Fs3credentials
     """
+
     @api.doc(security='ApiKeyAuth')
     @login_required
     def get(self, endpoint_uri):
+        s = requests.Session()
         maap_user = get_authorized_user()
 
-        if not maap_user:
+        if maap_user is None:
             return Response('Unauthorized', status=401)
+        else:
+            urs_token = db.session.query(Member_db).filter_by(id=maap_user.id).first().urs_token
+            s.headers.update({'Authorization': f'Bearer {urs_token},Basic {settings.MAAP_EDL_CREDS}',
+                              'Connection': 'close'})
 
-        creds = get_edc_credentials(endpoint_uri, maap_user)
+            endpoint = parse.unquote(endpoint_uri)
+            login_resp = s.get(
+                endpoint, allow_redirects=False
+            )
 
-        response = jsonify(
-            accessKeyId=creds['accessKeyId'],
-            secretAccessKey=creds['secretAccessKey'],
-            sessionToken=creds['sessionToken'],
-            expiration=creds['expiration']
-        )
+            if login_resp.status_code == 307:
+                edl_response = s.get(url=login_resp.headers['location'])
+            else:
+                edl_response = edl_federated_request(url=endpoint)
 
-        response.headers.add('Access-Control-Allow-Origin', '*')
+            json_response = json.loads(edl_response.content)
 
-        return response
+            response = jsonify(
+                accessKeyId=json_response['accessKeyId'],
+                secretAccessKey=json_response['secretAccessKey'],
+                sessionToken=json_response['sessionToken'],
+                expiration=json_response['expiration']
+            )
+
+            response.headers.add('Access-Control-Allow-Origin', '*')
+
+            return response
 
 
 @ns.route('/self/awsAccess/workspaceBucket')
@@ -529,6 +541,7 @@ class AwsAccessUserBucketCredentials(Resource):
         Example:
         https://api.maap-project.org/api/self/awsAccess/workspaceBucket
     """
+
     @api.doc(security='ApiKeyAuth')
     @login_required
     def get(self):
@@ -629,23 +642,24 @@ def get_edc_credentials(endpoint_uri, user):
     """
     urs_token = db.session.query(Member_db).filter_by(id=user.id).first().urs_token
 
-    with requests.Session() as s:
-        s.headers.update(
-            {
-                'Authorization': f'Bearer {urs_token},Basic {settings.MAAP_EDL_CREDS}',
-                'Connection': 'close'
-            }
-        )
+    s = requests.Session()
 
-        endpoint = parse.unquote(endpoint_uri)
-        login_resp = s.get(endpoint, allow_redirects=False)
+    s.headers.update(
+        {
+            'Authorization': f'Bearer {urs_token},Basic {settings.MAAP_EDL_CREDS}',
+            'Connection': 'close'
+        }
+    )
 
-        if login_resp.status_code == status.HTTP_307_TEMPORARY_REDIRECT:
-            edl_response = s.get(url=login_resp.headers['location'])
-        else:
-            edl_response = edl_federated_request(url=endpoint)
+    endpoint = parse.unquote(endpoint_uri)
+    login_resp = s.get(endpoint, allow_redirects=False)
 
-        return json.loads(edl_response.content)
+    if login_resp.status_code == status.HTTP_307_TEMPORARY_REDIRECT:
+        edl_response = s.get(url=login_resp.headers['location'])
+    else:
+        edl_response = edl_federated_request(url=endpoint)
+
+    return json.loads(edl_response.content)
 
 
 @ns.route('/pre-approved')
@@ -714,7 +728,6 @@ class PreApprovedEmails(Resource):
     @api.doc(security='ApiKeyAuth')
     @login_required
     def delete(self, email):
-
         """
         Delete pre-approved email
         """
