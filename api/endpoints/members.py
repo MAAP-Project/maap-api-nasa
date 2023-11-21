@@ -75,6 +75,7 @@ class Member(Resource):
             Member_db.last_name,
             Member_db.email,
             Member_db.status,
+            Member_db.public_ssh_key,
             Member_db.creation_date
         ]
 
