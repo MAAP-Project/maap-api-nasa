@@ -1,4 +1,5 @@
 cachetools
+gunicorn
 flask
 flask-cors
 flask-restx
