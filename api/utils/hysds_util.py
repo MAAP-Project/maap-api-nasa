@@ -19,12 +19,17 @@ STATUS_JOB_OFFLINE = "job-offline"
 
 
 def get_mozart_job_info(job_id):
+    logging.info("graceal1 in get mozart job info")
     params = dict()
     params["id"] = job_id
     session = requests.Session()
     session.verify = False
-    mozart_response = session.get("{}/job/info".format(settings.MOZART_URL), params=params).json()
-    return mozart_response
+    mozart_response = session.get("{}/job/info".format(settings.MOZART_URL), params=params)
+    logging.info("graceal1 printing mozart_response")
+    logging.info(mozart_response)
+    logging.info(type(mozart_response))
+    logging.info(mozart_response.json())
+    return mozart_response.json()
 
 def get_es_query_by_job_id(job_id):
     """
@@ -582,6 +587,7 @@ def get_mozart_jobs(username, page_size=10, offset=0):
         :param offset:
         :return:
         """
+    logging.info("graceal1 in get_mozart_jobs function")
     params = dict()
     params["page_size"] = page_size
     params["offset"] = offset  # this is specifies the offset
@@ -602,6 +608,10 @@ def get_mozart_jobs(username, page_size=10, offset=0):
             url = "{}/job/user/{}?{}".format(settings.MOZART_URL, username, param_list[1:])
         logging.info("GET request to find jobs: {}".format(url))
         mozart_response = session.get(url)
+        logging.info("graceal1 printing mozart_response")
+        logging.info(mozart_response)
+        logging.info(type(mozart_response))
+        logging.info(mozart_response.json())
 
     except Exception as ex:
         raise ex
