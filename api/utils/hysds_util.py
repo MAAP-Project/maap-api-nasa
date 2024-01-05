@@ -35,19 +35,22 @@ def get_mozart_job_info(job_id):
             logging.info("graceal2 FOUND THE PRODUCTED STAGED TO BE OVER 1")
         product_url = mozart_response["result"]["job"]["job_info"]["metrics"]["products_staged"][0]["urls"][0]
         logging.info(product_url)
-        dps_output_folder_name = "dps_output"
-        index_folder_name = product_url.find("dps_output")
-        logging.info(index_folder_name)
-        if (index_folder_name == -1):
-            product_path = "Product path unavailable, folder output name must be "+dps_output_folder_name
-        else:
-            product_path = product_url[product_url.find("dps_output"):]
+        dps_output_folder_names = ["dps_output", "triaged-jobs"]
+        product_path = None
+        for dps_output_folder_name in dps_output_folder_names:
+            index_folder_name = product_url.find(dps_output_folder_name)
+            if (index_folder_name != -1):
+                product_path = product_url[product_url.find(dps_output_folder_name):]
+                break
+        if (not product_path):      
+            product_path = "Product path unavailable, folder output name must be "+" ".join(dps_output_folder_names)
         logging.info(product_path)
         mozart_response["result"]["job"]["job_info"]["metrics"]["products_staged"][0]["product_file_path"] = product_path
         logging.info("graceal1 made it to the end of the function and set the product path for mozart_response")
     except Exception as ex: 
         logging.info("graceal2 PRODUCT URL PATH NOT FOUND")
         logging.info(ex)
+        #pass
 
     return mozart_response
 
