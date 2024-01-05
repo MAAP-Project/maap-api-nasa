@@ -35,7 +35,7 @@ def get_mozart_job_info(job_id):
             logging.info("graceal2 FOUND THE PRODUCTED STAGED TO BE OVER 1")
         product_url = mozart_response["result"]["job"]["job_info"]["metrics"]["products_staged"][0]["urls"][0]
         logging.info(product_url)
-        dps_output_folder_names = ["dps_output", "triaged-jobs"]
+        dps_output_folder_names = ["dps_output", "triaged-jobs", "triaged_job"]
         product_path = None
         for dps_output_folder_name in dps_output_folder_names:
             index_folder_name = product_url.find(dps_output_folder_name)
