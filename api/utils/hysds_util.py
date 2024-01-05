@@ -28,6 +28,7 @@ def get_mozart_job_info(job_id):
     mozart_response = mozart_response.json()
     
     try:
+        logging.info(mozart_response)
         products_staged = mozart_response["result"]["job"]["job_info"]["metrics"]["products_staged"]
         logging.info(products_staged)
         if (len(products_staged) > 1):
@@ -43,6 +44,7 @@ def get_mozart_job_info(job_id):
             product_path = product_url[product_url.find("dps_output"):]
         logging.info(product_path)
         mozart_response["result"]["job"]["job_info"]["metrics"]["products_staged"][0]["product_file_path"] = product_path
+        logging.info("graceal1 made it to the end of the function and set the product path for mozart_response")
     except Exception as ex: 
         logging.info("graceal2 PRODUCT URL PATH NOT FOUND")
         logging.info(ex)
