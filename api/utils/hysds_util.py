@@ -25,11 +25,26 @@ def get_mozart_job_info(job_id):
     session = requests.Session()
     session.verify = False
     mozart_response = session.get("{}/job/info".format(settings.MOZART_URL), params=params)
-    logging.info("graceal1 printing mozart_response")
-    logging.info(mozart_response)
-    logging.info(type(mozart_response))
-    logging.info(mozart_response.json())
-    return mozart_response.json()
+    mozart_response = mozart_response.json()
+    
+    try:
+        products_staged = mozart_response["result"]["job"]["job_info"]["metrics"]["products_staged"]
+        if (len(products_staged) > 1):
+            logging.info("graceal2 FOUND THE PRODUCTED STAGED TO BE OVER 1")
+        product_url = mozart_response["result"]["job"]["job_info"]["metrics"]["products_staged"][0]["urls"][0]
+        logging.info(product_url)
+        dps_output_folder_name = "dps_output"
+        index_folder_name = product_url.find("dps_output")
+        if (index_folder_name == -1):
+            product_path = "Product path unavailable, folder output name must be "+dps_output_folder_name
+        else:
+            product_path = product_url[product_url.find("dps_output"):]
+        logging.info(product_path)
+        mozart_response["result"]["job"]["job_info"]["metrics"]["products_staged"][0]["product_file_path"] = product_path
+    except: 
+        logging.info("graceal2 PRODUCT URL PATH NOT FOUND")
+
+    return mozart_response
 
 def get_es_query_by_job_id(job_id):
     """
