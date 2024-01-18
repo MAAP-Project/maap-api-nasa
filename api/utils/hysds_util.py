@@ -32,7 +32,8 @@ def get_mozart_job_info(job_id):
         products_staged = mozart_response["result"]["job"]["job_info"]["metrics"]["products_staged"]
         logging.info(products_staged)
         if (len(products_staged) > 1):
-            logging.info("graceal2 FOUND THE PRODUCTED STAGED TO BE OVER 1")
+            logging.info("graceal2 Length of products_staged is more than 1. We are only looking at the first element for the product file path")
+        # All urls should have the same file path within them 
         product_url = mozart_response["result"]["job"]["job_info"]["metrics"]["products_staged"][0]["urls"][0]
         logging.info(product_url)
         dps_output_folder_names = ["dps_output", "triaged-jobs", "triaged_job"]
@@ -50,9 +51,7 @@ def get_mozart_job_info(job_id):
         mozart_response["result"]["job"]["job_info"]["metrics"]["products_staged"][0]["product_file_path"] = product_path
         logging.info("graceal1 made it to the end of the function and set the product path for mozart_response")
     except Exception as ex: 
-        logging.info("graceal2 PRODUCT URL PATH NOT FOUND")
-        logging.info(ex)
-        #pass
+        logging.info("Product url path unable to be found because no products")
 
     return mozart_response
 
