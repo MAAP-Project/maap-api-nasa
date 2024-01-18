@@ -470,7 +470,6 @@ class Jobs(Resource):
         offset = request.args.get("offset", 0)
         page_size = request.args.get("page_size", 250)
         try:
-            username = "sshah"
             logging.info("Finding jobs for user: {}".format(username))
             # get list of jobs ids for the user
             response = hysds.get_mozart_jobs(username=username, offset=offset, page_size=page_size)
