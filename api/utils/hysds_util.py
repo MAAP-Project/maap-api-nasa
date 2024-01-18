@@ -42,7 +42,7 @@ def get_mozart_job_info(job_id):
             if (index_folder_name != -1):
                 product_path = product_url[product_url.find(dps_output_folder_name):]
                 if (dps_output_folder_name == "dps_output"):
-                    product_path = "my-private-bucket" + product_path
+                    product_path = "my-private-bucket/" + product_path
                 break
         if (not product_path):      
             product_path = "Product path unavailable, folder output name must be "+" ".join(dps_output_folder_names)
