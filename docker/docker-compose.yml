@@ -16,10 +16,15 @@ services:
     volumes:
       - ./logs:/maap-api-nasa/logs/
     command: >
-      sh -c "flask run --host=0.0.0.0"
+      sh -c "gunicorn --bind 0.0.0.0:5000 api.maapapp:app -w 4"
     environment:
       FLASK_APP: /maap-api-nasa/api/maapapp.py
     restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: 250m
+        max-file: 10
 
   db:
     image: postgres:14.5
