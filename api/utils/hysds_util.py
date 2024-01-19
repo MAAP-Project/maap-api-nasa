@@ -33,9 +33,7 @@ def remove_double_tag(mozart_response):
     :return: updated mozart_response with duplicate tags removed 
     """
     try:
-        logging.info("graceal1 in remove_double_tag with ")
         tags = mozart_response["result"]["tags"]
-        logging.info(tags)
         if isinstance(tags, list):
             tags = list(set(tags))
             mozart_response["result"]["tags"] = tags
@@ -395,16 +393,12 @@ def mozart_submit_job(job_type, params={}, queue=settings.DEFAULT_QUEUE, dedup="
     job_payload["type"] = job_type
     job_payload["queue"] = queue
     job_payload["priority"] = 0
-    logging.info("graceal1 in mozart_submit_job")
     tags_list = ["maap-api-submit"]
     if identifier is not None:
         if type(identifier) is list:
             tags_list = identifier
         elif type(identifier) is str:
             tags_list = str(identifier).split(",")
-    logging.info("graceal1 tags_list is ")
-    logging.info(tags_list)
-    logging.info(json.dumps(tags_list))
     job_payload["tags"] = json.dumps(tags_list)
 
     # assign username to job
@@ -422,8 +416,6 @@ def mozart_submit_job(job_type, params={}, queue=settings.DEFAULT_QUEUE, dedup="
 
     session = requests.Session()
     session.verify = False
-    logging.info("graceal1 trying to submit job like ")
-    logging.info(job_payload)
 
     try:
         mozart_response = session.post("{}/job/submit".format(settings.MOZART_URL),
