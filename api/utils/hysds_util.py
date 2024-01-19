@@ -37,7 +37,7 @@ def remove_double_tag(mozart_response):
         tags = mozart_response["result"]["tags"]
         logging.info(tags)
         if isinstance(tags, list):
-            tags = set(tags)
+            tags = list(set(tags))
             mozart_response["result"]["tags"] = tags
     except: 
         # Okay if you just cannot access tags, don't need to remove duplicates in this case 
