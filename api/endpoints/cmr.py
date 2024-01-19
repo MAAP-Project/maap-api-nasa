@@ -145,8 +145,8 @@ class CmrGranuleData(Resource):
 
                 response = s.get(url=response.url, stream=True)
 
-                if response.status_code == 401:
-                    return Response(response.text, status=401)
+                if response.status_code >= 400:
+                    return Response(response.text, status=response.status_code)
 
         return Response(
             response=stream_with_context(response.iter_content(chunk_size=1024 * 10)),
