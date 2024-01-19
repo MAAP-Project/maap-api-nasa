@@ -19,41 +19,39 @@ STATUS_JOB_OFFLINE = "job-offline"
 
 
 def get_mozart_job_info(job_id):
-    logging.info("graceal1 in get mozart job info")
     params = dict()
     params["id"] = job_id
     session = requests.Session()
     session.verify = False
     mozart_response = session.get("{}/job/info".format(settings.MOZART_URL), params=params)
-    mozart_response = mozart_response.json()
-    
+    mozart_response = add_product_path(mozart_response.json())
+
+    return mozart_response
+
+def add_product_path(mozart_response):
     try:
-        logging.info(mozart_response)
         products_staged = mozart_response["result"]["job"]["job_info"]["metrics"]["products_staged"]
-        logging.info(products_staged)
         if (len(products_staged) > 1):
-            logging.info("graceal2 Length of products_staged is more than 1. We are only looking at the first element for the product file path")
+            logging.info("Length of products_staged is more than 1. We are only looking at the first element for the product file path")
         # All urls should have the same file path within them 
         product_url = mozart_response["result"]["job"]["job_info"]["metrics"]["products_staged"][0]["urls"][0]
-        logging.info(product_url)
         dps_output_folder_names = ["dps_output", "triaged-jobs", "triaged_job"]
         product_path = None
         for dps_output_folder_name in dps_output_folder_names:
             index_folder_name = product_url.find(dps_output_folder_name)
             if (index_folder_name != -1):
-                product_path = product_url[product_url.find(dps_output_folder_name):]
+                product_path = product_url[index_folder_name:]
+                # dps_output is in my private bucket which needs to be appended to its file path
                 if (dps_output_folder_name == "dps_output"):
                     product_path = "my-private-bucket/" + product_path
                 break
         if (not product_path):      
             product_path = "Product path unavailable, folder output name must be "+" ".join(dps_output_folder_names)
-        logging.info(product_path)
         mozart_response["result"]["job"]["job_info"]["metrics"]["products_staged"][0]["product_file_path"] = product_path
-        logging.info("graceal1 made it to the end of the function and set the product path for mozart_response")
     except Exception as ex: 
         logging.info("Product url path unable to be found because no products")
-
     return mozart_response
+
 
 def get_es_query_by_job_id(job_id):
     """
@@ -611,7 +609,6 @@ def get_mozart_jobs(username, page_size=10, offset=0):
         :param offset:
         :return:
         """
-    logging.info("graceal1 in get_mozart_jobs function")
     params = dict()
     params["page_size"] = page_size
     params["offset"] = offset  # this is specifies the offset
@@ -632,10 +629,6 @@ def get_mozart_jobs(username, page_size=10, offset=0):
             url = "{}/job/user/{}?{}".format(settings.MOZART_URL, username, param_list[1:])
         logging.info("GET request to find jobs: {}".format(url))
         mozart_response = session.get(url)
-        logging.info("graceal1 printing mozart_response")
-        logging.info(mozart_response)
-        logging.info(type(mozart_response))
-        logging.info(mozart_response.json())
 
     except Exception as ex:
         raise ex
