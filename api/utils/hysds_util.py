@@ -42,6 +42,7 @@ def remove_double_tag(mozart_response):
     except: 
         # Okay if you just cannot access tags, don't need to remove duplicates in this case 
         pass
+    return mozart_response
 
 def get_es_query_by_job_id(job_id):
     """
