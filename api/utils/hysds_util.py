@@ -24,12 +24,24 @@ def get_mozart_job_info(job_id):
     session = requests.Session()
     session.verify = False
     mozart_response = session.get("{}/job/info".format(settings.MOZART_URL), params=params).json()
-    remove_double_tag(mozart_response)
-    return mozart_response
+    return remove_double_tag(mozart_response)
 
 def remove_double_tag(mozart_response):
-    logging.info("graceal1 in remove_double_tag with ")
-    logging.info(mozart_response)
+    """
+    Remove duplicates from the tags field 
+    :param mozart_response:
+    :return: updated mozart_response with duplicate tags removed 
+    """
+    try:
+        logging.info("graceal1 in remove_double_tag with ")
+        tags = mozart_response["result"]["tags"]
+        logging.info(tags)
+        if isinstance(tags, list):
+            tags = set(tags)
+            mozart_response["result"]["tags"] = tags
+    except: 
+        # Okay if you just cannot access tags, don't need to remove duplicates in this case 
+        pass
 
 def get_es_query_by_job_id(job_id):
     """
