@@ -23,9 +23,25 @@ def get_mozart_job_info(job_id):
     params["id"] = job_id
     session = requests.Session()
     session.verify = False
-    mozart_response = session.get("{}/job/info".format(settings.MOZART_URL), params=params)
-    mozart_response = add_product_path(mozart_response.json())
+    mozart_response = session.get("{}/job/info".format(settings.MOZART_URL), params=params).json()
+    mozart_response = add_product_path(mozart_response)
+    mozart_response = remove_double_tag(mozart_response)
+    return mozart_response
 
+def remove_double_tag(mozart_response):
+    """
+    Remove duplicates from the tags field 
+    :param mozart_response:
+    :return: updated mozart_response with duplicate tags removed 
+    """
+    try:
+        tags = mozart_response["result"]["tags"]
+        if isinstance(tags, list):
+            tags = list(set(tags))
+            mozart_response["result"]["tags"] = tags
+    except: 
+        # Okay if you just cannot access tags, don't need to remove duplicates in this case 
+        pass
     return mozart_response
 
 def add_product_path(mozart_response):
