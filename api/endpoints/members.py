@@ -109,7 +109,6 @@ class Member(Resource):
         if authorized_user.username == key:
 
             cols = [
-                Member_db.id,
                 Member_db.public_ssh_key_name,
                 Member_db.public_ssh_key_modified_date
             ]
