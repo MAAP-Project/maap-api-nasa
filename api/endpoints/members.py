@@ -103,6 +103,25 @@ class Member(Resource):
             pgt_result = json.loads(member_session_schema.dumps(pgt_ticket))
             result = json.loads(json.dumps(dict(result.items() | pgt_result.items())))
 
+        # If the requested user info belongs to the logged in user,
+        # also include additional ssh key information belonging to the user
+        authorized_user = get_authorized_user()
+        if authorized_user.username == key:
+
+            cols = [
+                Member_db.public_ssh_key_name,
+                Member_db.public_ssh_key_modified_date
+            ]
+
+            member = db.session \
+                .query(Member_db) \
+                .with_entities(*cols) \
+                .filter_by(username=authorized_user.username) \
+                .first()
+
+            member_schema = MemberSchema()
+            result = json.loads(member_schema.dumps(member))
+
         return result
 
     @api.doc(security='ApiKeyAuth')
@@ -342,6 +361,8 @@ class Self(Resource):
             Member_db.email,
             Member_db.status,
             Member_db.public_ssh_key,
+            Member_db.public_ssh_key_name,
+            Member_db.public_ssh_key_modified_date,
             Member_db.creation_date
         ]
 
