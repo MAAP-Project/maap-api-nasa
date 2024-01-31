@@ -342,6 +342,8 @@ class Self(Resource):
             Member_db.email,
             Member_db.status,
             Member_db.public_ssh_key,
+            Member_db.public_ssh_key_name,
+            Member_db.public_ssh_key_modified_date,
             Member_db.creation_date
         ]
 
