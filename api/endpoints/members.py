@@ -119,7 +119,7 @@ class Member(Resource):
                 .with_entities(*cols) \
                 .filter_by(username=key) \
                 .first()
-            
+
             member_schema = MemberSchema()
             result = json.loads(member_schema.dumps(member))
 
