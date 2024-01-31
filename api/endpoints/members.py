@@ -120,7 +120,8 @@ class Member(Resource):
                 .first()
 
             member_schema = MemberSchema()
-            result = json.loads(member_schema.dumps(member))
+            member_ssh_info_result = json.loads(member_schema.dumps(member))
+            result = json.loads(json.dumps(dict(result.items() | member_ssh_info_result.items())))
 
         return result
 
