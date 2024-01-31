@@ -505,21 +505,7 @@ class AwsAccessEdcCredentials(Resource):
         if maap_user is None:
             return Response('Unauthorized', status=401)
         else:
-            urs_token = db.session.query(Member_db).filter_by(id=maap_user.id).first().urs_token
-            s.headers.update({'Authorization': f'Bearer {urs_token},Basic {settings.MAAP_EDL_CREDS}',
-                              'Connection': 'close'})
-
-            endpoint = parse.unquote(endpoint_uri)
-            login_resp = s.get(
-                endpoint, allow_redirects=False
-            )
-
-            if login_resp.status_code == 307:
-                edl_response = s.get(url=login_resp.headers['location'])
-            else:
-                edl_response = edl_federated_request(url=endpoint)
-
-            json_response = json.loads(edl_response.content)
+            json_response = get_edc_credentials(endpoint_uri=endpoint_uri, user=maap_user)
 
             response = jsonify(
                 accessKeyId=json_response['accessKeyId'],
