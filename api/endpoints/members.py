@@ -505,7 +505,7 @@ class AwsAccessEdcCredentials(Resource):
         if maap_user is None:
             return Response('Unauthorized', status=401)
         else:
-            json_response = get_edc_credentials(endpoint_uri=endpoint_uri, user=maap_user)
+            json_response = get_edc_credentials(endpoint_uri=endpoint_uri, user_id=maap_user.id)
 
             response = jsonify(
                 accessKeyId=json_response['accessKeyId'],
@@ -587,7 +587,7 @@ class AwsAccessUserBucketCredentials(Resource):
         return response
 
 
-def creds_expiration_utc(_key, creds, now_utc: datetime) -> datetime:
+def creds_expiration_utc(_key, creds, now_utc_cred: float) -> float:
     """Return the UTC time that is halfway between now and the expiration time
     of a credentials object.
 
@@ -607,28 +607,28 @@ def creds_expiration_utc(_key, creds, now_utc: datetime) -> datetime:
     try:
         expiration = creds['expiration']
         expiration_dt = datetime.strptime(expiration, "%Y-%m-%d %H:%M:%S%z")
-        expiration_dt_utc = expiration_dt.astimezone(timezone.utc)
+        expiration_dt_utc = expiration_dt.astimezone(timezone.utc).timestamp() * 1000
     except (KeyError, ValueError):
-        expiration_dt_utc = now_utc
+        expiration_dt_utc = now_utc_cred
 
     # Expire creds in half the actual expiration time
-    return expiration_dt_utc - (expiration_dt_utc - now_utc) / 2
+    return expiration_dt_utc - (expiration_dt_utc - now_utc_cred) / 2
 
 
-def now_utc() -> datetime:
+def now_utc() -> float:
     """Return the current datetime value in UTC."""
-    return datetime.now(timezone.utc)
+    return datetime.now(timezone.utc).timestamp() * 1000
 
 
-@cached(TLRUCache(ttu=creds_expiration_utc, timer=now_utc, maxsize=None))
-def get_edc_credentials(endpoint_uri, user):
+@cached(TLRUCache(ttu=creds_expiration_utc, timer=now_utc, maxsize=128))
+def get_edc_credentials(endpoint_uri, user_id):
     """Get EDC credentials for a user from an endpoint.
 
     Credentials are cached for the given endpoint and user for half the time the
     credentials are valid to avoid unnecessary generation of new credentials and
     to minimize load on the endpoint, while also ensuring reasonable "freshness".
     """
-    urs_token = db.session.query(Member_db).filter_by(id=user.id).first().urs_token
+    urs_token = db.session.query(Member_db).filter_by(id=user_id).first().urs_token
 
     s = requests.Session()
 
