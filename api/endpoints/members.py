@@ -117,7 +117,7 @@ class Member(Resource):
             member = db.session \
                 .query(Member_db) \
                 .with_entities(*cols) \
-                .filter_by(username=key) \
+                .filter_by(username=authorized_user.username) \
                 .first()
 
             member_schema = MemberSchema()
