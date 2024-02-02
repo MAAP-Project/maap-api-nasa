@@ -62,7 +62,7 @@ class Submit(Resource):
 
         try:
             dedup = "false" if dedup is None else dedup
-            queue = hysds.get_recommended_queue(job_type=job_type) if queue==None or queue=="" else queue
+            queue = hysds.get_recommended_queue(job_type=job_type) if queue is None or queue is "" else queue
             response = hysds.mozart_submit_job(job_type=job_type, params=params, dedup=dedup, queue=queue,
                                                identifier=identifier)
 

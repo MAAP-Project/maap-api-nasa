@@ -68,7 +68,6 @@ def add_product_path(mozart_response):
         logging.info("Product url path unable to be found because no products")
     return mozart_response
 
-
 def get_es_query_by_job_id(job_id):
     """
     ES query for specific job ID
