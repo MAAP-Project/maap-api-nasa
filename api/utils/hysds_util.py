@@ -45,6 +45,11 @@ def remove_double_tag(mozart_response):
     return mozart_response
 
 def add_product_path(mozart_response):
+    """
+    Adds the product folder path as a key value pair into the mozart_response object 
+    :param mozart_response:
+    :return: updated mozart_response with product_folder_path added  
+    """
     try:
         products_staged = mozart_response["result"]["job"]["job_info"]["metrics"]["products_staged"]
         if (len(products_staged) > 1):
@@ -63,7 +68,7 @@ def add_product_path(mozart_response):
                 break
         if (not product_path):      
             product_path = "Product path unavailable, folder output name must be "+" ".join(dps_output_folder_names)
-        mozart_response["result"]["job"]["job_info"]["metrics"]["products_staged"][0]["product_file_path"] = product_path
+        mozart_response["result"]["job"]["job_info"]["metrics"]["products_staged"][0]["product_folder_path"] = product_path
     except Exception as ex: 
         logging.info("Product url path unable to be found because no products")
     return mozart_response
