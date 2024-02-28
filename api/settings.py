@@ -1,4 +1,4 @@
-MAAP_API_URL = "https://api.dit.maap-project.org/api"
+MAAP_API_URL = "http://localhost:5000/api"
 PROJECT_QUEUE_PREFIX = "maap"
 API_HOST_URL = 'http://0.0.0.0:5000/'
 
@@ -84,7 +84,9 @@ WORKSPACE_BUCKET_ARN = ''
 WORKSPACE_MOUNT_PRIVATE = 'my-private-bucket'
 WORKSPACE_MOUNT_PUBLIC = 'my-public-bucket'
 WORKSPACE_MOUNT_SHARED = 'shared-buckets'
+WORKSPACE_MOUNT_TRIAGE = 'triaged-jobs'
 AWS_SHARED_WORKSPACE_BUCKET_PATH = 'shared'
+AWS_TRIAGE_WORKSPACE_BUCKET_PATH = 'dataset/triaged_job'
 AWS_REQUESTER_PAYS_BUCKET_ARN = 'arn:aws:iam::???:role/???'
 
 # DB
