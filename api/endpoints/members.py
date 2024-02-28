@@ -472,6 +472,8 @@ class PresignedUrlS3(Resource):
             return key.replace(settings.WORKSPACE_MOUNT_PUBLIC, f'{settings.AWS_SHARED_WORKSPACE_BUCKET_PATH}/{ws}')
         elif key.startswith(settings.WORKSPACE_MOUNT_SHARED):
             return key.replace(settings.WORKSPACE_MOUNT_SHARED, settings.AWS_SHARED_WORKSPACE_BUCKET_PATH)
+        elif key.startswith(settings.WORKSPACE_MOUNT_TRIAGE):
+            return key.replace(settings.WORKSPACE_MOUNT_TRIAGE, settings.AWS_TRIAGE_WORKSPACE_BUCKET_PATH)
         else:
             return key
 
