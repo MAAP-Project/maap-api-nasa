@@ -85,7 +85,7 @@ WORKSPACE_MOUNT_PRIVATE = 'my-private-bucket'
 WORKSPACE_MOUNT_PUBLIC = 'my-public-bucket'
 WORKSPACE_MOUNT_SHARED = 'shared-buckets'
 WORKSPACE_MOUNT_TRIAGE = 'triaged-jobs'
-
+WORKSPACE_MOUNT_SUCCESSFUL_JOBS = 'dps_output'
 AWS_SHARED_WORKSPACE_BUCKET_PATH = 'shared'
 AWS_TRIAGE_WORKSPACE_BUCKET_PATH = 'dataset/triaged_job'
 AWS_REQUESTER_PAYS_BUCKET_ARN = 'arn:aws:iam::???:role/???'
