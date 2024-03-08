@@ -56,14 +56,14 @@ def add_product_path(mozart_response):
             logging.info("Length of products_staged is more than 1. We are only looking at the first element for the product file path")
         # All urls should have the same file path within them 
         product_url = mozart_response["result"]["job"]["job_info"]["metrics"]["products_staged"][0]["urls"][0]
-        jobs_output_folder_names = [settings.WORKSPACE_MOUNT_SUCCESSFUL_JOBS, settings.WORKSPACE_MOUNT_TRIAGE, settings.AWS_TRIAGE_WORKSPACE_BUCKET_PATH]
+        jobs_output_folder_names = [settings.TESTING_VARIABLE, settings.WORKSPACE_MOUNT_TRIAGE, settings.AWS_TRIAGE_WORKSPACE_BUCKET_PATH]
         product_path = None
         for jobs_output_folder_name in jobs_output_folder_names:
             index_folder_name = product_url.find("/"+jobs_output_folder_name+"/")
             if (index_folder_name != -1):
                 product_path = product_url[index_folder_name+1:]
                 # dps_output is in my private bucket which needs to be appended to its file path
-                if (jobs_output_folder_name == settings.WORKSPACE_MOUNT_SUCCESSFUL_JOBS):
+                if (jobs_output_folder_name == settings.TESTING_VARIABLE):
                     product_path = settings.WORKSPACE_MOUNT_PRIVATE + "/" + product_path
                 # triaged_job needs to map instead to triaged-jobs
                 elif (jobs_output_folder_name == settings.AWS_TRIAGE_WORKSPACE_BUCKET_PATH):
