@@ -72,6 +72,7 @@ def add_product_path(mozart_response):
         if (not product_path):      
             product_path = "Product path unavailable, folder output name must be "+" ".join(jobs_output_folder_names)
         mozart_response["result"]["job"]["job_info"]["metrics"]["products_staged"][0]["product_folder_path"] = product_path
+        logging.info("graceal1 found product path to be "+product_path)
     except Exception as ex: 
         logging.info(ex)
         logging.info("Product url path unable to be found because no products")
