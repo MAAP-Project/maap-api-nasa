@@ -56,9 +56,8 @@ def add_product_path(mozart_response):
             logging.info("Length of products_staged is more than 1. We are only looking at the first element for the product file path")
         # All urls should have the same file path within them 
         product_url = mozart_response["result"]["job"]["job_info"]["metrics"]["products_staged"][0]["urls"][0]
-        jobs_output_folder_names = [settings.WORKSPACE_MOUNT_SUCCESSFUL_JOBS, settings.WORKSPACE_MOUNT_TRIAGE, settings.AWS_TRIAGE_WORKSPACE_BUCKET_PATH]
+        jobs_output_folder_names = [settings.WORKSPACE_MOUNT_TRIAGE, settings.AWS_TRIAGE_WORKSPACE_BUCKET_PATH, settings.WORKSPACE_MOUNT_SUCCESSFUL_JOBS]
         product_path = None
-        """
         for jobs_output_folder_name in jobs_output_folder_names:
             index_folder_name = product_url.find("/"+jobs_output_folder_name+"/")
             if (index_folder_name != -1):
@@ -70,7 +69,6 @@ def add_product_path(mozart_response):
                 elif (jobs_output_folder_name == settings.AWS_TRIAGE_WORKSPACE_BUCKET_PATH):
                     product_path = product_path.replace(settings.AWS_TRIAGE_WORKSPACE_BUCKET_PATH, settings.WORKSPACE_MOUNT_TRIAGE, 1)
                 break
-        """
         if (not product_path):      
             product_path = "Product path unavailable, folder output name must be one of "+", ".join(jobs_output_folder_names)
         mozart_response["result"]["job"]["job_info"]["metrics"]["products_staged"][0]["product_folder_path"] = product_path
