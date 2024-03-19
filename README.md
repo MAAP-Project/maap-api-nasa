@@ -7,7 +7,7 @@ Development server: https://api.dit.maap-project.org/api
 
 ```bash
 cd docker
-docker-compose up
+docker-compose -f docker-compose-local.yml up
 ```
 
 ## II. Local development using python virtualenv
