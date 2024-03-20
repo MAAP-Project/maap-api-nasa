@@ -24,6 +24,56 @@ def get_mozart_job_info(job_id):
     session = requests.Session()
     session.verify = False
     mozart_response = session.get("{}/job/info".format(settings.MOZART_URL), params=params).json()
+    mozart_response = add_product_path(mozart_response)
+    mozart_response = remove_double_tag(mozart_response)
+    return mozart_response
+
+def remove_double_tag(mozart_response):
+    """
+    Remove duplicates from the tags field 
+    :param mozart_response:
+    :return: updated mozart_response with duplicate tags removed 
+    """
+    try:
+        tags = mozart_response["result"]["tags"]
+        if isinstance(tags, list):
+            tags = list(set(tags))
+            mozart_response["result"]["tags"] = tags
+    except: 
+        # Okay if you just cannot access tags, don't need to remove duplicates in this case 
+        pass
+    return mozart_response
+
+def add_product_path(mozart_response):
+    """
+    Adds the product folder path as a key value pair into the mozart_response object 
+    :param mozart_response:
+    :return: updated mozart_response with product_folder_path added  
+    """
+    try:
+        products_staged = mozart_response["result"]["job"]["job_info"]["metrics"]["products_staged"]
+        if (len(products_staged) > 1):
+            logging.info("Length of products_staged is more than 1. We are only looking at the first element for the product file path")
+        # All urls should have the same file path within them 
+        product_url = mozart_response["result"]["job"]["job_info"]["metrics"]["products_staged"][0]["urls"][0]
+        jobs_output_folder_names = [settings.WORKSPACE_MOUNT_TRIAGE, settings.AWS_TRIAGE_WORKSPACE_BUCKET_PATH, settings.WORKSPACE_MOUNT_SUCCESSFUL_JOBS]
+        product_path = None
+        for jobs_output_folder_name in jobs_output_folder_names:
+            index_folder_name = product_url.find("/"+jobs_output_folder_name+"/")
+            if (index_folder_name != -1):
+                product_path = product_url[index_folder_name+1:]
+                # dps_output is in my private bucket which needs to be appended to its file path
+                if (jobs_output_folder_name == settings.WORKSPACE_MOUNT_SUCCESSFUL_JOBS):
+                    product_path = settings.WORKSPACE_MOUNT_PRIVATE + "/" + product_path
+                # triaged_job needs to map instead to triaged-jobs
+                elif (jobs_output_folder_name == settings.AWS_TRIAGE_WORKSPACE_BUCKET_PATH):
+                    product_path = product_path.replace(settings.AWS_TRIAGE_WORKSPACE_BUCKET_PATH, settings.WORKSPACE_MOUNT_TRIAGE, 1)
+                break
+        if (not product_path):      
+            product_path = "Product path unavailable, folder output name must be one of "+", ".join(jobs_output_folder_names)
+        mozart_response["result"]["job"]["job_info"]["metrics"]["products_staged"][0]["product_folder_path"] = product_path
+    except Exception as ex: 
+        logging.info("Product url path unable to be found because no products")
     return mozart_response
 
 def get_es_query_by_job_id(job_id):
