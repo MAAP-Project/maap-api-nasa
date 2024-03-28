@@ -1,5 +1,6 @@
 import logging
 from flask_restx import Resource
+from flask import request
 from api.restplus import api
 from urllib.parse import urlsplit
 from api import settings
@@ -9,6 +10,22 @@ import urllib.parse
 log = logging.getLogger(__name__)
 
 ns = api.namespace('environment', description='Operations related to the MAAP environment')
+
+
+@ns.route('/config')
+class Config(Resource):
+    def get(self):
+        """
+        Request environment metadata for a current ADE hostname
+        :return:
+        """
+        key = "CLIENT_SETTINGS"
+        config = getattr(settings, key)
+        maap_api_root = request.base_url.replace("/environment/config",'')
+        service = config.get("service")
+        service.update({"maap_api_root": maap_api_root})
+
+        return config
 
 
 @ns.route('/config/<string:ade_host>')
