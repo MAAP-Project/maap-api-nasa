@@ -103,6 +103,26 @@ class Member(Resource):
             pgt_result = json.loads(member_session_schema.dumps(pgt_ticket))
             result = json.loads(json.dumps(dict(result.items() | pgt_result.items())))
 
+        # If the requested user info belongs to the logged in user,
+        # also include additional ssh key information belonging to the user
+        authorized_user = get_authorized_user()
+        if authorized_user.username == key:
+
+            cols = [
+                Member_db.public_ssh_key_name,
+                Member_db.public_ssh_key_modified_date
+            ]
+
+            member = db.session \
+                .query(Member_db) \
+                .with_entities(*cols) \
+                .filter_by(username=authorized_user.username) \
+                .first()
+
+            member_schema = MemberSchema()
+            member_ssh_info_result = json.loads(member_schema.dumps(member))
+            result = json.loads(json.dumps(dict(result.items() | member_ssh_info_result.items())))
+
         return result
 
     @api.doc(security='ApiKeyAuth')
@@ -342,6 +362,8 @@ class Self(Resource):
             Member_db.email,
             Member_db.status,
             Member_db.public_ssh_key,
+            Member_db.public_ssh_key_name,
+            Member_db.public_ssh_key_modified_date,
             Member_db.creation_date
         ]
 
@@ -450,6 +472,8 @@ class PresignedUrlS3(Resource):
             return key.replace(settings.WORKSPACE_MOUNT_PUBLIC, f'{settings.AWS_SHARED_WORKSPACE_BUCKET_PATH}/{ws}')
         elif key.startswith(settings.WORKSPACE_MOUNT_SHARED):
             return key.replace(settings.WORKSPACE_MOUNT_SHARED, settings.AWS_SHARED_WORKSPACE_BUCKET_PATH)
+        elif key.startswith(settings.WORKSPACE_MOUNT_TRIAGE):
+            return key.replace(settings.WORKSPACE_MOUNT_TRIAGE, settings.AWS_TRIAGE_WORKSPACE_BUCKET_PATH)
         else:
             return key
 

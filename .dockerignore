@@ -1,3 +1,4 @@
 maap-api__*
 .circleci
 local
+docker/logs/

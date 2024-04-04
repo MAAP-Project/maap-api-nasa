@@ -541,7 +541,7 @@ class StopJobs(Resource):
             # For all other statuses, we cannot cancel
             else:
                 response = ogc.get_exception(type="FailedJobCancel", origin_process="Dismiss",
-                                             ex_message="Not allowed cancel job with status {}".format(current_status))
+                                             ex_message="Not allowed to cancel job with status {}".format(current_status))
                 return Response(status=status.HTTP_400_BAD_REQUEST, response=response)
 
             if not wait_for_completion:
