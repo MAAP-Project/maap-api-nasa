@@ -105,9 +105,7 @@ class Member(Resource):
 
         # If the requested user info belongs to the logged in user,
         # also include additional ssh key information belonging to the user
-        authorized_user = get_authorized_user()
-        if authorized_user.username == key:
-
+        if member.username == key:
             cols = [
                 Member_db.public_ssh_key_name,
                 Member_db.public_ssh_key_modified_date
@@ -116,7 +114,7 @@ class Member(Resource):
             member = db.session \
                 .query(Member_db) \
                 .with_entities(*cols) \
-                .filter_by(username=authorized_user.username) \
+                .filter_by(username=member.username) \
                 .first()
 
             member_schema = MemberSchema()
