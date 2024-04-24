@@ -18,7 +18,7 @@ pyproj
 psycopg2 ; sys_platform == 'linux'
 psycopg2-binary ; sys_platform == 'darwin'
 flask_sqlalchemy
-Werkzeug==2.2.2
+Werkzeug==3.0.1
 marshmallow-sqlalchemy
 mapproxy~=1.12
 pycryptodome
