@@ -19,13 +19,17 @@ class Config(Resource):
         Request environment metadata for a current ADE hostname
         :return:
         """
-        key = "CLIENT_SETTINGS"
-        config = getattr(settings, key)
-        maap_api_root = request.base_url.replace("/environment/config",'')
-        service = config.get("service")
-        service.update({"maap_api_root": maap_api_root})
+        try:
+            key = "CLIENT_SETTINGS"
+            config = getattr(settings, key)
+            maap_api_root = request.base_url.replace("/environment/config", '')
+            service = config.get("service")
+            service.update({"maap_api_root": maap_api_root})
+            return config
+        except ValueError as e:
+            logging.exception("No CLIENT_SETTINGS found in settings file")
+            return {}, 404
 
-        return config
 
 
 @ns.route('/config/<string:ade_host>')
