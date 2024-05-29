@@ -17,7 +17,7 @@ RUN touch README.md
 
 RUN poetry install --without dev --no-root && rm -rf $POETRY_CACHE_DIR
 
-FROM python:3.9 as runtime
+FROM python:3.9-slim as runtime
 
 ENV VIRTUAL_ENV=/maap-api-nasa/.venv \
     PATH="/maap-api-nasa/.venv/bin:$PATH"
@@ -28,16 +28,4 @@ COPY api /maap-api-nasa/api
 COPY api/settings.py /maap-api-nasa/api/settings.py
 COPY logging.conf /maap-api-nasa/logging.conf
 RUN mkdir /logs
-
-
-
-
-#FROM python:3.9
-#
-#RUN apt-get update && apt-get clean all
-#
-#WORKDIR /maap-api-nasa
-#COPY . .
-#COPY api/settings.py api/settings.py
-#RUN pip3 install -r requirements.txt
 

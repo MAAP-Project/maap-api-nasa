@@ -27,6 +27,7 @@ on:
         options:
           - DIT
           - UAT
+          - OPS
 
 # Only allow 1 execution of this workflow to be running at any given time per-branch.
 concurrency:
@@ -34,18 +35,22 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  POETRY_VERSION: "1.7.1"
-  PYTHON_VERSION: "3.9"
-  TERRAFORM_VERSION: "1.8.3"
+#  TERRAFORM_VERSION: "1.8.3"
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   # First job in the workflow installs and verifies the software
   build:
-    name: Build, Test, Verify
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [ "3.9" ]
+        poetry-version: [ "1.8.2" ]
+        os: [ ubuntu-latest ]
+    name: Build python ${{ matrix.python-version }}, os ${{ matrix.os }}
     # The type of runner that the job will run on
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     defaults:
       run:
         shell: bash -el {0}
@@ -66,11 +71,11 @@ jobs:
           token: ${{ steps.maap-cicd.outputs.token }}
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: ${{ matrix.python-version }}
       - name: Install Poetry
         uses: abatilo/actions-poetry@v3
         with:
-          poetry-version: ${{ env.POETRY_VERSION }}
+          poetry-version: ${{ matrix.poetry-version }}
       - name: Setup a local virtual environment
         run: |
           poetry config virtualenvs.create true --local
@@ -79,7 +84,7 @@ jobs:
         name: Define a cache for the virtual environment based on the dependencies lock file
         with:
           path: ./.venv
-          key: venv-${{ hashFiles('poetry.lock') }}
+          key: venv-${{ matrix.python-version }}-${{ hashFiles('poetry.lock') }}
       - name: Get pre-build version
         id: get-version
         run: |
@@ -230,6 +235,7 @@ jobs:
     permissions:
       packages: write
     needs: build
+    environment: ${{ needs.build.outputs.deploy_env }} # Only needed because we need to push to the environment-specific GitLab CR. If we move to a container registry that is not env-specific this can be removed
     outputs:
       container_image_uri: ${{ steps.set-outputs.outputs.container_image_uri }}
     env:
@@ -239,19 +245,31 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: ${{ github.repository }}
-      # Setup docker to build and push images
-      - name: Log in to the Container registry
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub CR
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to GitLab CR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.GITLAB_CONTAINER_REGISTRY }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.MAAP_API_NASA_CI_GH_ACTION_TOKEN }}
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+            ${{ vars.GITLAB_CONTAINER_REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=pep440,pattern={{version}},value=${{ env.THE_VERSION }}
             type=raw,value=${{ needs.build.outputs.deploy_env }}
@@ -305,9 +323,10 @@ jobs:
 #          aws-secret-access-key: ${{ secrets[vars.AWS_SECRET_ACCESS_KEY_SECRET_NAME] }}
 #          mask-aws-account-id: true
 
+      # TODO run deploy script on self-hosted runner
       - name: Deploy to venue
         id: deploy
         env:
           AWS_DEFAULT_REGION: us-west-2
         run: |
-          echo "Deploy the software"
+          echo "Deploy ${{ env.CONTAINER_IMAGE_URI }} to ${{ needs.build.outputs.deploy_env }}"
