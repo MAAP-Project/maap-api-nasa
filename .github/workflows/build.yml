@@ -237,7 +237,8 @@ jobs:
     needs: build
     environment: ${{ needs.build.outputs.deploy_env }} # Only needed because we need to push to the environment-specific GitLab CR. If we move to a container registry that is not env-specific this can be removed
     outputs:
-      container_image_uri: ${{ steps.set-outputs.outputs.container_image_uri }}
+      ghcr_container_image_uri: ${{ steps.set-outputs.outputs.ghcr_container_image_uri }}
+      gitlab_container_image_uri: ${{ steps.set-outputs.outputs.gitlab_container_image_uri }}
     env:
       THE_VERSION: ${{ needs.build.outputs.version }}
       PYPROJECT_NAME: ${{ needs.build.outputs.pyproject_name }}
@@ -287,7 +288,8 @@ jobs:
       - name: Set output
         id: set-outputs
         run: |
-          echo "container_image_uri=${{ fromJSON(steps.meta.outputs.json).tags[0] }}" >> $GITHUB_OUTPUT
+          echo "ghcr_container_image_uri=${{ fromJSON(steps.meta.outputs.json).tags[0] }}" >> $GITHUB_OUTPUT
+          echo "gitlab_container_image_uri=${{ fromJSON(steps.meta.outputs.json).tags[3] }}" >> $GITHUB_OUTPUT
 
   deploy:
     name: Deploy
@@ -296,7 +298,8 @@ jobs:
     environment: ${{ needs.build.outputs.deploy_env }}
     env:
       THE_VERSION: ${{ needs.build.outputs.version }}
-      CONTAINER_IMAGE_URI: ${{ needs.docker.outputs.container_image_uri }}
+      GHCR_CONTAINER_IMAGE_URI: ${{ needs.docker.outputs.ghcr_container_image_uri }}
+      GITLAB_CONTAINER_IMAGE_URI: ${{ needs.docker.outputs.gitlab_container_image_uri }}
     if: |
       github.ref == 'refs/heads/develop' ||
       github.ref == 'refs/heads/main'    ||
@@ -325,5 +328,9 @@ jobs:
         id: deploy
         env:
           AWS_DEFAULT_REGION: us-west-2
+          API_IMAGE_NAME: ${{ env.GITLAB_CONTAINER_IMAGE_URI }}
+          API_MACHINE: ${{ secrets.API_MACHINE }}
+        working-directory: ${GITHUB_WORKSPACE}/.github/workflows
         run: |
-          echo "Deploy ${{ env.CONTAINER_IMAGE_URI }} to ${{ needs.build.outputs.deploy_env }}"
+          echo "Deploy ${{ env.API_IMAGE_NAME }} to ${{ needs.build.outputs.deploy_env }}"
+          ${GITHUB_WORKSPACE}/.github/workflows/deploy-on-runner.sh
