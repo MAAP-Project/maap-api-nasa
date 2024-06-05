@@ -260,7 +260,7 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ${{ vars.GITLAB_CONTAINER_REGISTRY }}
-          username: ${{ github.repository_owner }}
+          username: gitlab+deploy-token-2
           password: ${{ secrets.MAAP_API_NASA_CI_GH_ACTION_TOKEN }}
 
       - name: Extract metadata (tags, labels) for Docker
