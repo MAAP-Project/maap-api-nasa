@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -x
+set -exo pipefail
 # Override settings with all MAAP_API_SETTINGS variables
 MAAP_API_SETTINGS_VARS=$(compgen -v | grep "MAAP_API_SETTINGS")
 for provided_setting_var in ${MAAP_API_SETTINGS_VARS}; do
