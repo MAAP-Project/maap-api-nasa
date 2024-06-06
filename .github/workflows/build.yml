@@ -324,6 +324,11 @@ jobs:
 #          mask-aws-account-id: true
 
       # TODO run deploy script on self-hosted runner
+      - name: Create env file
+        shell: bash
+        env:
+          ENV_FILE: ${{secrets.MAAP_API_SETTINGS_OVERRIDE}}
+        run: 'echo "$ENV_FILE" > ${GITHUB_WORKSPACE}/.github/workflows/.maap-api.env'
       - name: Deploy to venue
         id: deploy
         env:
@@ -331,5 +336,5 @@ jobs:
           API_IMAGE_NAME: ${{ env.GITLAB_CONTAINER_IMAGE_URI }}
           API_MACHINE: ${{ secrets.API_MACHINE }}
         run: |
-          echo "Deploy ${{ env.API_IMAGE_NAME }} to ${{ needs.build.outputs.deploy_env }}"
+          echo "Deploy ${{ env.API_IMAGE_NAME }} to ${{ needs.build.outputs.deploy_env }}"\
           ${GITHUB_WORKSPACE}/.github/workflows/deploy-on-runner.sh
