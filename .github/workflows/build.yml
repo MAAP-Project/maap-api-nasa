@@ -12,6 +12,8 @@ on:
       - 'issue/**'
       - 'issues/**'
       - 'dependabot/**'
+      - 'bug/**'
+      - 'hotfix/**'
     tags-ignore:
       - '*'
     # Do not trigger build if pyproject.toml was the only thing changed
