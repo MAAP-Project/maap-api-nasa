@@ -294,7 +294,7 @@ jobs:
   deploy:
     name: Deploy
     needs: [ build, docker ]
-    runs-on: ubuntu-latest
+    runs-on: [dit, ubuntu-latest]
     environment: ${{ needs.build.outputs.deploy_env }}
     env:
       THE_VERSION: ${{ needs.build.outputs.version }}
@@ -341,5 +341,5 @@ jobs:
           ${GITHUB_WORKSPACE}/.github/workflows/deploy-on-runner.sh
       - name: Clean env file
         shell: bash
-        if: ${{steps.create-env.outcome == 'success'}}
+        if: ${{always() && steps.create-env.outcome == 'success'}}
         run: 'rm ${GITHUB_WORKSPACE}/.github/workflows/.maap-api.env || true'
