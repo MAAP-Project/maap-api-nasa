@@ -325,6 +325,7 @@ jobs:
 
       # TODO run deploy script on self-hosted runner
       - name: Create env file
+        id: create-env
         shell: bash
         env:
           ENV_FILE: ${{secrets.MAAP_API_SETTINGS_OVERRIDE}}
@@ -338,3 +339,7 @@ jobs:
         run: |
           echo "Deploy ${{ env.API_IMAGE_NAME }} to ${{ needs.build.outputs.deploy_env }}"\
           ${GITHUB_WORKSPACE}/.github/workflows/deploy-on-runner.sh
+      - name: Clean env file
+        shell: bash
+        if: ${{steps.demo.outcome == 'success'}}
+        run: 'rm ${GITHUB_WORKSPACE}/.github/workflows/.maap-api.env || true'
