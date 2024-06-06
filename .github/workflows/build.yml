@@ -294,7 +294,8 @@ jobs:
   deploy:
     name: Deploy
     needs: [ build, docker ]
-    runs-on: [dit, ubuntu-latest]
+#    runs-on: [${{ needs.build.outputs.deploy_env }}, self-hosted]
+    runs-on: ubuntu-latest
     environment: ${{ needs.build.outputs.deploy_env }}
     env:
       THE_VERSION: ${{ needs.build.outputs.version }}
