@@ -337,9 +337,9 @@ jobs:
           API_IMAGE_NAME: ${{ env.GITLAB_CONTAINER_IMAGE_URI }}
           API_MACHINE: ${{ secrets.API_MACHINE }}
         run: |
-          echo "Deploy ${{ env.API_IMAGE_NAME }} to ${{ needs.build.outputs.deploy_env }}"\
+          echo "Deploy ${{ env.API_IMAGE_NAME }} to ${{ needs.build.outputs.deploy_env }}"
           ${GITHUB_WORKSPACE}/.github/workflows/deploy-on-runner.sh
       - name: Clean env file
         shell: bash
-        if: ${{steps.demo.outcome == 'success'}}
+        if: ${{steps.create-env.outcome == 'success'}}
         run: 'rm ${GITHUB_WORKSPACE}/.github/workflows/.maap-api.env || true'
