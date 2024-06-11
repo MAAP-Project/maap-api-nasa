@@ -50,7 +50,7 @@ psql # or $ sudo -u postgres psql
 
 - Script path: `./api/maapapp.py`
 - Environment variables: `PYTHONUNBUFFERED=1`
-- Python interpreter: `Python 3.7`
+- Python interpreter: `Python 3.9`
 - Working directory: `./api`
 
 #### Config Titiler endpoint and maap-api-host
