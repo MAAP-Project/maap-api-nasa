@@ -296,8 +296,7 @@ jobs:
   deploy:
     name: Deploy
     needs: [ build, docker ]
-#    runs-on: [${{ needs.build.outputs.deploy_env }}, self-hosted]
-    runs-on: ubuntu-latest
+    runs-on: [${{ needs.build.outputs.deploy_env }}, self-hosted]
     environment: ${{ needs.build.outputs.deploy_env }}
     env:
       THE_VERSION: ${{ needs.build.outputs.version }}
@@ -326,7 +325,6 @@ jobs:
 #          aws-secret-access-key: ${{ secrets[vars.AWS_SECRET_ACCESS_KEY_SECRET_NAME] }}
 #          mask-aws-account-id: true
 
-      # TODO run deploy script on self-hosted runner
       - name: Create env file
         id: create-env
         shell: bash
