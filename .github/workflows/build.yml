@@ -1,0 +1,54 @@
+# This is the main build pipeline that verifies and publishes the software
+name: Build
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push events
+  push:
+    branches:
+      - main
+      - develop
+      - 'release/**'
+      - 'feature/**'
+      - 'issue/**'
+      - 'issues/**'
+      - 'dependabot/**'
+      - 'bug/**'
+      - 'hotfix/**'
+    tags-ignore:
+      - '*'
+    # Do not trigger build if pyproject.toml was the only thing changed
+    paths-ignore:
+      - 'pyproject.toml'
+      - 'poetry.lock'
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+    inputs:
+      venue:
+        type: choice
+        description: Venue to deploy to
+        options:
+          - DIT
+          - UAT
+          - OPS
+
+# Only allow 1 execution of this workflow to be running at any given time per-branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [ "3.9" ]
+        os: [ ubuntu-latest ]
+    name: Build python ${{ matrix.python-version }}, os ${{ matrix.os }}
+    # The type of runner that the job will run on
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - name: Run build
+        run: |
+          echo "build"
