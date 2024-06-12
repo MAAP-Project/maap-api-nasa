@@ -588,8 +588,8 @@ def validate_job_submit(hysds_io, user_params):
             if known_params.get(p).get("default") is not None:
                 validated_params[p] = known_params.get(p).get("default")
             else:
-                raise Exception("Parameter {} missing from inputs. Didn't find any default set for it in "
-                                "algorithm specification. Please specify it and attempt to submit.".format(p))
+                raise ValueError("Parameter {} missing from inputs. Didn't find any default set for it in "
+                                 "algorithm specification. Please specify it and attempt to submit.".format(p))
     return validated_params
 
 
@@ -743,6 +743,37 @@ def revoke_mozart_job(job_id, wait_for_completion=False):
         return lw_job_id, None
     # keep polling mozart until the purge job is finished.
     return poll_for_completion(lw_job_id)
+
+
+def set_timelimit_for_dps_sandbox(params: dict):
+    """
+    Sets the soft_time_limit and time_limit parameters for DPS sandbox queue
+    at job submission
+    :param params:
+    :return: params
+    """
+    params.update({"soft_time_limit": settings.DPS_SANDBOX_TIMELIMIT,
+                   "time_limit": settings.DPS_SANDBOX_TIMELIMIT})
+
+
+def validate_or_set_queue(queue: str, job_type: str):
+    f"""
+    Validates if the queue name provided is valid and exists if not raises HTTP 400
+    If no queue name is provided, it will default to {settings.DEFAULT_QUEUE}.
+    :param queue: Queue name
+    :param job_type: Job type
+    :return: queue
+    :raises ValueError: If the queue name provided is not valid
+    """
+    if queue is None or queue == "":
+        if job_type is None:
+            return settings.DEFAULT_QUEUE
+        return get_recommended_queue(job_type)
+    else:
+        valid_queues = get_mozart_queues()
+        if queue not in valid_queues:
+            raise ValueError("Invalid queue name. Valid queues: {}".format(valid_queues))
+        return queue
 
 
 def pele_get_product_by_id(id):

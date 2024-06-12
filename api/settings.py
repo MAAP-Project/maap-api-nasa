@@ -5,7 +5,6 @@ def str2bool(v):
 
 
 MAAP_API_URL = os.getenv('MAAP_API_URL', "http://localhost:5000/api")
-PROJECT_QUEUE_PREFIX = os.getenv('PROJECT_QUEUE_PREFIX', "maap")
 API_HOST_URL = os.getenv('API_HOST_URL', 'http://0.0.0.0:5000/')
 
 # Flask settings
@@ -65,6 +64,9 @@ HYSDS_LW_VERSION = os.getenv('HYSDS_LW_VERSION', 'v0.0.5')
 GRQ_REST_URL = os.getenv('GRQ_REST_URL', 'http://[GRQ_IP]/api/v0.1')
 S3_CODE_BUCKET = os.getenv('S3_CODE_BUCKET', 's3://[S3_BUCKET_NAME]')
 DPS_MACHINE_TOKEN = os.getenv('DPS_MACHINE_TOKEN', '')
+DPS_SANDBOX_TIMELIMIT = os.getenv('DPS_SANDBOX_TIMELIMIT', '600')
+DPS_SANDBOX_QUEUE = os.getenv('DPS_SANDBOX_QUEUE', 'maap-dps-sandbox')
+PROJECT_QUEUE_PREFIX = os.getenv('PROJECT_QUEUE_PREFIX', "maap")
 
 # FASTBROWSE API
 TILER_ENDPOINT = os.getenv('TILER_ENDPOINT', 'https://d852m4cmf5.execute-api.us-east-1.amazonaws.com')

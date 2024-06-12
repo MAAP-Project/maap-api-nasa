@@ -62,7 +62,9 @@ class Submit(Resource):
 
         try:
             dedup = "false" if dedup is None else dedup
-            queue = hysds.get_recommended_queue(job_type=job_type) if queue is None or queue is "" else queue
+            queue = hysds.validate_or_set_queue(queue, job_type)
+            if queue == settings.DPS_SANDBOX_QUEUE:
+                hysds.set_timelimit_for_dps_sandbox(params)
             response = hysds.mozart_submit_job(job_type=job_type, params=params, dedup=dedup, queue=queue,
                                                identifier=identifier)
 
@@ -80,6 +82,10 @@ class Submit(Resource):
                 return Response(ogc.status_response(job_id=job_id, job_status=job_status), mimetype='text/xml')
             else:
                 raise Exception(response.get("message"))
+        except ValueError as ex:
+            logging.error(traceback.format_exc())
+            return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",
+                                              ex_message=ex), status.HTTP_400_BAD_REQUEST)
         except Exception as ex:
             logging.info("Error submitting job: {}".format(ex))
             return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",
