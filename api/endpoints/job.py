@@ -85,7 +85,7 @@ class Submit(Resource):
         except ValueError as ex:
             logging.error(traceback.format_exc())
             return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",
-                                              ex_message=ex), status.HTTP_400_BAD_REQUEST)
+                                              ex_message=str(ex)), status.HTTP_400_BAD_REQUEST)
         except Exception as ex:
             logging.info("Error submitting job: {}".format(ex))
             return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",

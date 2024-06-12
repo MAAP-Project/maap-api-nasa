@@ -421,7 +421,7 @@ def get_exception(type, origin_process, ex_message):
     exception = ET.SubElement(response, "ows:Exception")
     exception.set("exceptionCode", type)
     exception.set("locator", origin_process)
-    ET.SubElement(exception, "ows:ExceptionText").text = ex_message
+    ET.SubElement(exception, "ows:ExceptionText").text = str(ex_message)
 
     return tostring(response)
 
