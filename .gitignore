@@ -12,3 +12,4 @@ local_notes.txt
 local
 *.DS_Store
 /docker/data
+docker/logs/

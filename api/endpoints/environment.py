@@ -1,5 +1,6 @@
 import logging
 from flask_restx import Resource
+from flask import request
 from api.restplus import api
 from urllib.parse import urlsplit
 from api import settings
@@ -9,6 +10,26 @@ import urllib.parse
 log = logging.getLogger(__name__)
 
 ns = api.namespace('environment', description='Operations related to the MAAP environment')
+
+
+@ns.route('/config')
+class Config(Resource):
+    def get(self):
+        """
+        Request environment metadata for a current ADE hostname
+        :return:
+        """
+        try:
+            key = "CLIENT_SETTINGS"
+            config = getattr(settings, key)
+            maap_api_root = request.base_url.replace("/environment/config", '')
+            service = config.get("service")
+            service.update({"maap_api_root": maap_api_root})
+            return config
+        except ValueError as e:
+            logging.exception("No CLIENT_SETTINGS found in settings file")
+            return {}, 404
+
 
 
 @ns.route('/config/<string:ade_host>')
