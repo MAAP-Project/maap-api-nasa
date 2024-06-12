@@ -295,8 +295,12 @@ jobs:
 
   deploy:
     name: Deploy
-    needs: [ build, docker ]
-    runs-on: [${{ needs.build.outputs.deploy_env }}, self-hosted]
+    needs:
+      - build
+      - docker
+    runs-on:
+      - ${{ needs.build.outputs.deploy_env }}
+      - self-hosted
     environment: ${{ needs.build.outputs.deploy_env }}
     env:
       THE_VERSION: ${{ needs.build.outputs.version }}
