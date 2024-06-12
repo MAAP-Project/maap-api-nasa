@@ -254,12 +254,14 @@ class Register(Resource):
 
         try:
             # validate if input queue is valid
-            if resource is None: resource = settings.DEFAULT_QUEUE
-            if resource not in hysds.get_mozart_queues():
+            if resource is None:
+                resource = settings.DEFAULT_QUEUE
+            valid_queues = hysds.get_mozart_queues()
+            if resource not in valid_queues:
                 response_body["code"] = status.HTTP_500_INTERNAL_SERVER_ERROR
-                response_body["message"] = "The resource {} is invalid. Please select from one of {}".format(resource, hysds.get_mozart_queues())
+                response_body["message"] = "The resource {} is invalid. Please select from one of {}".format(resource, valid_queues)
                 response_body["error"] = "Invalid queue in request: {}".format(req_data)
-                return response_body, 500
+                return response_body, status.HTTP_400_BAD_REQUEST
             # clean up any old specs from the repo
             repo = git.clean_up_git_repo(repo, repo_name=settings.REPO_NAME)
             # creating hysds-io file
