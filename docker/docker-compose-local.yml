@@ -17,10 +17,7 @@ services:
     volumes:
       - ./logs:/maap-api-nasa/logs/
     command: >
-      sh -c "flask run --host=0.0.0.0"
-    environment:
-      FLASK_APP: /maap-api-nasa/api/maapapp.py
-      DATABASE_URL: postgresql://maapuser:mysecretpassword@db/maap
+      sh -c "flask --app api.maapapp run --host=0.0.0.0"
     restart: always
     logging:
       driver: "json-file"
