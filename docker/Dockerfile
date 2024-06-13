@@ -15,7 +15,7 @@ WORKDIR /maap-api-nasa
 COPY pyproject.toml poetry.lock ./
 RUN touch README.md
 
-RUN poetry install --without dev && rm -rf $POETRY_CACHE_DIR
+RUN poetry install --without dev --no-root && rm -rf $POETRY_CACHE_DIR
 
 FROM python:3.9-slim as runtime
 
@@ -24,8 +24,12 @@ ENV VIRTUAL_ENV=/maap-api-nasa/.venv \
 
 COPY --from=builder ${VIRTUAL_ENV} ${VIRTUAL_ENV}
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git python3-psycopg2 \
+    && apt-get purge -y --auto-remove \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY api /maap-api-nasa/api
-COPY api/settings.py /maap-api-nasa/api/settings.py
 COPY logging.conf /maap-api-nasa/logging.conf
 RUN mkdir /logs
 

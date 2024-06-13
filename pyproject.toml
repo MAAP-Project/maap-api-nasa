@@ -5,9 +5,6 @@ description = "NASA Python implementation of the MAAP API specification"
 authors = ["MAAP-Project Platform <platform@MAAP-Project.github.com>"]
 license = "Apache 2.0"
 readme = "README.md"
-packages = [
-    {include = "api"}
-]
 
 [tool.poetry.dependencies]
 python = "^3.9.0"
