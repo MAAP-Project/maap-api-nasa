@@ -13,3 +13,4 @@ local
 *.DS_Store
 /docker/data
 docker/logs/
+/logs/
