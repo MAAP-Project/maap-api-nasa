@@ -10,41 +10,33 @@ cd docker
 docker-compose -f docker-compose-local.yml up
 ```
 
-## II. Local development using python virtualenv
+## II. Local development using poetry and virtualenv
 
 **Prerequisites:**
-
+* poetry
+  * https://python-poetry.org/docs/#installation 
 * postgresql
   * Linux: `sudo apt-get install postgresql python-psycopy2 libpq-dev`
   * Mac OSx: `brew install postgresql`
-* pip, python3.7 and virtualenv
+* python3.9+
 
 ```bash
-python3 -m venv venv
-source maap-api-nasa/bin/activate
-pip3 install -r requirements.txt
+cd maap-api-nasa
+poetry install
 ```
 
 ### First run: Configure the database.
 
-1. Add the new postgres user (A fix for 'role <username> does not exist'):
+1. Add a new user called `maapuser` (A fix for 'role <username> does not exist')
+   > **_NOTE:_**  You may need to use `sudo -u postgres` before postgres commands.
+   ```bash
+   createuser maapuser
+   ```
 
-Note: You may need to use `sudo -u postgres ` before postgres commands.
-
-```bash
-# For example
-# $ create user tonhai # or
-# $ sudo -u postgres createuser tonhai
-createuser <current_user>
-```
-
-2. create an empty postgres db (maap_dev) (a fix for 'database maap_dev does not exist'):
-
-```bash
-psql # or $ sudo -u postgres psql
-(in postgres shell): create database maap_dev;
-(in postgres shell): \q
-```
+2. Create an empty postgres db (maap) (a fix for 'database maap does not exist'):
+    ```bash
+    createdatabase maap
+    ```
 
 3. OPTIONAL: PyCharm configuration, if using the PyCharm IDE:
 
@@ -53,7 +45,7 @@ psql # or $ sudo -u postgres psql
 - Python interpreter: `Python 3.9`
 - Working directory: `./api`
 
-#### Config Titiler endpoint and maap-api-host
+#### (Obsolete?) Config Titiler endpoint and maap-api-host
 
 In the settings.py (i.e., maap-api-nasa/api/settings.py):
 
@@ -68,57 +60,54 @@ TILER_ENDPOINT = 'https://XXX.execute-api.us-east-1.amazonaws.com'
 # If running the tiler locally, this can be TILER_ENDPOINT = 'http://localhost:8000'
 ```
 
-### You can run then app:
+### Run the app:
 
 ```bash
+poetry shell
 FLASK_APP=api/maapapp.py flask run --host=0.0.0.0
 ```
 
-### Some issues you may experience while running the above line:
+Some issues you may experience while running the above line:
 
-#### Allowing using postgres without login (A fix for 'fe_sendauth: no password supplied'):
+* Allowing using postgres without login (A fix for 'fe_sendauth: no password supplied'):
 
-```bash
-sudo vi /etc/postgresql/9.5/main/pg_hba.conf #(the location may be different depend on OS and postgres version)
-```
+  ```bash
+  sudo vi /etc/postgresql/9.5/main/pg_hba.conf #(the location may be different depend on OS and postgres version)
+  ```
+  
+  ```
+  # Reconfig as follows:
+      local   all     all     trust
+      host    all     all     127.0.0.1/32    trust
+      host    all     all     ::1/0           trust
+  # Save pg_hba.conf
+  ```
 
-```
-# Reconfig as follows:
-    local   all     all     trust
-    host    all     all     127.0.0.1/32    trust
-    host    all     all     ::1/0           trust
-# Save pg_hba.conf
-```
+  ```bash
+  # Restart postgresql
+  sudo /etc/init.d/postgresql reload
+  sudo /etc/init.d/postgresql start
+  ```
 
-```bash
-# Restart postgresql
-sudo /etc/init.d/postgresql reload
-sudo /etc/init.d/postgresql start
-```
+### Running tests
 
-#### 5. Rerun:
-
-```bash
-# Run the maap-api-nasa services locally
-FLASK_APP=api/maapapp.py flask run --host=0.0.0.0
-```
-
-And run a test:
+When using docker-compose to start the app it is possible to run the tests locally if you first
+update the settings.py `DATABASE_URL` value to specify `localhost` as the servername instead of `db`
+(DO NOT check in this change).
 
 ```bash
-python3 -m unittest test/api/endpoints/test_wmts_get_tile.py
+python -m unittest test/api/endpoints/test_wmts_get_tile.py
 ```
 
-### If you are running the latest version of Titiler, use the following local test scripts:
-
+If you are running the latest version of Titiler, use the following local test scripts:
 while keeping the server in the previous step running (i.e., local maap-api-nasa). Open a new terminal
 
 ```bash
-source maap-api-nasa/bin/activate # or whatever environment name you choose in the previous step
+poetry env use $(poetry env info -e)
 
 #If you are running the latest version of Titiler, then use the following test scripts:
-python3 -m unittest -v test/api/endpoints/test_wmts_get_tile_new_titiler.py
-python3 -m unittest -v test/api/endpoints/test_wmts_get_capabilities_new_titiler.py
+python -m unittest -v test/api/endpoints/test_wmts_get_tile_new_titiler.py
+python -m unittest -v test/api/endpoints/test_wmts_get_capabilities_new_titiler.py
 ```
 
 ## III. User Accounts

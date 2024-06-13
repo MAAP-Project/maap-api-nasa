@@ -1,0 +1,14 @@
+version: '3.8'
+services:
+  api:
+    container_name: 'maap-api-nasa'
+    image: ${API_IMAGE_NAME}
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./logs:/maap-api-nasa/logs/
+    command: >
+      sh -c "gunicorn --bind 0.0.0.0:5000 api.maapapp:app -w 5"
+    env_file:
+      - .maap-api.env
+    restart: always

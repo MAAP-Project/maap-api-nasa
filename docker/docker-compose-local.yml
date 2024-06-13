@@ -6,6 +6,7 @@ services:
     build:
       context: ../
       dockerfile: docker/Dockerfile
+      target: runtime
     depends_on:
       db:
         condition: service_healthy
