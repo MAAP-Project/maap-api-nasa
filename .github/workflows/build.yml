@@ -337,6 +337,7 @@ jobs:
           AWS_DEFAULT_REGION: us-west-2
           API_IMAGE_NAME: ${{ env.GITLAB_CONTAINER_IMAGE_URI }}
           API_MACHINE: ${{ secrets.API_MACHINE }}
+          API_MACHINE_KEYPATH: ${{ secrets.API_MACHINE_KEYPATH }}
         run: |
           echo "Deploy ${{ env.API_IMAGE_NAME }} to ${{ needs.build.outputs.deploy_env }}"
           ${GITHUB_WORKSPACE}/.github/workflows/deploy-on-runner.sh
