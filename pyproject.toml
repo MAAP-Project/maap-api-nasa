@@ -8,6 +8,9 @@ readme = "README.md"
 packages = [
     {include = "api"}
 ]
+include = [
+    { path = "logging.conf", format = ["sdist", "wheel"] }
+]
 
 [tool.poetry.dependencies]
 python = "^3.9.0"
