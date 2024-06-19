@@ -260,7 +260,7 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ${{ vars.GITLAB_CONTAINER_REGISTRY }}
-          username: gitlab+deploy-token-2
+          username: gitlab+deploy-token-3
           password: ${{ secrets.MAAP_API_NASA_CI_GH_ACTION_TOKEN }}
 
       - name: Extract metadata (tags, labels) for Docker
@@ -274,16 +274,12 @@ jobs:
             type=pep440,pattern={{version}},value=${{ env.THE_VERSION }}
             type=raw,value=${{ needs.build.outputs.deploy_env }}
       - name: Build and push Docker image
-        if: |
-          github.ref == 'refs/heads/develop' ||
-          github.ref == 'refs/heads/main'    ||
-          startsWith(github.ref, 'refs/heads/release') ||
-          github.event_name == 'workflow_dispatch'
         uses: docker/build-push-action@v5
         with:
           context: .
           file: docker/Dockerfile
-          push: true
+          # Always build but only push if triggered by protected branch or manual run
+          push: ${{ github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release') || github.event_name == 'workflow_dispatch' }}
           pull: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -341,6 +337,7 @@ jobs:
           AWS_DEFAULT_REGION: us-west-2
           API_IMAGE_NAME: ${{ env.GITLAB_CONTAINER_IMAGE_URI }}
           API_MACHINE: ${{ secrets.API_MACHINE }}
+          API_MACHINE_KEYPATH: ${{ secrets.API_MACHINE_KEYPATH }}
         run: |
           echo "Deploy ${{ env.API_IMAGE_NAME }} to ${{ needs.build.outputs.deploy_env }}"
           ${GITHUB_WORKSPACE}/.github/workflows/deploy-on-runner.sh

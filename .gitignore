@@ -14,3 +14,4 @@ local
 /docker/data
 docker/logs/
 /logs/
+/dist/
