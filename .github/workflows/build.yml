@@ -217,10 +217,10 @@ jobs:
         run: |
           git config user.name "${GITHUB_ACTOR}"
           git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
-          echo "tag_name=v${{ env.software_version }}" >> $GITHUB_ENV
-          echo "tag_name=${{ env.tag_name }}" >> $GITHUB_OUTPUT
-          git tag -a "${{ env.tag_name }}" -m "Version ${{ env.software_version }}"
-          git push origin "${{ env.tag_name }}"
+          TAG_NAME="v${{ env.software_version }}"
+          echo "tag_name=$TAG_NAME" >> $GITHUB_ENV
+          git tag -a "$TAG_NAME" -m "Version $TAG_NAME"
+          git push origin "$TAG_NAME"
       - name: Create GH release
         if: |
           steps.alpha.conclusion == 'success'   ||
