@@ -217,8 +217,10 @@ jobs:
         run: |
           git config user.name "${GITHUB_ACTOR}"
           git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
-          git tag -a "${{ env.software_version }}" -m "Version ${{ env.software_version }}"
-          git push origin "${{ env.software_version }}"
+          echo "tag_name=v${{ env.software_version }}" >> $GITHUB_ENV
+          echo "tag_name=${{ env.tag_name }}" >> $GITHUB_OUTPUT
+          git tag -a "${{ env.tag_name }}" -m "Version ${{ env.software_version }}"
+          git push origin "${{ env.tag_name }}"
       - name: Create GH release
         if: |
           steps.alpha.conclusion == 'success'   ||
@@ -226,10 +228,10 @@ jobs:
           steps.release.conclusion == 'success'
         uses: ncipollo/release-action@v1
         with:
-          generateReleaseNotes: true
-          name: ${{ env.software_version }}
+          generateReleaseNotes: ${{ steps.release.conclusion == 'success' }}
+          name: ${{ env.tag_name }}
           prerelease: ${{ steps.alpha.conclusion == 'success' || steps.rc.conclusion == 'success'}}
-          tag: ${{ env.software_version }}
+          tag: ${{ env.tag_name }}
 
   docker:
     name: Build & Publish Docker Image
