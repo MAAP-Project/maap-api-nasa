@@ -35,12 +35,20 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+#  TERRAFORM_VERSION: "1.8.3"
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
 jobs:
+  # First job in the workflow installs and verifies the software
   build:
     strategy:
       fail-fast: false
       matrix:
         python-version: [ "3.9" ]
+        poetry-version: [ "1.8.2" ]
         os: [ ubuntu-latest ]
     name: Build python ${{ matrix.python-version }}, os ${{ matrix.os }}
     # The type of runner that the job will run on
@@ -48,7 +56,294 @@ jobs:
     defaults:
       run:
         shell: bash -el {0}
+    outputs:
+      deploy_env: ${{ steps.poetry-build.outputs.deploy_env }}
+      version: ${{ steps.poetry-build.outputs.the_version }}
+      pyproject_name: ${{ steps.poetry-build.outputs.pyproject_name }}
     steps:
-      - name: Run build
+      - uses: getsentry/action-github-app-token@v3
+        name: maap cicd token
+        id: maap-cicd
+        with:
+          app_id: ${{ secrets.CICD_APP }}
+          private_key: ${{ secrets.CICD_APP_PRIVATE_KEY }}
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+          token: ${{ steps.maap-cicd.outputs.token }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v3
+        with:
+          poetry-version: ${{ matrix.poetry-version }}
+      - name: Setup a local virtual environment
         run: |
-          echo "build"
+          poetry config virtualenvs.create true --local
+          poetry config virtualenvs.in-project true --local
+      - uses: actions/cache@v4
+        name: Define a cache for the virtual environment based on the dependencies lock file
+        with:
+          path: ./.venv
+          key: venv-${{ matrix.python-version }}-${{ hashFiles('poetry.lock') }}
+      - name: Get pre-build version
+        id: get-version
+        run: |
+          echo "current_version=$(poetry version | awk '{print $2}')" >> $GITHUB_OUTPUT
+          echo "pyproject_name=$(poetry version | awk '{print $1}')" >> $GITHUB_ENV
+      - name: Manual Build
+        # If triggered by workflow dispatch, no version bump
+        if: github.event_name == 'workflow_dispatch'
+        id: manual
+        run: |
+          echo "TARGET_ENV_UPPERCASE=${{ github.event.inputs.venue }}" >> $GITHUB_ENV
+      - name: Bump pre-alpha version
+        # If triggered by push to a non-tracked branch
+        if: |
+          github.ref != 'refs/heads/develop' &&
+          github.ref != 'refs/heads/main' &&
+          !startsWith(github.ref, 'refs/heads/release/')
+        run: |
+          new_ver="${{ steps.get-version.outputs.current_version }}+$(git rev-parse --short ${GITHUB_SHA})"
+          poetry version $new_ver
+          echo "TARGET_ENV_UPPERCASE=DIT" >> $GITHUB_ENV
+      - name: Bump alpha version
+        # If triggered by push to the develop branch
+        if: |
+          github.ref == 'refs/heads/develop' &&
+          steps.manual.conclusion == 'skipped'
+        id: alpha
+        run: |
+          poetry version prerelease
+          echo "TARGET_ENV_UPPERCASE=DIT" >> $GITHUB_ENV
+      - name: Bump rc version
+        # If triggered by push to a release branch
+        if: |
+          startsWith(github.ref, 'refs/heads/release/') &&
+          steps.manual.conclusion == 'skipped'
+        id: rc
+        env:
+          # True if the version already has a 'rc' pre-release identifier
+          BUMP_RC: ${{ contains(steps.get-version.outputs.current_version, 'rc') }}
+        run: |
+          if [ "$BUMP_RC" = true ]; then
+            poetry version prerelease
+          else
+            poetry version ${GITHUB_REF#refs/heads/release/}rc1
+          fi
+          echo "TARGET_ENV_UPPERCASE=UAT" >> $GITHUB_ENV
+      - name: Release version
+        # If triggered by push to the main branch
+        if: |
+          startsWith(github.ref, 'refs/heads/main') &&
+          steps.manual.conclusion == 'skipped'
+        id: release
+        env:
+          CURRENT_VERSION: ${{ steps.get-version.outputs.current_version }}
+        # Remove rc* from end of version string
+        # The ${string%%substring} syntax below deletes the longest match of $substring from back of $string.
+        run: |
+          poetry version ${CURRENT_VERSION%%rc*}
+          echo "software_version=$(poetry version | awk '{print $2}')" >> $GITHUB_ENV
+          echo "venue=ops" >> $GITHUB_ENV
+          echo "TARGET_ENV_UPPERCASE=OPS" >> $GITHUB_ENV
+      - name: Get install version
+        # Get the version of the software being installed and save it as an ENV var
+        run: |
+          echo "software_version=$(poetry version | awk '{print $2}')" >> $GITHUB_ENV
+      - name: Install package
+        run: poetry install
+      - name: Lint
+        run: |
+          echo "Lint your code"
+      - name: Test and coverage
+        run: |
+          echo "Run your tests"
+#      - uses: hashicorp/setup-terraform@v3
+#        with:
+#          terraform_version: ${{ env.TERRAFORM_VERSION }}
+#          terraform_wrapper: false
+#      - name: Validate Terraform
+#        working-directory: terraform
+#        run: |
+#          terraform init -backend=false
+#          terraform validate -no-color
+
+#      SONAR support is pending approval
+#      - name: SonarCloud Scan
+#        uses: sonarsource/sonarcloud-github-action@master
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+#        with:
+#          args: >
+#            -Dsonar.organization=${{ github.repository_owner }}
+#            -Dsonar.projectKey=${{ github.repository_owner }}_${{ github.event.repository.name }}
+#            -Dsonar.python.coverage.reportPaths=build/reports/coverage.xml
+#            -Dsonar.sources=api/
+#            -Dsonar.tests=tests/
+#            -Dsonar.projectName=${{ github.repository }}
+#            -Dsonar.projectVersion=${{ env.software_version }}
+#            -Dsonar.python.version=3.9,3.10
+
+      - name: Build Python Artifact
+        id: poetry-build
+        run: |
+          poetry build
+          echo "deploy_env=${{ env.TARGET_ENV_UPPERCASE }}" >> $GITHUB_OUTPUT
+          echo "the_version=$(poetry version | awk '{print $2}')" >> $GITHUB_OUTPUT
+          echo "pyproject_name=$(poetry version | awk '{print $1}')" >> $GITHUB_OUTPUT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.poetry-build.outputs.pyproject_name }}-dist
+          path: dist/*
+      - name: Commit Version Bump
+        # If building an alpha, release candidate, or release then we commit the version bump back to the repo
+        if: |
+          steps.alpha.conclusion == 'success'   ||
+          steps.rc.conclusion == 'success'      ||
+          steps.release.conclusion == 'success'
+        run: |
+          git config user.name "${GITHUB_ACTOR}"
+          git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+          git commit -am "/version ${{ env.software_version }}"
+          git push
+      - name: Push Tag
+        if: |
+          steps.alpha.conclusion == 'success'   ||
+          steps.rc.conclusion == 'success'      ||
+          steps.release.conclusion == 'success'
+        run: |
+          git config user.name "${GITHUB_ACTOR}"
+          git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+          TAG_NAME="v${{ env.software_version }}"
+          echo "tag_name=$TAG_NAME" >> $GITHUB_ENV
+          git tag -a "$TAG_NAME" -m "Version $TAG_NAME"
+          git push origin "$TAG_NAME"
+      - name: Create GH release
+        if: |
+          steps.alpha.conclusion == 'success'   ||
+          steps.rc.conclusion == 'success'      ||
+          steps.release.conclusion == 'success'
+        uses: ncipollo/release-action@v1
+        with:
+          generateReleaseNotes: ${{ steps.release.conclusion == 'success' }}
+          name: ${{ env.tag_name }}
+          prerelease: ${{ steps.alpha.conclusion == 'success' || steps.rc.conclusion == 'success'}}
+          tag: ${{ env.tag_name }}
+
+  docker:
+    name: Build & Publish Docker Image
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    needs: build
+    environment: ${{ needs.build.outputs.deploy_env }} # Only needed because we need to push to the environment-specific GitLab CR. If we move to a container registry that is not env-specific this can be removed
+    outputs:
+      ghcr_container_image_uri: ${{ steps.set-outputs.outputs.ghcr_container_image_uri }}
+      gitlab_container_image_uri: ${{ steps.set-outputs.outputs.gitlab_container_image_uri }}
+    env:
+      THE_VERSION: ${{ needs.build.outputs.version }}
+      PYPROJECT_NAME: ${{ needs.build.outputs.pyproject_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+
+      - name: Log in to GitHub CR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to GitLab CR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.GITLAB_CONTAINER_REGISTRY }}
+          username: gitlab+deploy-token-3
+          password: ${{ secrets.MAAP_API_NASA_CI_GH_ACTION_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+            ${{ vars.GITLAB_CONTAINER_REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=pep440,pattern={{version}},value=${{ env.THE_VERSION }}
+            type=raw,value=${{ needs.build.outputs.deploy_env }}
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile
+          # Always build but only push if triggered by protected branch or manual run
+          push: ${{ github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release') || github.event_name == 'workflow_dispatch' }}
+          pull: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+      - name: Set output
+        id: set-outputs
+        run: |
+          echo "ghcr_container_image_uri=${{ fromJSON(steps.meta.outputs.json).tags[0] }}" >> $GITHUB_OUTPUT
+          echo "gitlab_container_image_uri=${{ fromJSON(steps.meta.outputs.json).tags[3] }}" >> $GITHUB_OUTPUT
+
+  deploy:
+    name: Deploy
+    needs:
+      - build
+      - docker
+    runs-on:
+      - ${{ needs.build.outputs.deploy_env }}
+      - self-hosted
+    environment: ${{ needs.build.outputs.deploy_env }}
+    env:
+      THE_VERSION: ${{ needs.build.outputs.version }}
+      GHCR_CONTAINER_IMAGE_URI: ${{ needs.docker.outputs.ghcr_container_image_uri }}
+      GITLAB_CONTAINER_IMAGE_URI: ${{ needs.docker.outputs.gitlab_container_image_uri }}
+    if: |
+      github.ref == 'refs/heads/develop' ||
+      github.ref == 'refs/heads/main'    ||
+      startsWith(github.ref, 'refs/heads/release') ||
+      github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+#      - uses: hashicorp/setup-terraform@v3
+#        with:
+#          terraform_version: ${{ env.TERRAFORM_VERSION }}
+#          terraform_wrapper: false
+
+#      - name: Configure AWS credentials
+#        uses: aws-actions/configure-aws-credentials@v4
+#        with:
+#          aws-region: us-west-2
+#          role-session-name: GitHubActions
+#          aws-access-key-id: ${{ secrets[vars.AWS_ACCESS_KEY_ID_SECRET_NAME] }}
+#          aws-secret-access-key: ${{ secrets[vars.AWS_SECRET_ACCESS_KEY_SECRET_NAME] }}
+#          mask-aws-account-id: true
+
+      - name: Create env file
+        id: create-env
+        shell: bash
+        env:
+          ENV_FILE: ${{secrets.MAAP_API_SETTINGS_OVERRIDE}}
+        run: 'echo "$ENV_FILE" > ${GITHUB_WORKSPACE}/.github/workflows/.maap-api.env'
+      - name: Deploy to venue
+        id: deploy
+        env:
+          AWS_DEFAULT_REGION: us-west-2
+          API_IMAGE_NAME: ${{ env.GITLAB_CONTAINER_IMAGE_URI }}
+          API_MACHINE: ${{ secrets.API_MACHINE }}
+          API_MACHINE_KEYPATH: ${{ secrets.API_MACHINE_KEYPATH }}
+        run: |
+          echo "Deploy ${{ env.API_IMAGE_NAME }} to ${{ needs.build.outputs.deploy_env }}"
+          ${GITHUB_WORKSPACE}/.github/workflows/deploy-on-runner.sh
+      - name: Clean env file
+        shell: bash
+        if: ${{always() && steps.create-env.outcome == 'success'}}
+        run: 'rm ${GITHUB_WORKSPACE}/.github/workflows/.maap-api.env || true'

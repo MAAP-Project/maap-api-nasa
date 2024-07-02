@@ -6,9 +6,7 @@ services:
     build:
       context: ../
       dockerfile: docker/Dockerfile
-    depends_on:
-      db:
-        condition: service_healthy
+      target: runtime
     networks:
       - default
     ports:
@@ -25,23 +23,3 @@ services:
       options:
         max-size: 250m
         max-file: 10
-
-  db:
-    image: postgres:14.5
-    restart: always
-    environment:
-      POSTGRES_DB: maap
-      POSTGRES_USER: maapuser
-      POSTGRES_PASSWORD: mysecretpassword
-      PGDATA: /var/lib/postgresql/data/pgdata
-    ports:
-      - "5432:5432"
-    volumes:
-      - ./data:/var/lib/postgresql/data
-    networks:
-      - default
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -d postgresql://maapuser:mysecretpassword@db/maap"]
-      interval: 5s
-      timeout: 5s
-      retries: 50
