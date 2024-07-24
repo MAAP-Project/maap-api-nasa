@@ -504,15 +504,16 @@ class Jobs(Resource):
         
         # Get params and set default values
         params = {key: request.args.get(key, default) for key, default in defaults.items()}
-
-        # Filter out params that are not needed for the mozart request
-        filtered_query_params = {k: v for k, v in params.items() if k != 'get_job_details' and v is not None}
+        
+        # Filter out params that are not needed
+        exclude_list = ["username", "get_job_details"]
+        filtered_query_params = {k: v for k, v in params.items() if k not in exclude_list and v is not None}
 
         try:
             logging.info("Finding jobs for user: {}".format(username))
             
             # Get list of jobs ids for the user
-            response = hysds.get_mozart_jobs(**filtered_query_params)
+            response = hysds.get_mozart_jobs(username, filtered_query_params)
             job_list = response.get("result")
             logging.info("Found Jobs: {}".format(job_list))
             

@@ -624,7 +624,7 @@ def get_mozart_queues():
         raise Exception("Couldn't get list of available queues")
 
 
-def get_mozart_jobs(username, page_size=10, offset=0):
+def get_mozart_jobs(username, **kwargs):
     """
         Returns mozart's job list
         :param username:
@@ -633,8 +633,8 @@ def get_mozart_jobs(username, page_size=10, offset=0):
         :return:
         """
     params = dict()
-    params["page_size"] = page_size
-    params["offset"] = offset  # this is specifies the offset
+    for key, value in kwargs.items():
+        params[key] = value
 
     session = requests.Session()
     session.verify = False
