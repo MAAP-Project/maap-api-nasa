@@ -639,11 +639,14 @@ def get_mozart_jobs(username, **kwargs):
     session = requests.Session()
     session.verify = False
 
+    logging.info("Job params: {}".format(params))
+
     try:
         param_list = ""
         for key, value in params.items():
             param_list += "&{}={}".format(key, value)
 
+        logging.info("Job param list: {}".format(param_list))
         if settings.HYSDS_VERSION == "v3.0":
             if username is not None:
                 param_list += f"&username={username}"
