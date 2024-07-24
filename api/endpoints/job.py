@@ -513,7 +513,7 @@ class Jobs(Resource):
             logging.info("Finding jobs for user: {}".format(username))
             logging.info("test")
             # Get list of jobs ids for the user
-            response = hysds.get_mozart_jobs(username, filtered_query_params)
+            response = hysds.get_mozart_jobs(username, **filtered_query_params)
             job_list = response.get("result")
             logging.info("Found Jobs: {}".format(job_list))
             
