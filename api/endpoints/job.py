@@ -455,10 +455,17 @@ class Metrics(Resource):
 @ns.route('/job/<string:username>/list')
 class Jobs(Resource):
     parser = api.parser()
-    parser.add_argument('page_size', required=False, type=str,
-                        help="Job Listing Pagination Size")
-    parser.add_argument('offset', required=False, type=str,
-                        help="Job Listing Pagination Offset")
+    parser.add_argument('page_size', required=False, type=str, help="Job Listing Pagination Size")
+    parser.add_argument('offset', required=False, type=str, help="Job Listing Pagination Offset")
+    parser.add_argument('type', type=str, help="Job type + version (ie. topsapp:v1.0)", required=False)
+    parser.add_argument('tag', type=str, help="User-defined job tag", required=False)
+    parser.add_argument('queue', type=str, help="Submitted job queue", required=False)
+    parser.add_argument('priority', type=int, help="Job priority, 0-9", required=False)
+    parser.add_argument('start_time', type=str, help="Start time of @timestamp field", required=False)
+    parser.add_argument('end_time', type=str, help="Start time of @timestamp field", required=False)
+    parser.add_argument('get_job_details', type=bool, help="Return full details if True. List of job id's if false. Default True.", required=False)
+    parser.add_argument('status', type=str, help="Job status, ie. job-queued, job-started, job-completed, "
+                                                 "job-failed", required=False)
 
 
     @api.doc(security='ApiKeyAuth')
