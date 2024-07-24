@@ -460,24 +460,59 @@ class Jobs(Resource):
     parser.add_argument('offset', required=False, type=str,
                         help="Job Listing Pagination Offset")
 
+
     @api.doc(security='ApiKeyAuth')
     @login_required
     def get(self, username):
         """
-        This will return run a list of jobs for a specified user
-        :return:
+        Returns a list of jobs for a given user.
+
+        :param username: Username
+        :param get_job_details: Boolean that returns job details if set to True or just job ID's if set to False. Default is True.
+        :param page_size: Page size for pagination
+        :param offset: Offset for pagination
+        :param status: Job status
+        :param end_time: End time
+        :param start_time: Start time
+        :param priority: Job priority
+        :param queue: Queue
+        :param tag: User tag
+        :param type: Algorithm type
+        :return: List of jobs for a given user that matches query params provided
         """
-        offset = request.args.get("offset", 0)
-        page_size = request.args.get("page_size", 250)
+        
+        defaults = {
+            "username" : username,
+            "get_job_details" : True, # To preserve existing behavior, set default to True. In the future, we should set this to False.
+            "page_size" : None,
+            "offset" : None,
+            "status" : None,
+            "end_time" : None,
+            "start_time" : None,
+            "priority" : None,
+            "queue" : None,
+            "tag" : None,
+            "type" : None
+        }
+        
+        # Get params and set default values
+        params = {key: request.args.get(key, default) for key, default in defaults.items()}
+
+        # Filter out params that are not needed for the mozart request
+        filtered_query_params = {k: v for k, v in params.items() if k != 'get_job_details' and v is not None}
+
         try:
             logging.info("Finding jobs for user: {}".format(username))
-            # get list of jobs ids for the user
-            response = hysds.get_mozart_jobs(username=username, offset=offset, page_size=page_size)
+            
+            # Get list of jobs ids for the user
+            response = hysds.get_mozart_jobs(**filtered_query_params)
             job_list = response.get("result")
             logging.info("Found Jobs: {}".format(job_list))
-            #if settings.HYSDS_VERSION == "v4.0":
-            # get job info per job
-            job_list = hysds.get_jobs_info(x.get("id") for x in job_list)
+            
+            if get_job_details:
+                # Get job info per job
+                job_list = hysds.get_jobs_info(x.get("id") for x in job_list)
+
             response_body = dict()
             response_body["code"] = status.HTTP_200_OK
             response_body["jobs"] = job_list
