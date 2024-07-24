@@ -633,7 +633,9 @@ def get_mozart_jobs(username, **kwargs):
         :return:
         """
     params = dict()
+    logging.info("hysds utils")
     for key, value in kwargs.items():
+        logging.info("key: {}, value: {}".format(key, value))
         params[key] = value
 
     session = requests.Session()
