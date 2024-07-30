@@ -499,7 +499,7 @@ class Jobs(Resource):
             "priority" : None,
             "queue" : None,
             "tag" : None,
-            "type" : None
+            "job_type" : None
         }
         
         # Get params and set default values
