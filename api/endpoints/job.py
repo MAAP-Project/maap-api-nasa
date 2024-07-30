@@ -457,7 +457,7 @@ class Jobs(Resource):
     parser = api.parser()
     parser.add_argument('page_size', required=False, type=str, help="Job Listing Pagination Size")
     parser.add_argument('offset', required=False, type=str, help="Job Listing Pagination Offset")
-    parser.add_argument('type', type=str, help="Job type + version (ie. topsapp:v1.0)", required=False)
+    parser.add_argument('job_type', type=str, help="Job type + version (ie. topsapp:v1.0)", required=False)
     parser.add_argument('tag', type=str, help="User-defined job tag", required=False)
     parser.add_argument('queue', type=str, help="Submitted job queue", required=False)
     parser.add_argument('priority', type=int, help="Job priority, 0-9", required=False)
@@ -484,7 +484,7 @@ class Jobs(Resource):
         :param priority: Job priority
         :param queue: Queue
         :param tag: User tag
-        :param type: Algorithm type
+        :param job_type: Algorithm type
         :return: List of jobs for a given user that matches query params provided
         """
         
@@ -514,7 +514,6 @@ class Jobs(Resource):
             logging.info("Finding jobs for user: {}".format(username))
             # Get list of jobs ids for the user
             response = hysds.get_mozart_jobs(username, **filtered_query_params)
-            print(response)
             job_list = response.get("result")
             logging.info("Found Jobs: {}".format(job_list))
             
