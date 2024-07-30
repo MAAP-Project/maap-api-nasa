@@ -657,6 +657,7 @@ def get_mozart_jobs(username, **kwargs):
             url = "{}/job/user/{}?{}".format(settings.MOZART_URL, username, param_list[1:])
         logging.info("GET request to find jobs: {}".format(url))
         mozart_response = session.get(url)
+        print(mozart_response.url)
 
     except Exception as ex:
         raise ex

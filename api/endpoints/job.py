@@ -506,7 +506,7 @@ class Jobs(Resource):
         params = {key: request.args.get(key, default) for key, default in defaults.items()}
         get_job_details = bool(params.get("get_job_details"))
         
-        # Filter out params that are not needed
+        # Filter out the non-query params for the Mozart request
         exclude_list = ["username", "get_job_details"]
         filtered_query_params = {k: v for k, v in params.items() if k not in exclude_list and v is not None}
 
@@ -514,6 +514,7 @@ class Jobs(Resource):
             logging.info("Finding jobs for user: {}".format(username))
             # Get list of jobs ids for the user
             response = hysds.get_mozart_jobs(username, **filtered_query_params)
+            print(response)
             job_list = response.get("result")
             logging.info("Found Jobs: {}".format(job_list))
             
