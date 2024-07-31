@@ -504,9 +504,9 @@ class Jobs(Resource):
         
         # Get params and set default values
         params = {key: request.args.get(key, default) for key, default in defaults.items()}
-        print(params)
-        get_job_details = bool(params.get("get_job_details"))
-        print(get_job_details)
+
+        is_param_true = lambda x: x if isinstance(x, bool) else x.lower() == 'true'
+        get_job_details = is_param_true(params['get_job_details'])
         
         # Filter out the non-query params for the Mozart request
         exclude_list = ["username", "get_job_details"]
