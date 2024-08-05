@@ -11,8 +11,8 @@ ns = {
 
 # This list extends the recommended WPS job statuses to include statuses 'Deduped', 'Deleted', and 'Offline'.
 WPS_STATUSES = ["Accepted", "Running", "Succeeded", "Failed", "Dismissed", "Deduped", "Deleted", "Offline"]
-
 HYSDS_STATUSES= ["job-started", "job-completed", "job-queued", "job-failed", "job-deduped", "job-revoked", "job-offline"]
+
 WPS_TO_HYSDS_JOB_STATUS_MAP = {
  "Accepted": "job-queued",
  "Running": "job-started",
@@ -34,35 +34,17 @@ def set_namespaces(xml_element):
 def get_hysds_status_from_wps(wps_status):
     """
     Translate WPS job status to HySDS job status
+
+    NOTE: HySDS does not support job status 'Deleted' and this status is not one of the base WPS job statuses.
+    Treating this status as a pass-through until there is consensus on HySDS-WPS mapping.
+
     :param status: (str) WPS job status
     :return status: (str) HySDS job status
     """
-    job_status = None
-    if wps_status not in WPS_STATUSES:
+    if wps_status not in WPS_TO_HYSDS_JOB_STATUS_MAP:
         statuses = ", ".join(str(status) for status in WPS_STATUSES)
-        raise ValueError("Invalid WPS status: {}. Valid values are: {}".format(wps_status, WPS_STATUSES))
-    elif wps_status == "Accepted":
-        job_status = "job-queued"
-    elif wps_status == "Running":
-        job_status = "job-started"
-    elif wps_status == "Succeeded":
-        job_status = "job-completed"
-    elif wps_status == "Failed":
-        job_status = "job-failed"     
-    elif wps_status == "Dismissed":
-        job_status = "job-revoked"
-    elif wps_status == "Deduped":
-        job_status = "job-deduped"
-    elif wps_status == "Offline":
-        job_status = "job-offline"
-    elif wps_status == "Deleted":
-        # TODO: HySDS does not support this status and 'Deleted' is not one of the base WPS job statuses.
-        # Treating this as a pass-through until there is consensus on HySDS-WPS mapping.
-        job_status = None
-    else:
-        job_status = None
-
-    return job_status
+        raise ValueError("Invalid WPS status: {}. Valid values are: {}".format(wps_status, statuses))
+    return WPS_TO_HYSDS_JOB_STATUS_MAP.get(wps_status)
 
 
 def get_status(job_status, wps_compliant=False):
