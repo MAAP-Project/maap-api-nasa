@@ -457,15 +457,14 @@ class Jobs(Resource):
     parser = api.parser()
     parser.add_argument('page_size', required=False, type=str, help="Job Listing Pagination Size")
     parser.add_argument('offset', required=False, type=str, help="Job Listing Pagination Offset")
-    parser.add_argument('job_type', type=str, help="Job type + version (ie. topsapp:v1.0)", required=False)
+    parser.add_argument('job_type', type=str, help="Job type + version, e.g. topsapp:v1.0", required=False)
     parser.add_argument('tag', type=str, help="User-defined job tag", required=False)
     parser.add_argument('queue', type=str, help="Submitted job queue", required=False)
     parser.add_argument('priority', type=int, help="Job priority, 0-9", required=False)
     parser.add_argument('start_time', type=str, help="Start time of @timestamp field", required=False)
     parser.add_argument('end_time', type=str, help="Start time of @timestamp field", required=False)
     parser.add_argument('get_job_details', type=bool, help="Return full details if True. List of job id's if false. Default True.", required=False)
-    parser.add_argument('status', type=str, help="Job status, ie. job-queued, job-started, job-completed, "
-                                                 "job-failed", required=False)
+    parser.add_argument('status', type=str, help="Job status, e.g. Accepted, Running, Succeeded, Failed, etc.", required=False)
 
 
     @api.doc(security='ApiKeyAuth')
@@ -491,8 +490,8 @@ class Jobs(Resource):
         defaults = {
             "username" : username,
             "get_job_details" : True, # To preserve existing behavior, set default to True. In the future, we should set this to False.
-            "page_size" : None,
-            "offset" : None,
+            "page_size" : 10,
+            "offset" : 0,
             "status" : None,
             "end_time" : None,
             "start_time" : None,
@@ -507,6 +506,10 @@ class Jobs(Resource):
 
         is_param_true = lambda x: x if isinstance(x, bool) else x.lower() == 'true'
         get_job_details = is_param_true(params['get_job_details'])
+
+        # If status is provided, make sure it is HySDS-compliant
+        if params['status'] is not None:
+            params['status'] = ogc.get_hysds_status_from_wps(params['status'])
         
         # Filter out the non-query params for the Mozart request
         exclude_list = ["username", "get_job_details"]

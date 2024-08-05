@@ -9,6 +9,10 @@ ns = {
     "ows": "http://www.opengis.net/ows/2.0"
 }
 
+# This list extends the recommended WPS job statuses to include statuses 'Deduped', 'Deleted', and 'Offline'.
+WPS_STATUSES = ["Accepted", "Running", "Succeeded", "Failed", "Dismissed", "Deduped", "Deleted", "Offline"]
+
+HYSDS_STATUSES= ["job-started", "job-completed", "job-queued", "job-failed", "job-deduped", "job-revoked", "job-offline"]
 
 def set_namespaces(xml_element):
     xml_element.set("xmlns:wps", "http://www.opengis.net/wps/2.0")
@@ -17,6 +21,37 @@ def set_namespaces(xml_element):
     xml_element.set("xmlns:ows", "http://www.opengis.net/ows/2.0")
 
     return xml_element
+
+def get_hysds_status_from_wps(wps_status):
+    """
+    Translate WPS job status to HySDS job status
+    :param status: (str) WPS job status
+    :return status: (str) HySDS job status
+    """
+    job_status = None
+    if wps_status not in WPS_STATUSES:
+        statuses = ", ".join(str(status) for status in WPS_STATUSES)
+        raise ValueError("Invalid WPS status: {}. Valid values are: {}".format(wps_status, WPS_STATUSES))
+    elif wps_status == "Accepted":
+        job_status = "job-queued"
+    elif wps_status == "Running":
+        job_status = "job-started"
+    elif wps_status == "Succeeded":
+        job_status = "job-completed"
+    elif wps_status == "Failed":
+        job_status = "job-failed"     
+    elif wps_status == "Dismissed":
+        job_status = "job-revoked"
+    elif wps_status == "Deduped":
+        job_status = "job-deduped"
+    elif wps_status == "Offline":
+        job_status = "job-offline"
+    elif wps_status == "Deleted":
+        job_status = None
+    else:
+        job_status = None
+
+    return job_status
 
 
 def get_status(job_status, wps_compliant=False):
