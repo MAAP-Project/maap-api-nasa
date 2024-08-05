@@ -47,6 +47,8 @@ def get_hysds_status_from_wps(wps_status):
     elif wps_status == "Offline":
         job_status = "job-offline"
     elif wps_status == "Deleted":
+        # TODO: HySDS does not support this status and 'Deleted' is not one of the base WPS job statuses.
+        # Treating this as a pass-through until there is consensus on HySDS-WPS mapping.
         job_status = None
     else:
         job_status = None
