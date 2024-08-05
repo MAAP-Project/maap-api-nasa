@@ -13,6 +13,15 @@ ns = {
 WPS_STATUSES = ["Accepted", "Running", "Succeeded", "Failed", "Dismissed", "Deduped", "Deleted", "Offline"]
 
 HYSDS_STATUSES= ["job-started", "job-completed", "job-queued", "job-failed", "job-deduped", "job-revoked", "job-offline"]
+WPS_TO_HYSDS_JOB_STATUS_MAP = {
+ "Accepted": "job-queued",
+ "Running": "job-started",
+ "Succeeded": "job-completed",
+ "Failed": "job-failed",
+ "Dismissed": "job-revoked",
+ "Deduped": "job-deduped",
+ "Deleted": None, 
+ "Offline": "job-offline"}
 
 def set_namespaces(xml_element):
     xml_element.set("xmlns:wps", "http://www.opengis.net/wps/2.0")
