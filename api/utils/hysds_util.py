@@ -671,6 +671,7 @@ def get_mozart_jobs(username,
     logging.debug("Job params: {}".format(params))
 
     try:
+        param_list = ""
         for key, value in params.items():
             param_list += "&{}={}".format(key, value)
 
