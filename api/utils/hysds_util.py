@@ -624,20 +624,51 @@ def get_mozart_queues():
         raise Exception("Couldn't get list of available queues")
 
 
-def get_mozart_jobs(username, page_size=10, offset=0):
+def get_mozart_jobs(username, 
+                    end_time=None,
+                    job_type=None,
+                    offset=0, 
+                    page_size=10,
+                    priority=None,
+                    queue=None,
+                    start_time=None,
+                    status=None,
+                    tag=None
+                    ):
     """
-        Returns mozart's job list
-        :param username:
-        :param page_size:
-        :param offset:
-        :return:
-        """
-    params = dict()
-    params["page_size"] = page_size
-    params["offset"] = offset  # this is specifies the offset
+    Returns mozart's job list
+    :param username: Username
+    :param page_size: Page size for pagination
+    :param offset: Offset for pagination
+    :param status: Job status
+    :param end_time: End time
+    :param start_time: Start time
+    :param priority: Job priority
+    :param queue: Queue
+    :param tag: User tag
+    :param job_type: Algorithm type
+    :return: Job list
+    """
+    params = {
+        k: v
+        for k, v in (
+            ("end_time", end_time),
+            ("job_type", job_type),
+            ("offset", offset),
+            ("page_size", page_size),
+            ("priority", priority),
+            ("queue", queue),
+            ("start_time", start_time),
+            ("status", status),
+            ("tag", tag),
+        )
+        if v is not None
+    }
 
     session = requests.Session()
     session.verify = False
+
+    logging.debug("Job params: {}".format(params))
 
     try:
         param_list = ""
