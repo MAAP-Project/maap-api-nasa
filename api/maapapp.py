@@ -5,7 +5,7 @@ import logging.config
 import os
 from flask import Flask, Blueprint, request, session
 from api import settings
-from api.cas.cas_auth import validate
+from api.auth.cas_auth import validate
 from api.utils.environments import Environments, get_environment
 from api.utils.url_util import proxied_url
 from api.endpoints.cmr import ns as cmr_collections_namespace

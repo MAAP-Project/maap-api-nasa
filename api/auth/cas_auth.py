@@ -2,7 +2,7 @@ from datetime import timedelta, datetime
 
 import flask
 import requests
-from flask import abort, request, Response, json
+from flask import request, json
 from flask_api import status
 from xmltodict import parse
 from flask import current_app
@@ -10,9 +10,7 @@ from .cas_urls import create_cas_proxy_url, create_cas_validate_url, create_cas_
 from api.maap_database import db
 from api.models.member import Member
 from api.models.member_session import MemberSession
-from api.models.member_job import MemberJob
 from api import settings
-from functools import wraps
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_v1_5
 from Crypto import Random
@@ -20,7 +18,6 @@ from Crypto.Hash import SHA
 from base64 import b64decode
 from api.utils.url_util import proxied_url
 import ast
-
 
 try:
     from urllib import urlopen
@@ -30,7 +27,6 @@ except ImportError:
 blueprint = flask.Blueprint('cas', __name__)
 
 PROXY_TICKET_PREFIX = "PGT-"
-
 
 def validate(service, ticket):
     """
@@ -132,15 +128,6 @@ def validate_bearer(token):
     return None
 
 
-def validate_cas_request(token):
-    """
-    Will attempt to validate a CAS machine token. Return True if validation succeeds.
-    """
-
-    current_app.logger.debug("validating cas request token {0}".format(token))
-    return token == settings.CAS_SECRET_KEY
-
-
 def validate_cas_request(cas_url):
 
     xml_from_dict = {}
@@ -212,84 +199,5 @@ def decrypt_proxy_ticket(ticket):
         except:
             current_app.logger.debug("invalid proxy granting ticket")
             return ''
-
-
-def get_authorized_user():
-    if 'proxy-ticket' in request.headers:
-        member_session = validate_proxy(request.headers['proxy-ticket'])
-
-        if member_session is not None:
-            return member_session.member
-
-    if 'Authorization' in request.headers:
-        bearer = request.headers.get('Authorization')
-        token = bearer.split()[1]
-        authorized = validate_bearer(token)
-
-        if authorized is not None:
-            return authorized
-
-    return None
-
-
-def login_required(wrapped_function):
-    @wraps(wrapped_function)
-    def wrap(*args, **kwargs):
-
-        if 'proxy-ticket' in request.headers:
-            authorized = validate_proxy(request.headers['proxy-ticket'])
-
-            if authorized is not None:
-                return wrapped_function(*args, **kwargs)
-
-        if 'cpticket' in request.headers:
-            authorized = validate_proxy(request.headers['cpticket'])
-
-            if authorized is not None:
-                return wrapped_function(*args, **kwargs)
-
-        if 'Authorization' in request.headers:
-            bearer = request.headers.get('Authorization')
-            token = bearer.split()[1]
-            authorized = validate_bearer(token)
-
-            if authorized is not None:
-                return wrapped_function(*args, **kwargs)
-
-        if 'cas-authorization' in request.headers:
-            authorized = validate_cas_request(request.headers['cas-authorization'])
-
-            if authorized:
-                return wrapped_function(*args, **kwargs)
-
-        if 'dps-token' in request.headers and valid_dps_request():
-            return wrapped_function(*args, **kwargs)
-
-        abort(status.HTTP_403_FORBIDDEN, description="Not authorized.")
-
-    return wrap
-
-
-def valid_dps_request():
-    if 'dps-token' in request.headers:
-        return settings.DPS_MACHINE_TOKEN == request.headers['dps-token']
-    return False
-
-
-def edl_federated_request(url, stream_response=False):
-    s = requests.Session()
-    response = s.get(url, stream=stream_response)
-
-    if response.status_code == status.HTTP_401_UNAUTHORIZED:
-        maap_user = get_authorized_user()
-
-        if maap_user is not None:
-            urs_token = db.session.query(Member).filter_by(id=maap_user.id).first().urs_token
-            s.headers.update({'Authorization': f'Bearer {urs_token},Basic {settings.MAAP_EDL_CREDS}',
-                              'Connection': 'close'})
-
-            response = s.get(url=response.url, stream=stream_response)
-
-    return response
 
 

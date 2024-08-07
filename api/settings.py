@@ -97,7 +97,7 @@ AWS_TRIAGE_WORKSPACE_BUCKET_PATH = os.getenv('AWS_TRIAGE_WORKSPACE_BUCKET_PATH',
 AWS_REQUESTER_PAYS_BUCKET_ARN = os.getenv('AWS_REQUESTER_PAYS_BUCKET_ARN', 'arn:aws:iam::???:role/???')
 
 # DB
-DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://maapuser:mysecretpassword@db/maap')
+DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://maapuser:mysecretpassword@localhost/maap')
 
 # SMTP
 SMTP_HOSTNAME = os.getenv('SMTP_HOSTNAME', 'my_smtp_hostname')
