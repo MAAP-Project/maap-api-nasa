@@ -5,7 +5,7 @@ from flask import request, jsonify, Response
 from flask_api import status
 from api.restplus import api
 import api.settings as settings
-from api.cas.cas_auth import get_authorized_user, login_required, edl_federated_request, valid_dps_request
+from api.auth.security import get_authorized_user, login_required, valid_dps_request, edl_federated_request
 from api.maap_database import db
 from api.utils import github_util
 from api.models.member import Member as Member_db
