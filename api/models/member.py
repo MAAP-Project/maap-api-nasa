@@ -1,6 +1,6 @@
 from api.models import Base
 from api.maap_database import db
-
+from api.models.role import Role
 
 class Member(Base):
     __tablename__ = 'member'
@@ -26,13 +26,13 @@ class Member(Base):
         return "{} {}".format(self.first_name, self.last_name)
 
     def is_guest(self):
-        return self.role_id == 1
+        return self.role_id == Role.ROLE_GUEST
 
     def is_member(self):
-        return self.role_id == 2
+        return self.role_id == Role.ROLE_MEMBER
 
     def is_admin(self):
-        return self.role_id == 3
+        return self.role_id == Role.ROLE_ADMIN
 
     def __repr__(self):
         return "<Member(username={self.username!r})>".format(self=self)
