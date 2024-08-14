@@ -11,7 +11,7 @@ import api.utils.github_util as git
 import api.utils.hysds_util as hysds
 import api.settings as settings
 import api.utils.ogc_translate as ogc
-from api.cas.cas_auth import get_authorized_user, login_required
+from api.auth.security import get_authorized_user, login_required
 from api.maap_database import db
 from api.models.member_algorithm import MemberAlgorithm
 from sqlalchemy import or_, and_
