@@ -10,34 +10,40 @@ from api.maap_database import db
 from api.utils import github_util
 from api.models.member import Member as Member_db
 from api.models.member_session import MemberSession as MemberSession_db
+from api.models.member_secret import MemberSecret as MemberSecret_db
 from api.schemas.member_schema import MemberSchema
 from api.schemas.member_session_schema import MemberSessionSchema
 from api.utils.email_util import send_user_status_update_active_user_email, \
     send_user_status_update_suspended_user_email, send_user_status_change_email, \
     send_welcome_to_maap_active_user_email, send_welcome_to_maap_suspended_user_email
 from api.models.pre_approved import PreApproved
-from api.schemas.pre_approved_schema import PreApprovedSchema
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import json
 import boto3
 import requests
 from urllib import parse
 from api.utils.url_util import proxied_url
+from cryptography.fernet import Fernet
 
 log = logging.getLogger(__name__)
 ns = api.namespace('members', description='Operations for MAAP members')
 s3_client = boto3.client('s3', region_name=settings.AWS_REGION)
 sts_client = boto3.client('sts', region_name=settings.AWS_REGION)
+fernet = Fernet(settings.FERNET_KEY)
 
 STATUS_ACTIVE = "active"
 STATUS_SUSPENDED = "suspended"
 
 
-def err_response(msg, code=status.HTTP_400_BAD_REQUEST):
+def custom_response(msg, code=status.HTTP_200_OK):
     return {
         'code': code,
         'message': msg
     }, code
+
+
+def err_response(msg, code=status.HTTP_400_BAD_REQUEST):
+    return custom_response(msg, code)
 
 
 @ns.route('')
@@ -378,18 +384,6 @@ class Self(Resource):
             return member
 
 
-@ns.route('/selfTest')
-class SelfTest(Resource):
-
-    @api.doc(security='ApiKeyAuth')
-    @login_required
-    def get(self):
-        member = get_authorized_user()
-        member_schema = MemberSchema()
-
-        return json.loads(member_schema.dumps(member))
-
-
 @ns.route('/self/sshKey')
 class PublicSshKeyUpload(Resource):
 
@@ -430,6 +424,120 @@ class PublicSshKeyUpload(Resource):
 
         member_schema = MemberSchema()
         return json.loads(member_schema.dumps(member))
+
+
+@ns.route('/self/secrets')
+class Secrets(Resource):
+
+    @api.doc(security='ApiKeyAuth')
+    @login_required
+    def get(self):
+
+        try:
+            secrets = \
+                (
+                    db.session.query(
+                        MemberSecret_db.secret_name,
+                        MemberSecret_db.secret_value)
+                    .filter_by(member_id=get_authorized_user().id)
+                    .order_by(MemberSecret_db.secret_name)
+                    .all())
+
+            result = [{
+                'secret_name': s.secret_name
+            } for s in secrets]
+
+            return result
+        except Exception as ex:
+            return err_response(ex.message, status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @api.doc(security='ApiKeyAuth')
+    @login_required
+    def post(self):
+
+        try:
+            req_data = request.get_json()
+            if not isinstance(req_data, dict):
+                return err_response("Valid JSON body object required.")
+
+            secret_name = req_data.get("secret_name", "")
+            if not isinstance(secret_name, str) or not secret_name:
+                return err_response("secret_name is required.")
+
+            secret_value = req_data.get("secret_value", "")
+            if not isinstance(secret_value, str) or not secret_value:
+                return err_response("secret_value is required.")
+
+            member = get_authorized_user()
+            secret = db.session.query(MemberSecret_db).filter_by(member_id=member.id, secret_name=secret_name).first()
+
+            if secret is not None:
+                return err_response(msg="Secret already exists with name {}".format(secret_name))
+
+            encrypted_secret = fernet.encrypt(secret_value.encode()).decode("utf-8")
+
+            new_secret = MemberSecret_db(member_id=member.id,
+                                         secret_name=secret_name,
+                                         secret_value=encrypted_secret,
+                                         creation_date=datetime.utcnow())
+
+            db.session.add(new_secret)
+            db.session.commit()
+
+            return {
+                'secret_name': secret_name
+            }, status.HTTP_200_OK
+
+        except Exception as ex:
+            return err_response(ex.message, status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@ns.route('/self/secrets/<string:name>')
+class Secrets(Resource):
+
+    @api.doc(security='ApiKeyAuth')
+    @login_required
+    def get(self, name):
+
+        try:
+            secret = \
+                (
+                    db.session.query(
+                        MemberSecret_db.secret_name,
+                        MemberSecret_db.secret_value)
+                    .filter_by(member_id=get_authorized_user().id, secret_name=name)
+                    .first())
+
+            if secret is None:
+                return err_response(msg="No secret exists with name {}".format(name), code=status.HTTP_404_NOT_FOUND)
+
+            result = {
+                'secret_name': secret.secret_name,
+                'secret_value': fernet.decrypt(secret.secret_value).decode("utf-8")
+            }
+
+            return result, status.HTTP_200_OK
+
+        except Exception as ex:
+            return err_response(ex.message, status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @api.doc(security='ApiKeyAuth')
+    @login_required
+    def delete(self, name):
+
+        try:
+            member = get_authorized_user()
+            secret = db.session.query(MemberSecret_db).filter_by(member_id=member.id, secret_name=name).first()
+
+            if secret is None:
+                return err_response(msg="No secret exists with name " + name)
+
+            db.session.delete(secret)
+            db.session.commit()
+
+            return custom_response("Successfully deleted secret {}".format(name))
+        except Exception as ex:
+            return err_response(ex.message, status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @ns.route('/self/presignedUrlS3/<string:bucket>/<path:key>')
@@ -678,84 +786,3 @@ def get_edc_credentials(endpoint_uri, user_id):
         edl_response = edl_federated_request(url=endpoint)
 
     return edl_response.content
-
-
-@ns.route('/pre-approved')
-class PreApprovedEmails(Resource):
-
-    @api.doc(security='ApiKeyAuth')
-    @login_required
-    def get(self):
-        pre_approved = db.session.query(
-            PreApproved.email,
-            PreApproved.creation_date
-        ).order_by(PreApproved.email).all()
-
-        pre_approved_schema = PreApprovedSchema()
-        result = [json.loads(pre_approved_schema.dumps(p)) for p in pre_approved]
-        return result
-
-    @api.doc(security='ApiKeyAuth')
-    @login_required
-    def post(self):
-
-        """
-        Create new pre-approved email. Wildcards are supported for starting email characters.
-
-        Format of JSON to post:
-        {
-            "email": ""
-        }
-
-        Sample 1. Any email ending in "@maap-project.org" is pre-approved
-        {
-            "email": "*@maap-project.org"
-        }
-
-        Sample 2. Any email matching "jane.doe@maap-project.org" is pre-approved
-        {
-            "email": "jane.doe@maap-project.org"
-        }
-        """
-
-        req_data = request.get_json()
-        if not isinstance(req_data, dict):
-            return err_response("Valid JSON body object required.")
-
-        email = req_data.get("email", "")
-        if not isinstance(email, str) or not email:
-            return err_response("Valid email is required.")
-
-        pre_approved_email = db.session.query(PreApproved).filter_by(email=email).first()
-
-        if pre_approved_email is not None:
-            return err_response(msg="Email already exists")
-
-        new_email = PreApproved(email=email, creation_date=datetime.utcnow())
-
-        db.session.add(new_email)
-        db.session.commit()
-
-        pre_approved_schema = PreApprovedSchema()
-        return json.loads(pre_approved_schema.dumps(new_email))
-
-
-@ns.route('/pre-approved/<string:email>')
-class PreApprovedEmails(Resource):
-
-    @api.doc(security='ApiKeyAuth')
-    @login_required
-    def delete(self, email):
-        """
-        Delete pre-approved email
-        """
-
-        pre_approved_email = db.session.query(PreApproved).filter_by(email=email).first()
-
-        if pre_approved_email is None:
-            return err_response(msg="Email does not exist")
-
-        db.session.query(PreApproved).filter_by(email=email).delete()
-        db.session.commit()
-
-        return {"code": status.HTTP_200_OK, "message": "Successfully deleted {}.".format(email)}

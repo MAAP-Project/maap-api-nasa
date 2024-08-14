@@ -8,7 +8,7 @@ class Member(Base):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(), unique=True)
     email = db.Column(db.String(), unique=True)
-    role_id = db.Column(db.Integer, db.ForeignKey('role.id'), nullable=False, default=1)
+    role_id = db.Column(db.Integer, db.ForeignKey('role.id'), nullable=False, default=Role.ROLE_GUEST)
     first_name = db.Column(db.String())
     last_name = db.Column(db.String())
     organization = db.Column(db.String())
