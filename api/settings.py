@@ -98,6 +98,7 @@ AWS_REQUESTER_PAYS_BUCKET_ARN = os.getenv('AWS_REQUESTER_PAYS_BUCKET_ARN', 'arn:
 
 # DB
 DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://maapuser:mysecretpassword@localhost/maap')
+FERNET_KEY = os.getenv('FERNET_KEY','')
 
 # SMTP
 SMTP_HOSTNAME = os.getenv('SMTP_HOSTNAME', 'my_smtp_hostname')
