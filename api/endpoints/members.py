@@ -472,7 +472,7 @@ class Secrets(Resource):
             secret = db.session.query(MemberSecret_db).filter_by(member_id=member.id, secret_name=secret_name).first()
 
             if secret is not None:
-                return err_response(msg="Secret already exists with name {}".format(secret_name))
+                return err_response(msg="Secret already exists with name {}. Please delete and re-create the secret to update it's value. ".format(secret_name))
 
             encrypted_secret = fernet.encrypt(secret_value.encode()).decode("utf-8")
 
