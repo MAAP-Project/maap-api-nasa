@@ -3,9 +3,11 @@ from cachetools import TLRUCache, cached
 from flask_restx import Resource, reqparse
 from flask import request, jsonify, Response
 from flask_api import status
+from sqlalchemy.exc import SQLAlchemyError
 from api.restplus import api
 import api.settings as settings
-from api.auth.security import get_authorized_user, login_required, valid_dps_request, edl_federated_request
+from api.auth.security import get_authorized_user, login_required, valid_dps_request, edl_federated_request, \
+    MEMBER_STATUS_ACTIVE, MEMBER_STATUS_SUSPENDED
 from api.maap_database import db
 from api.utils import github_util
 from api.models.member import Member as Member_db
@@ -22,6 +24,8 @@ import json
 import boto3
 import requests
 from urllib import parse
+
+from api.utils.http_util import err_response, custom_response
 from api.utils.url_util import proxied_url
 from cryptography.fernet import Fernet
 
@@ -31,26 +35,12 @@ s3_client = boto3.client('s3', region_name=settings.AWS_REGION)
 sts_client = boto3.client('sts', region_name=settings.AWS_REGION)
 fernet = Fernet(settings.FERNET_KEY)
 
-STATUS_ACTIVE = "active"
-STATUS_SUSPENDED = "suspended"
-
-
-def custom_response(msg, code=status.HTTP_200_OK):
-    return {
-        'code': code,
-        'message': msg
-    }, code
-
-
-def err_response(msg, code=status.HTTP_400_BAD_REQUEST):
-    return custom_response(msg, code)
-
 
 @ns.route('')
 class Member(Resource):
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def get(self):
         members = db.session.query(
             Member_db.id,
@@ -71,7 +61,7 @@ class Member(Resource):
 class Member(Resource):
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def get(self, key):
 
         cols = [
@@ -109,7 +99,7 @@ class Member(Resource):
             pgt_result = json.loads(member_session_schema.dumps(pgt_ticket))
             result = json.loads(json.dumps(dict(result.items() | pgt_result.items())))
 
-        # If the requested user info belongs to the logged in user,
+        # If the requested user info belongs to the logged-in user,
         # also include additional ssh key information belonging to the user
         if member.username == key:
             cols = [
@@ -130,7 +120,7 @@ class Member(Resource):
         return result
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def post(self, key):
 
         """
@@ -191,7 +181,7 @@ class Member(Resource):
             (~PreApproved.email.like("*%") & PreApproved.email.like(email))
         ).first()
 
-        status = STATUS_SUSPENDED if pre_approved_email is None else STATUS_ACTIVE
+        member_status = MEMBER_STATUS_SUSPENDED if pre_approved_email is None else MEMBER_STATUS_ACTIVE
 
         guest = Member_db(first_name=first_name,
                           last_name=last_name,
@@ -201,14 +191,14 @@ class Member(Resource):
                           public_ssh_key=req_data.get("public_ssh_key", None),
                           public_ssh_key_modified_date=datetime.utcnow(),
                           public_ssh_key_name=req_data.get("public_ssh_key_name", None),
-                          status=status,
+                          status=member_status,
                           creation_date=datetime.utcnow())
 
         db.session.add(guest)
         db.session.commit()
 
         # Send Email Notifications based on member status
-        if status == STATUS_ACTIVE:
+        if member_status == MEMBER_STATUS_ACTIVE:
             send_user_status_change_email(guest, True, True, proxied_url(request))
             send_welcome_to_maap_active_user_email(guest, proxied_url(request))
         else:
@@ -219,7 +209,7 @@ class Member(Resource):
         return json.loads(member_schema.dumps(guest))
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def put(self, key):
 
         """
@@ -283,7 +273,7 @@ class Member(Resource):
 class MemberStatus(Resource):
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def post(self, key):
 
         """
@@ -303,24 +293,24 @@ class MemberStatus(Resource):
         if not isinstance(req_data, dict):
             return err_response("Valid JSON body object required.")
 
-        status = req_data.get("status", "")
-        if not isinstance(status, str) or not status:
+        member_status = req_data.get("status", "")
+        if not isinstance(member_status, str) or not member_status:
             return err_response("Valid status string required.")
 
-        if status != STATUS_ACTIVE and status != STATUS_SUSPENDED:
-            return err_response("Status must be either " + STATUS_ACTIVE + " or " + STATUS_SUSPENDED)
+        if member_status != MEMBER_STATUS_ACTIVE and member_status != MEMBER_STATUS_SUSPENDED:
+            return err_response("Status must be either " + MEMBER_STATUS_ACTIVE + " or " + MEMBER_STATUS_SUSPENDED)
 
         member = db.session.query(Member_db).filter_by(username=key).first()
 
         if member is None:
             return err_response(msg="No member found with key " + key, code=404)
 
-        old_status = member.status if member.status is not None else STATUS_SUSPENDED
-        activated = old_status == STATUS_SUSPENDED and status == STATUS_ACTIVE
-        deactivated = old_status == STATUS_ACTIVE and status == STATUS_SUSPENDED
+        old_status = member.status if member.status is not None else MEMBER_STATUS_SUSPENDED
+        activated = old_status == MEMBER_STATUS_SUSPENDED and member_status == MEMBER_STATUS_ACTIVE
+        deactivated = old_status == MEMBER_STATUS_ACTIVE and member_status == MEMBER_STATUS_SUSPENDED
 
         if activated or deactivated:
-            member.status = status
+            member.status = member_status
             db.session.commit()
             gitlab_account = github_util.sync_gitlab_account(
                 activated,
@@ -354,7 +344,7 @@ class MemberStatus(Resource):
 class Self(Resource):
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def get(self):
         authorized_user = get_authorized_user()
 
@@ -388,7 +378,7 @@ class Self(Resource):
 class PublicSshKeyUpload(Resource):
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def post(self):
         if 'file' not in request.files:
             log.error('Upload attempt with no file')
@@ -411,7 +401,7 @@ class PublicSshKeyUpload(Resource):
         return json.loads(member_schema.dumps(member))
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def delete(self):
         member = get_authorized_user()
 
@@ -430,7 +420,7 @@ class PublicSshKeyUpload(Resource):
 class Secrets(Resource):
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def get(self):
 
         try:
@@ -448,11 +438,11 @@ class Secrets(Resource):
             } for s in secrets]
 
             return result
-        except Exception as ex:
-            return err_response(ex.message, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except SQLAlchemyError as ex:
+            return err_response(ex, status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def post(self):
 
         try:
@@ -488,15 +478,15 @@ class Secrets(Resource):
                 'secret_name': secret_name
             }, status.HTTP_200_OK
 
-        except Exception as ex:
-            return err_response(ex.message, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except SQLAlchemyError as ex:
+            return err_response(ex, status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @ns.route('/self/secrets/<string:name>')
 class Secrets(Resource):
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def get(self, name):
 
         try:
@@ -518,11 +508,11 @@ class Secrets(Resource):
 
             return result, status.HTTP_200_OK
 
-        except Exception as ex:
-            return err_response(ex.message, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except SQLAlchemyError as ex:
+            return err_response(ex, status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def delete(self, name):
 
         try:
@@ -536,8 +526,8 @@ class Secrets(Resource):
             db.session.commit()
 
             return custom_response("Successfully deleted secret {}".format(name))
-        except Exception as ex:
-            return err_response(ex.message, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except SQLAlchemyError as ex:
+            return err_response(ex, status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @ns.route('/self/presignedUrlS3/<string:bucket>/<path:key>')
@@ -547,7 +537,7 @@ class PresignedUrlS3(Resource):
     expiration_param.add_argument('ws', type=str, required=False, default="")
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     @api.expect(expiration_param)
     def get(self, bucket, key):
 
@@ -590,7 +580,7 @@ class AwsAccessRequesterPaysBucket(Resource):
     expiration_param.add_argument('exp', type=int, required=False, default=60 * 60 * 12)
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     @api.expect(expiration_param)
     def get(self):
         member = get_authorized_user()
@@ -627,7 +617,7 @@ class AwsAccessEdcCredentials(Resource):
     """
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def get(self, endpoint_uri):
         s = requests.Session()
         maap_user = get_authorized_user()
@@ -669,7 +659,7 @@ class AwsAccessUserBucketCredentials(Resource):
     """
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def get(self):
         maap_user = get_authorized_user()
 

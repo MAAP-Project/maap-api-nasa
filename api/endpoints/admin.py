@@ -2,6 +2,7 @@ import logging
 from flask_restx import Resource
 from flask import request
 from flask_api import status
+from api.models.role import Role
 from api.restplus import api
 from api.auth.security import login_required
 from api.maap_database import db
@@ -10,16 +11,16 @@ from api.schemas.pre_approved_schema import PreApprovedSchema
 from datetime import datetime
 import json
 
+from api.utils.http_util import err_response
+
 log = logging.getLogger(__name__)
-
 ns = api.namespace('admin', description='Operations related to the MAAP admin')
-
 
 @ns.route('/pre-approved')
 class PreApprovedEmails(Resource):
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required(role=Role.ROLE_ADMIN)
     def get(self):
         pre_approved = db.session.query(
             PreApproved.email,
@@ -31,7 +32,7 @@ class PreApprovedEmails(Resource):
         return result
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required(role=Role.ROLE_ADMIN)
     def post(self):
 
         """
@@ -79,7 +80,7 @@ class PreApprovedEmails(Resource):
 class PreApprovedEmails(Resource):
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required(role=Role.ROLE_ADMIN)
     def delete(self, email):
         """
         Delete pre-approved email
@@ -94,5 +95,3 @@ class PreApprovedEmails(Resource):
         db.session.commit()
 
         return {"code": status.HTTP_200_OK, "message": "Successfully deleted {}.".format(email)}
-
-
