@@ -6,12 +6,15 @@ from api import settings
 from api.auth.cas_auth import validate_proxy, validate_bearer, validate_cas_request
 from api.maap_database import db
 from api.models.member import Member
+from api.models.role import Role
 
 HEADER_PROXY_TICKET = "proxy-ticket"
 HEADER_CP_TICKET = "cpticket"
 HEADER_AUTHORIZATION = "Authorization"
 HEADER_CAS_AUTHORIZATION = "cas-authorization"
 HEADER_DPS_TOKEN = "dps-token"
+MEMBER_STATUS_ACTIVE = "active"
+MEMBER_STATUS_SUSPENDED = "suspended"
 
 
 def get_authorized_user():
@@ -34,34 +37,36 @@ def get_authorized_user():
     return None
 
 
-def login_required(wrapped_function):
-    @wraps(wrapped_function)
-    def wrap(*args, **kwargs):
+def login_required(role=Role.ROLE_GUEST):
+    def login_required_outer(wrapped_function):
+        @wraps(wrapped_function)
+        def wrap(*args, **kwargs):
+            auth = get_auth_header()
 
-        auth = get_auth_header()
+            if auth == HEADER_PROXY_TICKET or auth == HEADER_CP_TICKET:
+                member_session = validate_proxy(request.headers[auth])
 
-        if ((auth == HEADER_PROXY_TICKET or auth == HEADER_CP_TICKET) and
-                validate_proxy(request.headers[auth]) is not None):
-            return wrapped_function(*args, **kwargs)
+                if member_session is not None and member_session.member.role_id >= role:
+                    return wrapped_function(*args, **kwargs)
 
-        if auth == HEADER_AUTHORIZATION:
-            bearer = request.headers.get(auth)
-            token = bearer.split()[1]
-            authorized = validate_bearer(token)
+            if auth == HEADER_AUTHORIZATION:
+                bearer = request.headers.get(auth)
+                token = bearer.split()[1]
+                authorized = validate_bearer(token)
 
-            if authorized is not None:
+                if authorized is not None:
+                    return wrapped_function(*args, **kwargs)
+
+            if auth == HEADER_CAS_AUTHORIZATION and validate_cas_request(request.headers[auth]) is not None:
                 return wrapped_function(*args, **kwargs)
 
-        if auth == HEADER_CAS_AUTHORIZATION and validate_cas_request(request.headers[auth]) is not None:
-            return wrapped_function(*args, **kwargs)
+            if auth == HEADER_DPS_TOKEN and valid_dps_request():
+                return wrapped_function(*args, **kwargs)
 
-        if auth == HEADER_DPS_TOKEN and valid_dps_request():
-            return wrapped_function(*args, **kwargs)
+            abort(status.HTTP_403_FORBIDDEN, description="Not authorized.")
 
-        abort(status.HTTP_403_FORBIDDEN, description="Not authorized.")
-
-    return wrap
-
+        return wrap
+    return login_required_outer
 
 def valid_dps_request():
     if HEADER_DPS_TOKEN in request.headers:
