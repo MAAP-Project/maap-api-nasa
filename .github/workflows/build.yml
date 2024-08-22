@@ -217,8 +217,10 @@ jobs:
         run: |
           git config user.name "${GITHUB_ACTOR}"
           git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
-          git tag -a "${{ env.software_version }}" -m "Version ${{ env.software_version }}"
-          git push origin "${{ env.software_version }}"
+          TAG_NAME="v${{ env.software_version }}"
+          echo "tag_name=$TAG_NAME" >> $GITHUB_ENV
+          git tag -a "$TAG_NAME" -m "Version $TAG_NAME"
+          git push origin "$TAG_NAME"
       - name: Create GH release
         if: |
           steps.alpha.conclusion == 'success'   ||
@@ -226,10 +228,10 @@ jobs:
           steps.release.conclusion == 'success'
         uses: ncipollo/release-action@v1
         with:
-          generateReleaseNotes: true
-          name: ${{ env.software_version }}
+          generateReleaseNotes: ${{ steps.release.conclusion == 'success' }}
+          name: ${{ env.tag_name }}
           prerelease: ${{ steps.alpha.conclusion == 'success' || steps.rc.conclusion == 'success'}}
-          tag: ${{ env.software_version }}
+          tag: ${{ env.tag_name }}
 
   docker:
     name: Build & Publish Docker Image
@@ -260,7 +262,7 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ${{ vars.GITLAB_CONTAINER_REGISTRY }}
-          username: gitlab+deploy-token-2
+          username: gitlab+deploy-token-3
           password: ${{ secrets.MAAP_API_NASA_CI_GH_ACTION_TOKEN }}
 
       - name: Extract metadata (tags, labels) for Docker
@@ -274,16 +276,12 @@ jobs:
             type=pep440,pattern={{version}},value=${{ env.THE_VERSION }}
             type=raw,value=${{ needs.build.outputs.deploy_env }}
       - name: Build and push Docker image
-        if: |
-          github.ref == 'refs/heads/develop' ||
-          github.ref == 'refs/heads/main'    ||
-          startsWith(github.ref, 'refs/heads/release') ||
-          github.event_name == 'workflow_dispatch'
         uses: docker/build-push-action@v5
         with:
           context: .
           file: docker/Dockerfile
-          push: true
+          # Always build but only push if triggered by protected branch or manual run
+          push: ${{ github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release') || github.event_name == 'workflow_dispatch' }}
           pull: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -295,9 +293,12 @@ jobs:
 
   deploy:
     name: Deploy
-    needs: [ build, docker ]
-#    runs-on: [${{ needs.build.outputs.deploy_env }}, self-hosted]
-    runs-on: ubuntu-latest
+    needs:
+      - build
+      - docker
+    runs-on:
+      - ${{ needs.build.outputs.deploy_env }}
+      - self-hosted
     environment: ${{ needs.build.outputs.deploy_env }}
     env:
       THE_VERSION: ${{ needs.build.outputs.version }}
@@ -326,7 +327,6 @@ jobs:
 #          aws-secret-access-key: ${{ secrets[vars.AWS_SECRET_ACCESS_KEY_SECRET_NAME] }}
 #          mask-aws-account-id: true
 
-      # TODO run deploy script on self-hosted runner
       - name: Create env file
         id: create-env
         shell: bash
@@ -339,6 +339,7 @@ jobs:
           AWS_DEFAULT_REGION: us-west-2
           API_IMAGE_NAME: ${{ env.GITLAB_CONTAINER_IMAGE_URI }}
           API_MACHINE: ${{ secrets.API_MACHINE }}
+          API_MACHINE_KEYPATH: ${{ secrets.API_MACHINE_KEYPATH }}
         run: |
           echo "Deploy ${{ env.API_IMAGE_NAME }} to ${{ needs.build.outputs.deploy_env }}"
           ${GITHUB_WORKSPACE}/.github/workflows/deploy-on-runner.sh

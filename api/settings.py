@@ -61,7 +61,7 @@ MOZART_V1_URL = os.getenv('MOZART_V1_URL', 'https://[MOZART_IP]/mozart/api/v0.1'
 GRQ_URL = os.getenv('GRQ_URL', 'http://[GRQ_IP]:8878/api/v0.1')  # new from sister
 DEFAULT_QUEUE = os.getenv('DEFAULT_QUEUE', 'test-job_worker-large')
 LW_QUEUE = os.getenv('LW_QUEUE', 'system-jobs-queue')
-HYSDS_LW_VERSION = os.getenv('HYSDS_LW_VERSION', 'v0.0.5')
+HYSDS_LW_VERSION = os.getenv('HYSDS_LW_VERSION', 'v1.2.2')
 GRQ_REST_URL = os.getenv('GRQ_REST_URL', 'http://[GRQ_IP]/api/v0.1')
 S3_CODE_BUCKET = os.getenv('S3_CODE_BUCKET', 's3://[S3_BUCKET_NAME]')
 DPS_MACHINE_TOKEN = os.getenv('DPS_MACHINE_TOKEN', '')
@@ -97,7 +97,8 @@ AWS_TRIAGE_WORKSPACE_BUCKET_PATH = os.getenv('AWS_TRIAGE_WORKSPACE_BUCKET_PATH',
 AWS_REQUESTER_PAYS_BUCKET_ARN = os.getenv('AWS_REQUESTER_PAYS_BUCKET_ARN', 'arn:aws:iam::???:role/???')
 
 # DB
-DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://maapuser:mysecretpassword@db/maap')
+DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://maapuser:mysecretpassword@localhost/maap')
+FERNET_KEY = os.getenv('FERNET_KEY','')
 
 # SMTP
 SMTP_HOSTNAME = os.getenv('SMTP_HOSTNAME', 'my_smtp_hostname')

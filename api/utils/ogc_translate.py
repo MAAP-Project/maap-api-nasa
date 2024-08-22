@@ -9,6 +9,19 @@ ns = {
     "ows": "http://www.opengis.net/ows/2.0"
 }
 
+# This list extends the recommended WPS job statuses to include statuses 'Deduped', 'Deleted', and 'Offline'.
+WPS_STATUSES = ["Accepted", "Running", "Succeeded", "Failed", "Dismissed", "Deduped", "Deleted", "Offline"]
+HYSDS_STATUSES= ["job-started", "job-completed", "job-queued", "job-failed", "job-deduped", "job-revoked", "job-offline"]
+
+WPS_TO_HYSDS_JOB_STATUS_MAP = {
+ "Accepted": "job-queued",
+ "Running": "job-started",
+ "Succeeded": "job-completed",
+ "Failed": "job-failed",
+ "Dismissed": "job-revoked",
+ "Deduped": "job-deduped",
+ "Deleted": None, 
+ "Offline": "job-offline"}
 
 def set_namespaces(xml_element):
     xml_element.set("xmlns:wps", "http://www.opengis.net/wps/2.0")
@@ -17,6 +30,21 @@ def set_namespaces(xml_element):
     xml_element.set("xmlns:ows", "http://www.opengis.net/ows/2.0")
 
     return xml_element
+
+def get_hysds_status_from_wps(wps_status):
+    """
+    Translate WPS job status to HySDS job status
+
+    NOTE: HySDS does not support job status 'Deleted' and this status is not one of the base WPS job statuses.
+    Treating this status as a pass-through until there is consensus on HySDS-WPS mapping.
+
+    :param status: (str) WPS job status
+    :return status: (str) HySDS job status
+    """
+    if wps_status not in WPS_TO_HYSDS_JOB_STATUS_MAP:
+        statuses = ", ".join(str(status) for status in WPS_STATUSES)
+        raise ValueError("Invalid WPS status: {}. Valid values are: {}".format(wps_status, statuses))
+    return WPS_TO_HYSDS_JOB_STATUS_MAP.get(wps_status)
 
 
 def get_status(job_status, wps_compliant=False):

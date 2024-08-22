@@ -9,7 +9,7 @@ from flask import request, json, Response, stream_with_context
 from flask_restx import Resource
 from flask_api import status
 from api.restplus import api
-from api.cas.cas_auth import get_authorized_user, edl_federated_request
+from api.auth.security import get_authorized_user, edl_federated_request
 from api.maap_database import db
 from api.models.member import Member
 from urllib import parse

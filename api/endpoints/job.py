@@ -14,14 +14,12 @@ import json
 import os
 import requests
 import traceback
-from api.cas.cas_auth import get_authorized_user, login_required
+from api.auth.security import get_authorized_user, login_required
 from api.maap_database import db
 from api.models.member_job import MemberJob
 from api.models.member import Member
-from sqlalchemy import or_, and_
 from datetime import datetime
-from xml.etree.ElementTree import Element, SubElement, Comment, tostring, fromstring
-import uuid
+from xml.etree.ElementTree import Element, SubElement, tostring, fromstring
 
 log = logging.getLogger(__name__)
 
@@ -32,7 +30,7 @@ ns = api.namespace('dps', description='Operations to interface with HySDS Mozart
 class Submit(Resource):
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def post(self):
         """
         This will submit jobs to the Job Execution System (HySDS)
@@ -452,32 +450,90 @@ class Metrics(Resource):
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@ns.route('/job/<string:username>/list')
+@ns.route('/job/list')
 class Jobs(Resource):
     parser = api.parser()
-    parser.add_argument('page_size', required=False, type=str,
-                        help="Job Listing Pagination Size")
-    parser.add_argument('offset', required=False, type=str,
-                        help="Job Listing Pagination Offset")
+    parser.add_argument('page_size', required=False, type=str, help="Job Listing Pagination Size")
+    parser.add_argument('offset', required=False, type=str, help="Job Listing Pagination Offset")
+    parser.add_argument('job_type', type=str, help="Job type + version, e.g. topsapp:v1.0", required=False)
+    parser.add_argument('tag', type=str, help="User-defined job tag", required=False)
+    parser.add_argument('queue', type=str, help="Submitted job queue", required=False)
+    parser.add_argument('priority', type=int, help="Job priority, 0-9", required=False)
+    parser.add_argument('start_time', type=str, help="Start time of @timestamp field", required=False)
+    parser.add_argument('end_time', type=str, help="Start time of @timestamp field", required=False)
+    parser.add_argument('get_job_details', type=bool, help="Return full details if True. "
+                                                           "List of job id's if false. Default True.", required=False)
+    parser.add_argument('status', type=str, help="Job status, e.g. Accepted, Running, Succeeded, Failed, etc.",
+                        required=False)
+    parser.add_argument('username', required=False, type=str, help="Username of job submitter")
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
-    def get(self, username):
+    @login_required()
+    def get(self):
         """
-        This will return run a list of jobs for a specified user
-        :return:
+        Returns a list of jobs for a given user
+
+        :param get_job_details: Boolean that returns job details if set to True or just job ID's if set to False. Default is True.
+        :param page_size: Page size for pagination
+        :param offset: Offset for pagination
+        :param status: Job status
+        :param end_time: End time
+        :param start_time: Start time
+        :param priority: Job priority
+        :param queue: Queue
+        :param tag: User tag
+        :param job_type: Algorithm type
+        :param username: Username
+        :return: List of jobs for a given user that matches query params provided
         """
-        offset = request.args.get("offset", 0)
-        page_size = request.args.get("page_size", 250)
+
+        defaults = {
+            "username": None,
+            "get_job_details": True,
+            # To preserve existing behavior, set default to True. In the future, we should set this to False.
+            "page_size": 10,
+            "offset": 0,
+            "status": None,
+            "end_time": None,
+            "start_time": None,
+            "priority": None,
+            "queue": None,
+            "tag": None,
+            "job_type": None
+        }
+
+        # Get params and set default values
+        params = {key: request.args.get(key, default) for key, default in defaults.items()}
+
+        user = get_authorized_user()
+        username = user.username
+
+        # Allow the username to be changed for admin roles using the username param
+        if user.is_admin() and params['username'] is not None:
+            username = params['username']
+
+        is_param_true = lambda x: x if isinstance(x, bool) else x.lower() == 'true'
+        get_job_details = is_param_true(params['get_job_details'])
+
+        # If status is provided, make sure it is HySDS-compliant
+        if params['status'] is not None:
+            params['status'] = ogc.get_hysds_status_from_wps(params['status'])
+
+        # Filter out the non-query params for the Mozart request
+        exclude_list = ["username", "get_job_details"]
+        filtered_query_params = {k: v for k, v in params.items() if k not in exclude_list and v is not None}
+
         try:
             logging.info("Finding jobs for user: {}".format(username))
-            # get list of jobs ids for the user
-            response = hysds.get_mozart_jobs(username=username, offset=offset, page_size=page_size)
+            # Get list of jobs ids for the user
+            response = hysds.get_mozart_jobs(username, **filtered_query_params)
             job_list = response.get("result")
             logging.info("Found Jobs: {}".format(job_list))
-            #if settings.HYSDS_VERSION == "v4.0":
-            # get job info per job
-            job_list = hysds.get_jobs_info(x.get("id") for x in job_list)
+
+            if get_job_details:
+                # Get job info per job
+                job_list = hysds.get_jobs_info(x.get("id") for x in job_list)
+
             response_body = dict()
             response_body["code"] = status.HTTP_200_OK
             response_body["jobs"] = job_list
@@ -500,9 +556,60 @@ class Jobs(Resource):
         except Exception as ex:
             return Response(ogc.get_exception(type="FailedGetJobs", origin_process="GetJobs",
                                               ex_message="Failed to get jobs for user {}. " \
-                                              " please contact administrator " \
-                                              "of DPS".format(username)), mimetype='text/xml',
+                                                         " please contact administrator " \
+                                                         "of DPS".format(username)), mimetype='text/xml',
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@ns.route(
+    '/job/<string:username>/list',
+    doc={
+        "deprecated": True,
+    })
+class JobsByUser(Resource):
+    parser = api.parser()
+    parser.add_argument('page_size', required=False, type=str, help="Job Listing Pagination Size")
+    parser.add_argument('offset', required=False, type=str, help="Job Listing Pagination Offset")
+    parser.add_argument('job_type', type=str, help="Job type + version, e.g. topsapp:v1.0", required=False)
+    parser.add_argument('tag', type=str, help="User-defined job tag", required=False)
+    parser.add_argument('queue', type=str, help="Submitted job queue", required=False)
+    parser.add_argument('priority', type=int, help="Job priority, 0-9", required=False)
+    parser.add_argument('start_time', type=str, help="Start time of @timestamp field", required=False)
+    parser.add_argument('end_time', type=str, help="Start time of @timestamp field", required=False)
+    parser.add_argument('get_job_details', type=bool, help="Return full details if True. "
+                                                           "List of job id's if false. Default True.", required=False)
+    parser.add_argument('status', type=str, help="Job status, e.g. Accepted, Running, Succeeded, Failed, etc.", required=False)
+
+    @api.doc(security='ApiKeyAuth')
+    @login_required()
+    def get(self, username):
+        """
+        Returns a list of jobs for a given user
+
+        :param username: Username
+        :param get_job_details: Boolean that returns job details if set to True or just job ID's if set to False. Default is True.
+        :param page_size: Page size for pagination
+        :param offset: Offset for pagination
+        :param status: Job status
+        :param end_time: End time
+        :param start_time: Start time
+        :param priority: Job priority
+        :param queue: Queue
+        :param tag: User tag
+        :param job_type: Algorithm type
+        :return: List of jobs for a given user that matches query params provided
+        """
+
+        # Check if username matches authenticated account
+        user = get_authorized_user()
+        if user is None or user.username != username:
+            return Response(ogc.get_exception(type="FailedGetJobs", origin_process="GetJobs",
+                                              ex_message="Failed to get jobs for user {}. "
+                                              "Forbidden request".format(username)), mimetype='text/xml',
+                            status=status.HTTP_403_FORBIDDEN)
+
+        # Wrap the Jobs class get method
+        return Jobs().get()
 
 
 @ns.route('/job/cancel/<string:job_id>')
@@ -512,7 +619,7 @@ class StopJobs(Resource):
                         help="Wait for Cancel job to finish")
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def post(self, job_id):
         # TODO: add optional parameter wait_for_completion to wait for cancel job to complete.
         # Since this can take a long time, we don't wait by default.
