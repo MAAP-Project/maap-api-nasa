@@ -272,6 +272,7 @@ class Member(Resource):
             member.public_ssh_key_modified_date = datetime.utcnow()
         member.public_ssh_key = req_data.get("public_ssh_key", member.public_ssh_key)
         member.public_ssh_key_name = req_data.get("public_ssh_key_name", member.public_ssh_key_name)
+        member.role_id = req_data.get("role_id", member.role_id)
         db.session.commit()
 
         member_schema = MemberSchema()
