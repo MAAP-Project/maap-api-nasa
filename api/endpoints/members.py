@@ -60,10 +60,10 @@ class Member(Resource):
             'role_id': m.Member.role_id,
             'role_name': m.Role.role_name,
             'status': m.Member.status,
-            'creation_date': m.Member.creation_date,
+            'creation_date': m.Member.creation_date.strftime('%m/%d/%Y'),
         } for m in member_query]
 
-        return json.dumps(result, indent=4, sort_keys=True, default=str)
+        return result
 
 
 @ns.route('/<string:key>')
