@@ -4,6 +4,8 @@ from flask_restx import Resource, reqparse
 from flask import request, jsonify, Response
 from flask_api import status
 from sqlalchemy.exc import SQLAlchemyError
+
+from api.models.role import Role
 from api.restplus import api
 import api.settings as settings
 from api.auth.security import get_authorized_user, login_required, valid_dps_request, edl_federated_request, \
@@ -42,19 +44,26 @@ class Member(Resource):
     @api.doc(security='ApiKeyAuth')
     @login_required()
     def get(self):
-        members = db.session.query(
-            Member_db.id,
-            Member_db.username,
-            Member_db.first_name,
-            Member_db.last_name,
-            Member_db.email,
-            Member_db.status,
-            Member_db.creation_date
+
+        member_query = db.session.query(
+            Member_db, Role,
+        ).filter(
+            Member_db.role_id == Role.id
         ).order_by(Member_db.username).all()
 
-        member_schema = MemberSchema()
-        result = [json.loads(member_schema.dumps(m)) for m in members]
-        return result
+        result = [{
+            'id': m.Member.id,
+            'username': m.Member.username,
+            'first_name': m.Member.first_name,
+            'last_name': m.Member.last_name,
+            'email': m.Member.email,
+            'role_id': m.Member.role_id,
+            'role_name': m.Role.role_name,
+            'status': m.Member.status,
+            'creation_date': m.Member.creation_date,
+        } for m in member_query]
+
+        return json.dumps(result, indent=4, sort_keys=True, default=str)
 
 
 @ns.route('/<string:key>')
