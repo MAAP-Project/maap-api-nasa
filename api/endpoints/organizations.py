@@ -86,7 +86,12 @@ class Organizations(Resource):
         if not isinstance(name, str) or not name:
             return err_response("Valid org name is required.")
 
-        parent_org_id = req_data.get("parent_org_id", None)
+        root_org = db.session \
+            .query(Organization_db) \
+            .filter_by(parent_org_id=None) \
+            .first()
+
+        parent_org_id = req_data.get("parent_org_id", root_org.id)
         default_job_limit_count = req_data.get("default_job_limit_count", None)
         default_job_limit_hours = req_data.get("default_job_limit_hours", None)
 
