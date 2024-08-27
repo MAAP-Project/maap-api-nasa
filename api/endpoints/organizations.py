@@ -55,7 +55,8 @@ class Organizations(Resource):
                 'member_count': r.member_count,
                 'default_job_limit_count': r.default_job_limit_count,
                 'default_job_limit_hours': r.default_job_limit_hours,
-                'job_queues': []
+                'job_queues': [],
+                'creation_date': r.creation_date.strftime('%m/%d/%Y'),
             }
 
             for q in queues_query:
