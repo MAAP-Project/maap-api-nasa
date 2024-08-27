@@ -92,6 +92,8 @@ class Organizations(Resource):
             .first()
 
         parent_org_id = req_data.get("parent_org_id", root_org.id)
+        if parent_org_id is None:
+            parent_org_id = root_org.id
         default_job_limit_count = req_data.get("default_job_limit_count", None)
         default_job_limit_hours = req_data.get("default_job_limit_hours", None)
 
