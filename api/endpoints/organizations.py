@@ -1,8 +1,10 @@
 import logging
+
+import sqlalchemy
 from flask_restx import Resource
 from flask import request
 from flask_api import status
-
+from collections import namedtuple
 from api.models.job_queue import JobQueue
 from api.models.organization import Organization as Organization_db
 from api.models.organization_job_queue import OrganizationJobQueue
@@ -33,18 +35,39 @@ class Organizations(Resource):
         Lists the hierarchy of organizations using MAAP
         :return:
         """
-        top_query = db.session.query(Organization_db)
-        top_query = top_query.filter(Organization_db.parent_org_id is not None)
-        top_query = top_query.cte('cte', recursive=True)
 
-        bot_query = db.session.query(Organization_db)
-        bot_query = bot_query.join(top_query, Organization_db.parent_org_id == top_query.c.id)
+        result = []
+        otree = db.session.execute(sqlalchemy.text('select * from org_tree order by row_number'))
 
-        recursive_q = top_query.union(bot_query)
-        orgs = db.session.query(recursive_q)
+        queues_query = db.session.query(
+            JobQueue, OrganizationJobQueue,
+        ).filter(
+            JobQueue.id == OrganizationJobQueue.job_queue_id
+        ).order_by(JobQueue.queue_name).all()
 
-        organization_schema = OrganizationSchema()
-        result = [json.loads(organization_schema.dumps(p)) for p in orgs]
+        Record = namedtuple('Record', otree.keys())
+        org_tree_records = [Record(*r) for r in otree.fetchall()]
+        for r in org_tree_records:
+            org = {
+                'id': r.id,
+                'name': r.name,
+                'depth': r.depth,
+                'member_count': r.member_count,
+                'default_job_limit_count': r.default_job_limit_count,
+                'default_job_limit_hours': r.default_job_limit_hours,
+                'job_queues': []
+            }
+
+            for q in queues_query:
+                if q.OrganizationJobQueue.org_id == r.id:
+                    org['job_queues'].append({
+                        'id': q.JobQueue.id,
+                        'queue_name': q.JobQueue.queue_name,
+                        'queue_description': q.JobQueue.queue_description
+                    })
+
+            result.append(org)
+
         return result
 
     @api.doc(security='ApiKeyAuth')
