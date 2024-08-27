@@ -1,9 +1,9 @@
-from api.models.member_job import MemberJob
+from api.models.member_secret import MemberSecret
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 
 
-class MemberJobSchema(SQLAlchemyAutoSchema):
+class MemberSecretSchema(SQLAlchemyAutoSchema):
     class Meta:
-        model = MemberJob
+        model = MemberSecret
         include_fk = True
         load_instance = True

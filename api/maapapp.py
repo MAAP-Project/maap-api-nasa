@@ -5,7 +5,7 @@ import logging.config
 import os
 from flask import Flask, Blueprint, request, session
 from api import settings
-from api.cas.cas_auth import validate
+from api.auth.cas_auth import validate
 from api.utils.environments import Environments, get_environment
 from api.utils.url_util import proxied_url
 from api.endpoints.cmr import ns as cmr_collections_namespace
@@ -15,6 +15,7 @@ from api.endpoints.wmts import ns as wmts_namespace
 from api.endpoints.wms import ns as wms_namespace
 from api.endpoints.members import ns as members_namespace
 from api.endpoints.environment import ns as environment_namespace
+from api.endpoints.admin import ns as admin_namespace
 from api.restplus import api
 from api.maap_database import db
 from api.models import initialize_sql
@@ -102,6 +103,7 @@ def initialize_app(flask_app):
     api.add_namespace(wms_namespace)
     api.add_namespace(members_namespace)
     api.add_namespace(environment_namespace)
+    api.add_namespace(admin_namespace)
     flask_app.register_blueprint(blueprint)
 
 

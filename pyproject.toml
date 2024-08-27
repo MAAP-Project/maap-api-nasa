@@ -1,12 +1,15 @@
 [tool.poetry]
 name = "maap-api-nasa"
-version = "3.2.0a2"
+version = "4.1.0a5"
 description = "NASA Python implementation of the MAAP API specification"
 authors = ["MAAP-Project Platform <platform@MAAP-Project.github.com>"]
 license = "Apache 2.0"
 readme = "README.md"
 packages = [
     {include = "api"}
+]
+include = [
+    { path = "logging.conf", format = ["sdist", "wheel"] }
 ]
 
 [tool.poetry.dependencies]
@@ -35,6 +38,7 @@ flask-cors = "^4.0.0"
 flask-restx = "^1.3.0"
 flask-api = "^3.1"
 flask-sqlalchemy = "^3.1.1"
+cryptography = "^43.0.0"
 
 
 [tool.poetry.group.dev.dependencies]

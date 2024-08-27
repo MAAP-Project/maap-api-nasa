@@ -3,15 +3,16 @@ import os
 from flask import request, Response
 from flask_restx import Resource, reqparse
 from flask_api import status
+
+from api.models.member import Member
 from api.restplus import api
 import re
-import json
 import traceback
 import api.utils.github_util as git
 import api.utils.hysds_util as hysds
 import api.settings as settings
 import api.utils.ogc_translate as ogc
-from api.cas.cas_auth import get_authorized_user, login_required
+from api.auth.security import get_authorized_user, login_required
 from api.maap_database import db
 from api.models.member_algorithm import MemberAlgorithm
 from sqlalchemy import or_, and_
@@ -91,7 +92,7 @@ class Register(Resource):
             ]""")
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def post(self):
         """
         This will create the hysds spec files and commit to git
@@ -424,7 +425,7 @@ class Describe(Resource):
                                   .format(ex, tb)), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='text/xml')
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def delete(self, algo_id):
         """
         delete a registered algorithm
@@ -496,7 +497,7 @@ class Build(Resource):
 class Publish(Resource):
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def post(self):
         """
         This endpoint is called by a logged-in user to make an algorithm public
