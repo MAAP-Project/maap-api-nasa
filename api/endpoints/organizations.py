@@ -45,6 +45,12 @@ class Organizations(Resource):
             JobQueue.id == OrganizationJobQueue.job_queue_id
         ).order_by(JobQueue.queue_name).all()
 
+        membership_query = db.session.query(
+            Member, OrganizationMembership_db,
+        ).filter(
+            Member.id == OrganizationMembership_db.member_id
+        ).order_by(Member.first_name).all()
+
         Record = namedtuple('Record', otree.keys())
         org_tree_records = [Record(*r) for r in otree.fetchall()]
         for r in org_tree_records:
@@ -56,6 +62,7 @@ class Organizations(Resource):
                 'default_job_limit_count': r.default_job_limit_count,
                 'default_job_limit_hours': r.default_job_limit_hours,
                 'job_queues': [],
+                'members': [],
                 'creation_date': r.creation_date.strftime('%m/%d/%Y'),
             }
 
@@ -65,6 +72,16 @@ class Organizations(Resource):
                         'id': q.JobQueue.id,
                         'queue_name': q.JobQueue.queue_name,
                         'queue_description': q.JobQueue.queue_description
+                    })
+
+            for m in membership_query:
+                if m.OrganizationMembership.org_id == r.id:
+                    org['members'].append({
+                        'id': m.Member.id,
+                        'first_name': m.Member.first_name,
+                        'last_name': m.Member.last_name,
+                        'username': m.Member.username,
+                        'email': m.Member.email
                     })
 
             result.append(org)
@@ -103,6 +120,21 @@ class Organizations(Resource):
 
         db.session.add(new_org)
         db.session.commit()
+
+        # Update membership
+        db.session.execute(
+            db.delete(OrganizationMembership_db).filter_by(org_id=new_org.id)
+        )
+        db.session.commit()
+
+        org_members = []
+        members = req_data.get("members", [])
+        for org_member in members:
+            org_members.append(OrganizationMembership_db(member_id=org_member['member_id'], org_id=new_org.id, org_maintainer=org_member['maintainer'], creation_date=datetime.utcnow()))
+
+        if len(org_members) > 0:
+            db.session.add_all(org_members)
+            db.session.commit()
 
         org_schema = OrganizationSchema()
         return json.loads(org_schema.dumps(new_org))
