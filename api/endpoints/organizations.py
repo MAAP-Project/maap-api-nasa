@@ -81,7 +81,8 @@ class Organizations(Resource):
                         'first_name': m.Member.first_name,
                         'last_name': m.Member.last_name,
                         'username': m.Member.username,
-                        'email': m.Member.email
+                        'email': m.Member.email,
+                        'maintainer': m.OrganizationMembership.org_maintainer
                     })
 
             result.append(org)
