@@ -56,6 +56,7 @@ class Organizations(Resource):
         for r in org_tree_records:
             org = {
                 'id': r.id,
+                'parent_org_id': r.parent_org_id,
                 'name': r.name,
                 'depth': r.depth,
                 'member_count': r.member_count,
