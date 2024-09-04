@@ -211,6 +211,7 @@ class Organization(Resource):
         """
 
         org = db.session.query(Organization_db).filter_by(id=org_id).first()
+        org_name = org.name
 
         if org is None:
             return err_response(msg="Organization does not exist")
@@ -230,7 +231,7 @@ class Organization(Resource):
         db.session.query(Organization_db).filter_by(id=org_id).delete()
         db.session.commit()
 
-        return {"code": status.HTTP_200_OK, "message": "Successfully deleted {}.".format(org)}
+        return {"code": status.HTTP_200_OK, "message": "Successfully deleted {}.".format(org_name)}
 
 
 @ns.route('/<int:org_id>/membership')
