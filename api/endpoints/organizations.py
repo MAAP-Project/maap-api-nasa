@@ -123,12 +123,6 @@ class Organizations(Resource):
         db.session.add(new_org)
         db.session.commit()
 
-        # Update membership
-        db.session.execute(
-            db.delete(OrganizationMembership_db).filter_by(org_id=new_org.id)
-        )
-        db.session.commit()
-
         org_members = []
         members = req_data.get("members", [])
         for org_member in members:
@@ -186,10 +180,25 @@ class Organization(Resource):
             return err_response(msg="No org found with id " + org_id)
 
         org.name = req_data.get("name", org.name)
-        org.parent_id = req_data.get("parent_id", org.parent_id)
+        org.parent_id = req_data.get("parent_org_id", org.parent_id)
         org.default_job_limit_count = req_data.get("default_job_limit_count", org.default_job_limit_count)
         org.default_job_limit_hours = req_data.get("default_job_limit_hours", org.default_job_limit_hours)
         db.session.commit()
+
+        # Update membership
+        db.session.execute(
+            db.delete(OrganizationMembership_db).filter_by(org_id=org_id)
+        )
+        db.session.commit()
+
+        org_members = []
+        members = req_data.get("members", [])
+        for org_member in members:
+            org_members.append(OrganizationMembership_db(member_id=org_member['member_id'], org_id=org_id, org_maintainer=org_member['maintainer'], creation_date=datetime.utcnow()))
+
+        if len(org_members) > 0:
+            db.session.add_all(org_members)
+            db.session.commit()
 
         org_schema = OrganizationSchema()
         return json.loads(org_schema.dumps(org))

@@ -1,3 +1,7 @@
+create view org_tree
+            (row_number, member_count, depth, id, name, parent_org_id, default_job_limit_count, default_job_limit_hours,
+             creation_date)
+as
 WITH RECURSIVE
     node_rec AS (SELECT 1 AS row_count,
                         0 AS member_count,
@@ -30,8 +34,13 @@ WITH RECURSIVE
     node_rec.depth,
     node_rec.id,
     node_rec.name,
+    node_rec.parent_org_id,
     node_rec.default_job_limit_count,
-    node_rec.default_job_limit_hours
+    node_rec.default_job_limit_hours,
+    node_rec.creation_date
    FROM node_rec
   WHERE node_rec.parent_org_id IS NOT NULL
-  ORDER BY node_rec.path, node_rec.name
+  ORDER BY node_rec.path, node_rec.name;
+
+alter table org_tree
+    owner to postgres;
