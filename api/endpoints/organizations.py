@@ -223,7 +223,7 @@ class Organization(Resource):
 
         # Clear job queues
         db.session.execute(
-            db.delete(JobQueue).filter_by(org_id=org_id)
+            db.delete(OrganizationJobQueue).filter_by(org_id=org_id)
         )
         db.session.commit()
 
