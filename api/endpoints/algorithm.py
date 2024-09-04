@@ -22,6 +22,8 @@ from sqlalchemy import or_, and_
 from datetime import datetime
 import json
 
+from api.utils import job_queue
+
 log = logging.getLogger(__name__)
 
 ns = api.namespace('mas', description='Operations to register an algorithm')
@@ -465,24 +467,8 @@ class ResourceList(Resource):
         try:
             response_body = {"code": None, "message": None}
             user = get_authorized_user()
+            queues = job_queue.get_user_queues(user.id)
 
-            queues = []
-            query = """select jq.queue_name from organization_membership m
-                            inner join public.organization_job_queue ojq on m.org_id = ojq.org_id
-                            inner join public.job_queue jq on jq.id = ojq.job_queue_id
-                        where m.member_id = {}
-                        union
-                        select queue_name
-                        from job_queue
-                        where guest_tier = true""".format(user.id)
-            queue_list = db.session.execute(sqlalchemy.text(query))
-
-            Record = namedtuple('Record', queue_list.keys())
-            queue_records = [Record(*r) for r in queue_list.fetchall()]
-            for r in queue_records:
-                queues.append(r.queue_name)
-
-            queues = queues
             response_body["code"] = status.HTTP_200_OK
             response_body["queues"] = queues
             response_body["message"] = "success"
