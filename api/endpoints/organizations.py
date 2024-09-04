@@ -215,6 +215,18 @@ class Organization(Resource):
         if org is None:
             return err_response(msg="Organization does not exist")
 
+        # Clear membership
+        db.session.execute(
+            db.delete(OrganizationMembership_db).filter_by(org_id=org_id)
+        )
+        db.session.commit()
+
+        # Clear job queues
+        db.session.execute(
+            db.delete(JobQueue).filter_by(org_id=org_id)
+        )
+        db.session.commit()
+
         db.session.query(Organization_db).filter_by(id=org_id).delete()
         db.session.commit()
 
