@@ -64,10 +64,10 @@ class JobQueuesCls(Resource):
             for o in orgs_query:
                 if o.OrganizationJobQueue.job_queue_id == q.id:
                     queue['orgs'].append({
-                        'id': q.Organization.id,
-                        'org_name': q.Organization.name,
-                        'default_job_limit_count': q.Organization.default_job_limit_count,
-                        'default_job_limit_hours': q.Organization.default_job_limit_hours
+                        'id': o.Organization.id,
+                        'org_name': o.Organization.name,
+                        'default_job_limit_count': o.Organization.default_job_limit_count,
+                        'default_job_limit_hours': o.Organization.default_job_limit_hours
                     })
 
             result.append(queue)
