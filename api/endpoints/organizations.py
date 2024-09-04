@@ -87,7 +87,10 @@ class Organization(Resource):
         if org is None:
             return err_response(msg="No organization found with id " + org_id, code=status.HTTP_404_NOT_FOUND)
 
-        return org
+        org_schema = OrganizationSchema()
+        result = json.loads(org_schema.dumps(org))
+
+        return result
 
     @api.doc(security='ApiKeyAuth')
     @login_required()
@@ -147,22 +150,24 @@ class OrganizationMemberships(Resource):
         """
         Retrieve organization members
         """
+        try:
+            org_members = db.session.query(
+                OrganizationMembership_db, Member, Organization_db,
+            ).filter(
+                OrganizationMembership_db.member_id == Member.id,
+            ).filter(
+                OrganizationMembership_db.org_id == Organization_db.id,
+            ).filter(
+                OrganizationMembership_db.org_id == org_id,
+            ).order_by(Member.username).all()
 
-        org_members = db.session.query(
-            OrganizationMembership_db, Member, Organization_db,
-        ).filter(
-            OrganizationMembership_db.member_id == Member.id,
-        ).filter(
-            OrganizationMembership_db.org_id == Organization_db.id,
-        ).filter(
-            OrganizationMembership_db.org_id == org_id,
-        ).order_by(Member.username).all()
+            result = [{
+                'org_id': om.organization.id
+            } for om in org_members]
 
-        result = [{
-            'org_id': om.organization.id
-        } for om in org_members]
-
-        return result
+            return result
+        except SQLAlchemyError as ex:
+            raise ex
 
 
 @ns.route('/<int:org_id>/membership/<string:username>')
@@ -175,39 +180,47 @@ class OrganizationMembership(Resource):
         Add organization member
         :return:
         """
+        try:
+            req_data = request.get_json()
+            if not isinstance(req_data, dict):
+                return err_response("Valid JSON body object required.")
 
-        req_data = request.get_json()
-        if not isinstance(req_data, dict):
-            return err_response("Valid JSON body object required.")
+            member = get_authorized_user()
+            membership = db.session.query(OrganizationMembership_db).filter_by(member_id=member.id,
+                                                                               org_id=org_id).first()
 
-        member = get_authorized_user()
-        membership = db.session.query(OrganizationMembership_db).filter_by(member_id=member.id, org_id=org_id).first()
+            if member.role_id != Role.ROLE_ADMIN and not membership.org_maintainer:
+                return err_response("Must be an org maintainer to add members.", status.HTTP_403_FORBIDDEN)
 
-        if member.role_id != Role.ROLE_ADMIN and not membership.org_maintainer:
-            return err_response("Must be an org maintainer to add members.", status.HTTP_403_FORBIDDEN)
+            org_member = db.session.query(Member).filter_by(username=username).first()
 
-        org_member = db.session.query(Member).filter_by(username=username).first()
+            if org_member is None:
+                return err_response("Valid username is required.")
 
-        if org_member is None:
-            return err_response("Valid username is required.")
+            membership_dup = db.session.query(OrganizationMembership_db).filter_by(member_id=org_member.id,
+                                                                                   org_id=org_id).first()
 
-        membership_dup = db.session.query(OrganizationMembership_db).filter_by(member_id=org_member.id, org_id=org_id).first()
+            if membership_dup is not None:
+                return err_response("Member {} already exists in org {}".format(username, org_id))
 
-        if membership_dup is not None:
-            return err_response("Member {} already exists in org {}".format(username, org_id))
+            job_limit_count = req_data.get("job_limit_count", None)
+            job_limit_hours = req_data.get("job_limit_hours", None)
+            org_maintainer = req_data.get("org_maintainer", False)
 
-        job_limit_count = req_data.get("job_limit_count", None)
-        job_limit_hours = req_data.get("job_limit_hours", None)
-        org_maintainer = req_data.get("org_maintainer", False)
+            new_org_membership = OrganizationMembership_db(org_id=org_id, member_id=org_member.id,
+                                                           job_limit_count=job_limit_count,
+                                                           job_limit_hours=job_limit_hours,
+                                                           org_maintainer=org_maintainer,
+                                                           creation_date=datetime.utcnow())
 
-        new_org_membership = OrganizationMembership_db(org_id=org_id, member_id=org_member.id, job_limit_count=job_limit_count,
-                                                       job_limit_hours=job_limit_hours, org_maintainer=org_maintainer, creation_date=datetime.utcnow())
+            db.session.add(new_org_membership)
+            db.session.commit()
 
-        db.session.add(new_org_membership)
-        db.session.commit()
+            org_schema = OrganizationMembershipSchema()
+            return json.loads(org_schema.dumps(new_org_membership))
 
-        org_schema = OrganizationMembershipSchema()
-        return json.loads(org_schema.dumps(new_org_membership))
+        except SQLAlchemyError as ex:
+            raise ex
 
     @api.doc(security='ApiKeyAuth')
     @login_required()
@@ -215,30 +228,36 @@ class OrganizationMembership(Resource):
         """
         Delete organization member
         """
+        try:
+            member = get_authorized_user()
+            membership = db.session.query(OrganizationMembership_db).filter_by(member_id=member.id,
+                                                                               org_id=org_id).first()
 
-        member = get_authorized_user()
-        membership = db.session.query(OrganizationMembership_db).filter_by(member_id=member.id, org_id=org_id).first()
+            if membership is None:
+                return err_response("Org id {} for user {} was not found.".format(org_id, member.username))
 
-        if membership is None:
-            return err_response("Org id {} for user {} was not found.".format(org_id, member.username))
+            if not membership.org_maintainer and member.role_id != Role.ROLE_ADMIN:
+                return err_response("Must be an org maintainer to remove members.", status.HTTP_403_FORBIDDEN)
 
-        if not membership.org_maintainer and member.role_id != Role.ROLE_ADMIN:
-            return err_response("Must be an org maintainer to remove members.", status.HTTP_403_FORBIDDEN)
+            member_to_delete = db.session.query(Member).filter_by(username=username).first()
 
-        member_to_delete = db.session.query(Member).filter_by(username=username).first()
+            if member_to_delete is None:
+                return err_response("Member {} was not found.".format(username))
 
-        if member_to_delete is None:
-            return err_response("Member {} was not found.".format(username))
+            membership_to_delete = db.session.query(OrganizationMembership_db).filter_by(member_id=member_to_delete.id,
+                                                                                         org_id=org_id).first()
 
-        membership_to_delete = db.session.query(OrganizationMembership_db).filter_by(member_id=member_to_delete.id, org_id=org_id).first()
+            if membership_to_delete is None:
+                return err_response("Org id {} for user {} was not found.".format(org_id, member_to_delete.username))
 
-        if membership_to_delete is None:
-            return err_response("Org id {} for user {} was not found.".format(org_id, member_to_delete.username))
+            db.session.query(OrganizationMembership_db).filter_by(member_id=member_to_delete.id, org_id=org_id).delete()
+            db.session.commit()
 
-        db.session.query(OrganizationMembership_db).filter_by(member_id=member_to_delete.id, org_id=org_id).delete()
-        db.session.commit()
+            return {"code": status.HTTP_200_OK,
+                    "message": "Successfully removed {} from org {}.".format(member_to_delete.username, org_id)}
 
-        return {"code": status.HTTP_200_OK, "message": "Successfully removed {} from org {}.".format(member_to_delete.username, org_id)}
+        except SQLAlchemyError as ex:
+            raise ex
 
 
 @ns.route('/<int:org_id>/job_queues')
@@ -250,22 +269,24 @@ class OrganizationJobQueues(Resource):
         """
         Retrieve organization members
         """
+        try:
+            org_queues = db.session.query(
+                OrganizationJobQueue, JobQueue, Organization_db,
+            ).filter(
+                OrganizationJobQueue.job_queue_id == JobQueue.id,
+            ).filter(
+                OrganizationJobQueue.org_id == Organization_db.id,
+            ).filter(
+                OrganizationJobQueue.org_id == org_id,
+            ).order_by(JobQueue.queue_name).all()
 
-        org_queues = db.session.query(
-            OrganizationJobQueue, JobQueue, Organization_db,
-        ).filter(
-            OrganizationJobQueue.job_queue_id == JobQueue.id,
-        ).filter(
-            OrganizationJobQueue.org_id == Organization_db.id,
-        ).filter(
-            OrganizationJobQueue.org_id == org_id,
-        ).order_by(JobQueue.queue_name).all()
+            result = [{
+                'org_id': om.organization.id
+            } for om in org_queues]
 
-        result = [{
-            'org_id': om.organization.id
-        } for om in org_queues]
-
-        return result
+            return result
+        except SQLAlchemyError as ex:
+            raise ex
 
 
 @ns.route('/<int:org_id>/job_queues/<string:queue_name>')
@@ -278,34 +299,40 @@ class OrganizationJobQueueCls(Resource):
         Add organization member
         :return:
         """
+        try:
+            req_data = request.get_json()
+            if not isinstance(req_data, dict):
+                return err_response("Valid JSON body object required.")
 
-        req_data = request.get_json()
-        if not isinstance(req_data, dict):
-            return err_response("Valid JSON body object required.")
+            member = get_authorized_user()
+            membership = db.session.query(OrganizationMembership_db).filter_by(member_id=member.id,
+                                                                               org_id=org_id).first()
 
-        member = get_authorized_user()
-        membership = db.session.query(OrganizationMembership_db).filter_by(member_id=member.id, org_id=org_id).first()
+            if member.role_id != Role.ROLE_ADMIN and not membership.org_maintainer:
+                return err_response("Must be an org maintainer to add queues.", status.HTTP_403_FORBIDDEN)
 
-        if member.role_id != Role.ROLE_ADMIN and not membership.org_maintainer:
-            return err_response("Must be an org maintainer to add queues.", status.HTTP_403_FORBIDDEN)
+            org_queue = db.session.query(JobQueue).filter_by(queue_name=queue_name).first()
 
-        org_queue = db.session.query(JobQueue).filter_by(queue_name=queue_name).first()
+            if org_queue is None:
+                return err_response("Valid job queue is required.")
 
-        if org_queue is None:
-            return err_response("Valid job queue is required.")
+            org_queue_dup = db.session.query(OrganizationJobQueue).filter_by(job_queue_id=org_queue.id,
+                                                                             org_id=org_id).first()
 
-        org_queue_dup = db.session.query(OrganizationJobQueue).filter_by(job_queue_id=org_queue.id, org_id=org_id).first()
+            if org_queue_dup is not None:
+                return err_response("Job queue {} already exists in org {}".format(queue_name, org_id))
 
-        if org_queue_dup is not None:
-            return err_response("Job queue {} already exists in org {}".format(queue_name, org_id))
+            new_org_queue = OrganizationJobQueue(org_id=org_id, job_queue_id=org_queue.id,
+                                                 creation_date=datetime.utcnow())
 
-        new_org_queue = OrganizationJobQueue(org_id=org_id, job_queue_id=org_queue.id, creation_date=datetime.utcnow())
+            db.session.add(new_org_queue)
+            db.session.commit()
 
-        db.session.add(new_org_queue)
-        db.session.commit()
+            org_schema = OrganizationJobQueueSchema()
+            return json.loads(org_schema.dumps(new_org_queue))
 
-        org_schema = OrganizationJobQueueSchema()
-        return json.loads(org_schema.dumps(new_org_queue))
+        except SQLAlchemyError as ex:
+            raise ex
 
     @api.doc(security='ApiKeyAuth')
     @login_required()
@@ -313,27 +340,33 @@ class OrganizationJobQueueCls(Resource):
         """
         Delete organization member
         """
+        try:
+            member = get_authorized_user()
+            membership = db.session.query(OrganizationMembership_db).filter_by(member_id=member.id,
+                                                                               org_id=org_id).first()
 
-        member = get_authorized_user()
-        membership = db.session.query(OrganizationMembership_db).filter_by(member_id=member.id, org_id=org_id).first()
+            if membership is None:
+                return err_response("Org id {} for user {} was not found.".format(org_id, member.username))
 
-        if membership is None:
-            return err_response("Org id {} for user {} was not found.".format(org_id, member.username))
+            if not membership.org_maintainer and member.role_id != Role.ROLE_ADMIN:
+                return err_response("Must be an org maintainer to remove members.", status.HTTP_403_FORBIDDEN)
 
-        if not membership.org_maintainer and member.role_id != Role.ROLE_ADMIN:
-            return err_response("Must be an org maintainer to remove members.", status.HTTP_403_FORBIDDEN)
+            queue_to_delete = db.session.query(JobQueue).filter_by(queue_name=queue_name).first()
 
-        queue_to_delete = db.session.query(JobQueue).filter_by(queue_name=queue_name).first()
+            if queue_to_delete is None:
+                return err_response("Job queue {} was not found.".format(queue_name))
 
-        if queue_to_delete is None:
-            return err_response("Job queue {} was not found.".format(queue_name))
+            org_queue_to_delete = db.session.query(OrganizationJobQueue).filter_by(job_queue_id=queue_to_delete.id,
+                                                                                   org_id=org_id).first()
 
-        org_queue_to_delete = db.session.query(OrganizationJobQueue).filter_by(job_queue_id=queue_to_delete.id, org_id=org_id).first()
+            if org_queue_to_delete is None:
+                return err_response("Org id {} for job queue {} was not found.".format(org_id, queue_name))
 
-        if org_queue_to_delete is None:
-            return err_response("Org id {} for job queue {} was not found.".format(org_id, queue_name))
+            db.session.query(OrganizationJobQueue).filter_by(job_queue_id=queue_to_delete.id, org_id=org_id).delete()
+            db.session.commit()
 
-        db.session.query(OrganizationJobQueue).filter_by(job_queue_id=queue_to_delete.id, org_id=org_id).delete()
-        db.session.commit()
+            return {"code": status.HTTP_200_OK,
+                    "message": "Successfully removed {} from org {}.".format(queue_name, org_id)}
 
-        return {"code": status.HTTP_200_OK, "message": "Successfully removed {} from org {}.".format(queue_name, org_id)}
+        except SQLAlchemyError as ex:
+            raise ex

@@ -79,14 +79,8 @@ def get_organization(org_id):
             .query(Organization) \
             .filter_by(id=org_id) \
             .first()
+        return org
 
-        if org is None:
-            return None
-
-        org_schema = OrganizationSchema()
-        result = json.loads(org_schema.dumps(org))
-
-        return result
     except SQLAlchemyError as ex:
         raise ex
 
