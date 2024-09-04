@@ -194,7 +194,7 @@ class JobQueueCls(Resource):
         )
         db.session.commit()
 
-        db.session.query(OrganizationJobQueue).filter_by(id=queue_id).delete()
+        db.session.query(JobQueue).filter_by(id=queue_id).delete()
         db.session.commit()
 
         return {"code": status.HTTP_200_OK, "message": "Successfully deleted {}.".format(queue_name)}
