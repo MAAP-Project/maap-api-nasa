@@ -180,7 +180,7 @@ class Organization(Resource):
             return err_response(msg="No org found with id " + org_id)
 
         org.name = req_data.get("name", org.name)
-        org.parent_id = req_data.get("parent_org_id", org.parent_id)
+        org.parent_org_id = req_data.get("parent_org_id", org.parent_org_id)
         org.default_job_limit_count = req_data.get("default_job_limit_count", org.default_job_limit_count)
         org.default_job_limit_hours = req_data.get("default_job_limit_hours", org.default_job_limit_hours)
         db.session.commit()
