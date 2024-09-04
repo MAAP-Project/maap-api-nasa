@@ -1,5 +1,8 @@
 import logging
 import os
+from collections import namedtuple
+
+import sqlalchemy
 from flask import request, Response
 from flask_restx import Resource, reqparse
 from flask_api import status
@@ -450,6 +453,9 @@ class Describe(Resource):
 
 @ns.route('/algorithm/resource')
 class ResourceList(Resource):
+
+    @api.doc(security='ApiKeyAuth')
+    @login_required()
     def get(self):
         """
         This function would query DPS to see what resources (named based on memory space) are available for
@@ -458,7 +464,25 @@ class ResourceList(Resource):
         """
         try:
             response_body = {"code": None, "message": None}
-            queues = hysds.get_mozart_queues()
+            user = get_authorized_user()
+
+            queues = []
+            query = """select jq.queue_name from organization_membership m
+                            inner join public.organization_job_queue ojq on m.org_id = ojq.org_id
+                            inner join public.job_queue jq on jq.id = ojq.job_queue_id
+                        where m.member_id = {}
+                        union
+                        select queue_name
+                        from job_queue
+                        where guest_tier = true""".format(user.id)
+            queue_list = db.session.execute(sqlalchemy.text(query))
+
+            Record = namedtuple('Record', queue_list.keys())
+            queue_records = [Record(*r) for r in queue_list.fetchall()]
+            for r in queue_records:
+                queues.append(r.queue_name)
+
+            queues = queues
             response_body["code"] = status.HTTP_200_OK
             response_body["queues"] = queues
             response_body["message"] = "success"
