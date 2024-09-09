@@ -4,6 +4,8 @@ from flask_restx import Resource, reqparse
 from flask import request, jsonify, Response
 from flask_api import status
 from sqlalchemy.exc import SQLAlchemyError
+
+from api.models.role import Role
 from api.restplus import api
 import api.settings as settings
 from api.auth.security import get_authorized_user, login_required, valid_dps_request, edl_federated_request, \
@@ -42,18 +44,25 @@ class Member(Resource):
     @api.doc(security='ApiKeyAuth')
     @login_required()
     def get(self):
-        members = db.session.query(
-            Member_db.id,
-            Member_db.username,
-            Member_db.first_name,
-            Member_db.last_name,
-            Member_db.email,
-            Member_db.status,
-            Member_db.creation_date
+
+        member_query = db.session.query(
+            Member_db, Role,
+        ).filter(
+            Member_db.role_id == Role.id
         ).order_by(Member_db.username).all()
 
-        member_schema = MemberSchema()
-        result = [json.loads(member_schema.dumps(m)) for m in members]
+        result = [{
+            'id': m.Member.id,
+            'username': m.Member.username,
+            'first_name': m.Member.first_name,
+            'last_name': m.Member.last_name,
+            'email': m.Member.email,
+            'role_id': m.Member.role_id,
+            'role_name': m.Role.role_name,
+            'status': m.Member.status,
+            'creation_date': m.Member.creation_date.strftime('%m/%d/%Y'),
+        } for m in member_query]
+
         return result
 
 
@@ -263,6 +272,7 @@ class Member(Resource):
             member.public_ssh_key_modified_date = datetime.utcnow()
         member.public_ssh_key = req_data.get("public_ssh_key", member.public_ssh_key)
         member.public_ssh_key_name = req_data.get("public_ssh_key_name", member.public_ssh_key_name)
+        member.role_id = req_data.get("role_id", member.role_id)
         db.session.commit()
 
         member_schema = MemberSchema()
