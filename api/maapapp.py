@@ -15,6 +15,7 @@ from api.endpoints.wmts import ns as wmts_namespace
 from api.endpoints.wms import ns as wms_namespace
 from api.endpoints.members import ns as members_namespace
 from api.endpoints.environment import ns as environment_namespace
+from api.endpoints.organizations import ns as organizations_namespace
 from api.endpoints.admin import ns as admin_namespace
 from api.restplus import api
 from api.maap_database import db
@@ -103,6 +104,7 @@ def initialize_app(flask_app):
     api.add_namespace(wms_namespace)
     api.add_namespace(members_namespace)
     api.add_namespace(environment_namespace)
+    api.add_namespace(organizations_namespace)
     api.add_namespace(admin_namespace)
     flask_app.register_blueprint(blueprint)
 
