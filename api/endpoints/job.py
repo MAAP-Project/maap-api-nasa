@@ -5,6 +5,7 @@ from flask_api import status
 from api.restplus import api
 import api.utils.hysds_util as hysds
 import api.utils.ogc_translate as ogc
+import api.utils.job_queue as job_queue
 import api.settings as settings
 try:
     import urllib.parse as urlparse
@@ -60,7 +61,8 @@ class Submit(Resource):
 
         try:
             dedup = "false" if dedup is None else dedup
-            queue = hysds.validate_or_set_queue(queue, job_type)
+            user = get_authorized_user()
+            queue = job_queue.validate_or_get_queue(queue, job_type, user.id)
             if queue == settings.DPS_SANDBOX_QUEUE:
                 hysds.set_timelimit_for_dps_sandbox(params)
             response = hysds.mozart_submit_job(job_type=job_type, params=params, dedup=dedup, queue=queue,

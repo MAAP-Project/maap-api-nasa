@@ -11,12 +11,12 @@ from api.models.organization import Organization
 from api.models.organization_job_queue import OrganizationJobQueue
 import api.utils.hysds_util as hysds
 from api.schemas.job_queue_schema import JobQueueSchema
+from api import settings
 
 log = logging.getLogger(__name__)
 
 
 def get_user_queues(user_id):
-
     try:
         user_queues = []
         query = """select jq.queue_name from organization_membership m
@@ -39,6 +39,7 @@ def get_user_queues(user_id):
 
     except SQLAlchemyError as ex:
         raise ex
+
 
 def get_all_queues():
     try:
@@ -98,11 +99,12 @@ def get_all_queues():
     except SQLAlchemyError as ex:
         raise ex
 
+
 def _queue_name(q):
     return q.queue_name
 
-def create_queue(queue_name, queue_description, guest_tier, orgs):
 
+def create_queue(queue_name, queue_description, guest_tier, orgs):
     try:
         new_queue = JobQueue(queue_name=queue_name, queue_description=queue_description, guest_tier=guest_tier,
                              creation_date=datetime.utcnow())
@@ -124,6 +126,7 @@ def create_queue(queue_name, queue_description, guest_tier, orgs):
 
     except SQLAlchemyError as ex:
         raise ex
+
 
 def update_queue(queue, orgs):
     try:
@@ -152,6 +155,7 @@ def update_queue(queue, orgs):
     except SQLAlchemyError as ex:
         raise ex
 
+
 def delete_queue(queue_id):
     try:
         # Clear orgs
@@ -164,3 +168,24 @@ def delete_queue(queue_id):
         db.session.commit()
     except SQLAlchemyError as ex:
         raise ex
+
+
+def validate_or_get_queue(queue: str, job_type: str, user_id: str):
+    f"""
+    Validates if the queue name provided is valid and exists if not raises HTTP 400
+    If no queue name is provided, it will default to {settings.DEFAULT_QUEUE}.
+    :param queue: Queue name
+    :param job_type: Job type
+    :param user_id: User id to look up available queues
+    :return: queue
+    :raises ValueError: If the queue name provided is not valid
+    """
+    if queue is None or queue == "":
+        if job_type is None:
+            return settings.DEFAULT_QUEUE
+        queue = hysds.get_recommended_queue(job_type)
+
+    valid_queues = get_user_queues(user_id)
+    if queue not in valid_queues:
+        raise ValueError(f"User does not have access to {queue}. Valid queues: {valid_queues}")
+    return queue
