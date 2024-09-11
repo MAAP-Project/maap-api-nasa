@@ -263,12 +263,13 @@ class Register(Resource):
             # validate if input queue is valid
             user = get_authorized_user()
             if resource is None:
-                resource = settings.DEFAULT_QUEUE
+                resource = job_queue.get_default_queue().queue_name
             else:
                 valid_queues = job_queue.get_user_queues(user.id)
-                if resource not in valid_queues:
+                valid_queue_names = list(map(lambda q: q.queue_name, valid_queues))
+                if resource not in valid_queue_names:
                     return http_util.err_response(msg=f"User does not have permissions for resource {resource}."
-                                                      f"Please select from one of {valid_queues}",
+                                                      f"Please select from one of {valid_queue_names}",
                                                   code=status.HTTP_400_BAD_REQUEST)
             # clean up any old specs from the repo
             repo = git.clean_up_git_repo(repo, repo_name=settings.REPO_NAME)
@@ -320,6 +321,7 @@ class Register(Resource):
             hysds.write_file("{}/{}".format(settings.REPO_PATH, settings.REPO_NAME), "job-submission.json",
                              job_submission_json)
             logging.debug("Created spec files")
+
         except Exception as ex:
             tb = traceback.format_exc()
             response_body["code"] = status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -476,9 +478,10 @@ class ResourceList(Resource):
             response_body = {"code": None, "message": None}
             user = get_authorized_user()
             queues = job_queue.get_user_queues(user.id)
+            queue_names = list(map(lambda q: q.queue_name, queues))
 
             response_body["code"] = status.HTTP_200_OK
-            response_body["queues"] = queues
+            response_body["queues"] = queue_names
             response_body["message"] = "success"
             return response_body
         except Exception as ex:

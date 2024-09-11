@@ -6,6 +6,7 @@ from datetime import datetime
 import sqlalchemy
 from sqlalchemy.exc import SQLAlchemyError
 from api.maap_database import db
+from api.models import job_queue
 from api.models.job_queue import JobQueue
 from api.models.organization import Organization
 from api.models.organization_job_queue import OrganizationJobQueue
@@ -19,12 +20,12 @@ log = logging.getLogger(__name__)
 def get_user_queues(user_id):
     try:
         user_queues = []
-        query = """select jq.queue_name from organization_membership m
+        query = """select jq.id, jq.queue_name, jq.is_default, jq.time_limit_minutes from organization_membership m
                         inner join public.organization_job_queue ojq on m.org_id = ojq.org_id
                         inner join public.job_queue jq on jq.id = ojq.job_queue_id
                     where m.member_id = {}
                     union
-                    select queue_name
+                    select id, queue_name, is_default, time_limit_minutes
                     from job_queue
                     where guest_tier = true""".format(user_id)
         queue_list = db.session.execute(sqlalchemy.text(query))
@@ -33,7 +34,7 @@ def get_user_queues(user_id):
         queue_records = [Record(*r) for r in queue_list.fetchall()]
 
         for r in queue_records:
-            user_queues.append(r.queue_name)
+            user_queues.append(JobQueue(id=r.id, queue_name=r.queue_name, is_default=r.is_default, time_limit_minutes=r.time_limit_minutes))
 
         return user_queues
 
@@ -170,22 +171,42 @@ def delete_queue(queue_id):
         raise ex
 
 
-def validate_or_get_queue(queue: str, job_type: str, user_id: str):
+def get_default_queue():
+    try:
+        default_queue = db.session \
+            .query(JobQueue) \
+            .filter_by(is_default=True) \
+            .first()
+        return default_queue
+
+    except SQLAlchemyError as ex:
+        raise ex
+
+
+def validate_or_get_queue(queue: str, job_type: str, user_id: int):
     f"""
     Validates if the queue name provided is valid and exists if not raises HTTP 400
-    If no queue name is provided, it will default to {settings.DEFAULT_QUEUE}.
+    If no queue name is provided, it will default to the default job queue.
     :param queue: Queue name
     :param job_type: Job type
     :param user_id: User id to look up available queues
     :return: queue
     :raises ValueError: If the queue name provided is not valid
     """
+    valid_queues = get_user_queues(user_id)
+
     if queue is None or queue == "":
         if job_type is None:
-            return settings.DEFAULT_QUEUE
-        queue = hysds.get_recommended_queue(job_type)
+            default_queue = next(q for q in valid_queues if q.is_default)
+            return default_queue
+        recommended_queue = hysds.get_recommended_queue(job_type)
+        queue = next(q for q in valid_queues if q.queue_name == recommended_queue)
 
-    valid_queues = get_user_queues(user_id)
-    if queue not in valid_queues:
-        raise ValueError(f"User does not have access to {queue}. Valid queues: {valid_queues}")
-    return queue
+    valid_queue_names = list(map(lambda q: q.queue_name, valid_queues))
+    if queue not in valid_queue_names:
+        raise ValueError(f"User does not have access to {queue}. Valid queues: {valid_queue_names}")
+
+    return next(q for q in valid_queues if q.queue_name == queue)
+
+def contains_time_limit(queue: job_queue):
+    return queue is not None and queue.time_limit_minutes is not None and queue.time_limit_minutes > 0

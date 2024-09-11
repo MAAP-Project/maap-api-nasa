@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import Mock, patch
-from api.utils import hysds_util
+from api.utils import hysds_util, job_queue
 from api import settings
 import copy
 from requests import Session
@@ -48,19 +48,19 @@ class TestHySDSUtils(unittest.TestCase):
         mock_get_mozart_queues.return_value = ["maap-dps-worker-8gb", "maap-dps-worker-16gb"]
         queue = "maap-dps-worker-16gb"
         job_type = "dummy-job"
-        new_queue = hysds_util.validate_or_set_queue(queue, job_type)
-        self.assertEqual(queue, new_queue)
+        user_id = 1
+        new_queue = job_queue.validate_or_get_queue(queue, job_type, user_id)
+        self.assertEqual(queue, new_queue.queue_name)
         mock_get_mozart_queues.assert_called()
-        new_queue = hysds_util.validate_or_set_queue(None, job_type)
-        self.assertEqual("maap-dps-worker-8gb", new_queue)
+        new_queue = job_queue.validate_or_get_queue("", job_type, user_id)
+        self.assertEqual("maap-dps-worker-8gb", new_queue.queue_name)
         mock_get_recommended_queue.assert_called_with("dummy-job")
         with self.assertRaises(ValueError):
-            hysds_util.validate_or_set_queue("invalid_queue", job_type)
+            job_queue.validate_or_get_queue("invalid_queue", job_type, user_id)
 
     def test_set_time_limits(self):
         params = {"input": "in1", "username": "user"}
         expected_params = copy.deepcopy(params)
-        expected_params.update({"soft_time_limit": settings.DPS_SANDBOX_TIMELIMIT,
-                                "time_limit": settings.DPS_SANDBOX_TIMELIMIT})
+        expected_params.update({"soft_time_limit": "6000", "time_limit": "6000"})
         hysds_util.set_timelimit_for_dps_sandbox(params)
         self.assertEqual(expected_params, params)

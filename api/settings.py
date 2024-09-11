@@ -58,14 +58,11 @@ HYSDS_VERSION = os.getenv('HYSDS_VERSION', "v4.0")
 MOZART_URL = os.getenv('MOZART_URL', 'https://[MOZART_IP]/mozart/api/v0.2')
 MOZART_V1_URL = os.getenv('MOZART_V1_URL', 'https://[MOZART_IP]/mozart/api/v0.1')  # new from sister
 GRQ_URL = os.getenv('GRQ_URL', 'http://[GRQ_IP]:8878/api/v0.1')  # new from sister
-DEFAULT_QUEUE = os.getenv('DEFAULT_QUEUE', 'maap-dps-sandbox')
 LW_QUEUE = os.getenv('LW_QUEUE', 'system-jobs-queue')
 HYSDS_LW_VERSION = os.getenv('HYSDS_LW_VERSION', 'v1.2.2')
 GRQ_REST_URL = os.getenv('GRQ_REST_URL', 'http://[GRQ_IP]/api/v0.1')
 S3_CODE_BUCKET = os.getenv('S3_CODE_BUCKET', 's3://[S3_BUCKET_NAME]')
 DPS_MACHINE_TOKEN = os.getenv('DPS_MACHINE_TOKEN', '')
-DPS_SANDBOX_TIMELIMIT = os.getenv('DPS_SANDBOX_TIMELIMIT', '600')
-DPS_SANDBOX_QUEUE = os.getenv('DPS_SANDBOX_QUEUE', 'maap-dps-sandbox')
 PROJECT_QUEUE_PREFIX = os.getenv('PROJECT_QUEUE_PREFIX', "maap")
 
 # FASTBROWSE API

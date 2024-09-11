@@ -63,8 +63,8 @@ class Submit(Resource):
             dedup = "false" if dedup is None else dedup
             user = get_authorized_user()
             queue = job_queue.validate_or_get_queue(queue, job_type, user.id)
-            if queue == settings.DPS_SANDBOX_QUEUE:
-                hysds.set_timelimit_for_dps_sandbox(params)
+            if job_queue.contains_time_limit(queue):
+                hysds.set_timelimit_for_dps_sandbox(params, queue)
             response = hysds.mozart_submit_job(job_type=job_type, params=params, dedup=dedup, queue=queue,
                                                identifier=identifier)
 
