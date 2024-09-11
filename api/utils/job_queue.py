@@ -51,6 +51,8 @@ def get_all_queues():
             JobQueue.queue_name,
             JobQueue.queue_description,
             JobQueue.guest_tier,
+            JobQueue.is_default,
+            JobQueue.time_limit_minutes,
             JobQueue.creation_date
         ).order_by(JobQueue.queue_name).all()
 
@@ -68,6 +70,8 @@ def get_all_queues():
                 'queue_name': q.queue_name,
                 'queue_description': q.queue_description,
                 'guest_tier': q.guest_tier,
+                'is_default': q.is_default,
+                'time_limit_minutes': q.time_limit_minutes,
                 'status': 'Online' if q.queue_name in hysds_queues else 'Offline',
                 'orgs': [],
                 'creation_date': q.creation_date.strftime('%m/%d/%Y'),
@@ -91,6 +95,8 @@ def get_all_queues():
                 'queue_name': uq,
                 'queue_description': '',
                 'guest_tier': False,
+                'is_default': False,
+                'time_limit_minutes': 0,
                 'status': 'Unassigned',
                 'orgs': [],
                 'creation_date': None,
@@ -105,13 +111,16 @@ def _queue_name(q):
     return q.queue_name
 
 
-def create_queue(queue_name, queue_description, guest_tier, orgs):
+def create_queue(queue_name, queue_description, guest_tier, is_default, time_limit_minutes, orgs):
     try:
         new_queue = JobQueue(queue_name=queue_name, queue_description=queue_description, guest_tier=guest_tier,
-                             creation_date=datetime.utcnow())
+                             is_default=is_default, time_limit_minutes=time_limit_minutes, creation_date=datetime.utcnow())
 
         db.session.add(new_queue)
         db.session.commit()
+
+        if is_default:
+            _reset_queue_default(new_queue.id)
 
         queue_orgs = []
         for queue_org in orgs:
@@ -133,6 +142,9 @@ def update_queue(queue, orgs):
     try:
         # Update queue
         db.session.commit()
+
+        if queue.is_default:
+            _reset_queue_default(queue.id)
 
         # Update org assignments
         db.session.execute(
@@ -181,6 +193,12 @@ def get_default_queue():
 
     except SQLAlchemyError as ex:
         raise ex
+
+
+def _reset_queue_default(default_id):
+    query = "update job_queue set is_default = False where id != {}".format(default_id)
+    db.session.execute(sqlalchemy.text(query))
+    db.session.commit()
 
 
 def validate_or_get_queue(queue: str, job_type: str, user_id: int):

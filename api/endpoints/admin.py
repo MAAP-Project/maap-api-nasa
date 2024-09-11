@@ -3,14 +3,11 @@ from flask_restx import Resource
 from flask import request
 from flask_api import status
 from api.models.job_queue import JobQueue
-from api.models.organization import Organization
-from api.models.organization_job_queue import OrganizationJobQueue
 from api.models.role import Role
 from api.restplus import api
 from api.auth.security import login_required
 from api.maap_database import db
 from api.models.pre_approved import PreApproved
-from api.schemas.job_queue_schema import JobQueueSchema
 from api.schemas.pre_approved_schema import PreApprovedSchema
 from datetime import datetime
 import json
@@ -55,9 +52,11 @@ class JobQueuesCls(Resource):
             return err_response("Valid queue description is required.")
 
         guest_tier = req_data.get("guest_tier", False)
+        is_default = req_data.get("is_default", False)
+        time_limit_minutes = req_data.get("time_limit_minutes", 0)
         orgs = req_data.get("orgs", [])
 
-        new_queue = job_queue.create_queue(queue_name, queue_description, guest_tier, orgs)
+        new_queue = job_queue.create_queue(queue_name, queue_description, guest_tier, is_default, time_limit_minutes, orgs)
         return new_queue
 
 
@@ -87,6 +86,8 @@ class JobQueueCls(Resource):
         queue.queue_name = req_data.get("queue_name", queue.queue_name)
         queue.queue_description = req_data.get("queue_description", queue.queue_description)
         queue.guest_tier = req_data.get("guest_tier", queue.guest_tier)
+        queue.is_default = req_data.get("is_default", queue.is_default)
+        queue.time_limit_minutes = req_data.get("time_limit_minutes", queue.time_limit_minutes)
         orgs = req_data.get("orgs", [])
 
         updated_queue = job_queue.update_queue(queue, orgs)
