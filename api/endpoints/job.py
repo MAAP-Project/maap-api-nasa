@@ -65,7 +65,7 @@ class Submit(Resource):
             queue = job_queue.validate_or_get_queue(queue, job_type, user.id)
             if job_queue.contains_time_limit(queue):
                 hysds.set_timelimit_for_dps_sandbox(params, queue)
-            response = hysds.mozart_submit_job(job_type=job_type, params=params, dedup=dedup, queue=queue,
+            response = hysds.mozart_submit_job(job_type=job_type, params=params, dedup=dedup, queue=queue.queue_name,
                                                identifier=identifier)
 
             logging.info("Mozart Response: {}".format(json.dumps(response)))
