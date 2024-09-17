@@ -414,7 +414,8 @@ def get_algorithms():
     return maap_algo_list
 
 
-def mozart_submit_job(job_type, params={}, queue="", dedup="false", identifier="maap-api_submit"):
+def mozart_submit_job(job_type, params={}, queue="", dedup="false", identifier="maap-api_submit",
+                      job_time_limit=86400):
     """
     Submit a job to Mozart
     :param job_type:
@@ -422,6 +423,7 @@ def mozart_submit_job(job_type, params={}, queue="", dedup="false", identifier="
     :param queue:
     :param dedup:
     :param identifier:
+    :param job_time_limit:
     :return:
     """
 
@@ -447,6 +449,8 @@ def mozart_submit_job(job_type, params={}, queue="", dedup="false", identifier="
     params.pop('username', None)
     job_payload["params"] = json.dumps(params)
     job_payload["enable_dedup"] = dedup
+    job_payload["soft_time_limit"] = job_time_limit
+    job_payload["time_limit"] = job_time_limit
 
     logging.info("job payload: {}".format(json.dumps(job_payload)))
 
