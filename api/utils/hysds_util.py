@@ -222,6 +222,7 @@ def create_job_spec(run_command, inputs, disk_usage, queue_name, verified=False)
     job_spec["imported_worker_files"] = {
         "$HOME/.netrc": "/home/ops/.netrc",
         "$HOME/.aws": "/home/ops/.aws",
+        "$HOME/verdi/etc/maap-dps.env": "/home/ops/.maap-dps.env",
         "/tmp": ["/tmp", "rw"]
     }
     job_spec["post"] = ["hysds.triage.triage"]
