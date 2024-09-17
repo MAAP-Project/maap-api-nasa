@@ -65,7 +65,7 @@ class Submit(Resource):
             queue = job_queue.validate_or_get_queue(queue, job_type, user.id)
             job_time_limit = hysds_io.get("result").get("soft_time_limit", 86400)
             if job_queue.contains_time_limit(queue):
-                job_time_limit = queue.time_limit_minutes
+                job_time_limit = int(queue.time_limit_minutes) * 60
             response = hysds.mozart_submit_job(job_type=job_type, params=params, dedup=dedup, queue=queue.queue_name,
                                                identifier=identifier, job_time_limit=int(job_time_limit))
 
