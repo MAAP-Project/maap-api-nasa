@@ -4,7 +4,7 @@ from flask_restx import Resource, reqparse
 from flask import request, jsonify, Response
 from flask_api import status
 from sqlalchemy.exc import SQLAlchemyError
-
+from api.utils.organization import get_member_organizations
 from api.models.role import Role
 from api.restplus import api
 import api.settings as settings
@@ -93,6 +93,7 @@ class Member(Resource):
         if member is None:
             return err_response(msg="No member found with key " + key, code=status.HTTP_404_NOT_FOUND)
 
+        member_id = member.id
         member_schema = MemberSchema()
         result = json.loads(member_schema.dumps(member))
 
@@ -100,7 +101,7 @@ class Member(Resource):
             pgt_ticket = db.session \
                 .query(MemberSession_db) \
                 .with_entities(MemberSession_db.session_key) \
-                .filter_by(member_id=member.id) \
+                .filter_by(member_id=member_id) \
                 .order_by(MemberSession_db.id.desc()) \
                 .first()
 
@@ -125,6 +126,8 @@ class Member(Resource):
             member_schema = MemberSchema()
             member_ssh_info_result = json.loads(member_schema.dumps(member))
             result = json.loads(json.dumps(dict(result.items() | member_ssh_info_result.items())))
+
+        result['organizations'] = get_member_organizations(member_id)
 
         return result
 
@@ -377,9 +380,14 @@ class Self(Resource):
             .filter_by(username=authorized_user.username) \
             .first()
 
+        member_id = member.id
+
         if 'proxy-ticket' in request.headers:
             member_schema = MemberSchema()
-            return json.loads(member_schema.dumps(member))
+            result = json.loads(member_schema.dumps(member))
+            result['organizations'] = get_member_organizations(member_id)
+            return result
+
         if 'Authorization' in request.headers:
             return member
 
