@@ -73,6 +73,23 @@ def get_organizations():
     except SQLAlchemyError as ex:
         raise ex
 
+def get_member_organizations(member_id):
+    result = []
+
+    user_orgs = db.session \
+        .query(Organization, OrganizationMembership) \
+        .filter(Organization.id == OrganizationMembership.org_id) \
+        .order_by(Organization.name).all()
+
+    for user_org in user_orgs:
+        if user_org.OrganizationMembership.member_id == member_id:
+            result.append({
+                'id': user_org.Organization.id,
+                'name': user_org.Organization.name
+            })
+
+    return result
+
 def get_organization(org_id):
     try:
         org = db.session \
