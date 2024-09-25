@@ -39,8 +39,8 @@ app.config['CAS_AFTER_LOGIN'] = settings.CAS_AFTER_LOGIN
 app.config['CAS_USERNAME_SESSION_KEY'] = 'cas_token_session_key'
 app.config['SQLALCHEMY_DATABASE_URI'] = settings.DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'isolation_level': 'AUTOCOMMIT', 'pool_size': 300}
-app.config['SQLALCHEMY_POOL_TIMEOUT'] = 300
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'isolation_level': 'AUTOCOMMIT', 'pool_size': 10, 'pool_pre_ping': True}
+app.config['SQLALCHEMY_POOL_TIMEOUT'] = 30
 
 app.app_context().push()
 db.init_app(app)
