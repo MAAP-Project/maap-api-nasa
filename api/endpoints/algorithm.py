@@ -1,22 +1,29 @@
 import logging
 import os
+from collections import namedtuple
+
+import sqlalchemy
 from flask import request, Response
 from flask_restx import Resource, reqparse
 from flask_api import status
+
+from api.models.member import Member
 from api.restplus import api
 import re
-import json
 import traceback
 import api.utils.github_util as git
 import api.utils.hysds_util as hysds
+import api.utils.http_util as http_util
 import api.settings as settings
 import api.utils.ogc_translate as ogc
-from api.cas.cas_auth import get_authorized_user, login_required
+from api.auth.security import get_authorized_user, login_required
 from api.maap_database import db
 from api.models.member_algorithm import MemberAlgorithm
 from sqlalchemy import or_, and_
 from datetime import datetime
 import json
+
+from api.utils import job_queue
 
 log = logging.getLogger(__name__)
 
@@ -91,7 +98,7 @@ class Register(Resource):
             ]""")
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def post(self):
         """
         This will create the hysds spec files and commit to git
@@ -254,12 +261,16 @@ class Register(Resource):
 
         try:
             # validate if input queue is valid
-            if resource is None: resource = settings.DEFAULT_QUEUE
-            if resource not in hysds.get_mozart_queues():
-                response_body["code"] = status.HTTP_500_INTERNAL_SERVER_ERROR
-                response_body["message"] = "The resource {} is invalid. Please select from one of {}".format(resource, hysds.get_mozart_queues())
-                response_body["error"] = "Invalid queue in request: {}".format(req_data)
-                return response_body, 500
+            user = get_authorized_user()
+            if resource is None:
+                resource = job_queue.get_default_queue().queue_name
+            else:
+                valid_queues = job_queue.get_user_queues(user.id)
+                valid_queue_names = list(map(lambda q: q.queue_name, valid_queues))
+                if resource not in valid_queue_names:
+                    return http_util.err_response(msg=f"User does not have permissions for resource {resource}."
+                                                      f"Please select from one of {valid_queue_names}",
+                                                  code=status.HTTP_400_BAD_REQUEST)
             # clean up any old specs from the repo
             repo = git.clean_up_git_repo(repo, repo_name=settings.REPO_NAME)
             # creating hysds-io file
@@ -310,6 +321,7 @@ class Register(Resource):
             hysds.write_file("{}/{}".format(settings.REPO_PATH, settings.REPO_NAME), "job-submission.json",
                              job_submission_json)
             logging.debug("Created spec files")
+
         except Exception as ex:
             tb = traceback.format_exc()
             response_body["code"] = status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -410,6 +422,10 @@ class Describe(Resource):
         try:
             job_type = "job-{}".format(algo_id)
             response = hysds.get_job_spec(job_type)
+            if response is None:
+                return Response(ogc.get_exception(type="FailedSearch", origin_process="DescribeProcess",
+                                                  ex_message="Algorithm not found. {}".format(job_type)),
+                                status=status.HTTP_404_NOT_FOUND,mimetype='text/xml')
             params = response.get("result").get("params")
             queue = response.get("result").get("recommended-queues")[0]
             response_body = ogc.describe_process_response(algo_id, params, queue)
@@ -422,7 +438,7 @@ class Describe(Resource):
                                   .format(ex, tb)), status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='text/xml')
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def delete(self, algo_id):
         """
         delete a registered algorithm
@@ -449,6 +465,9 @@ class Describe(Resource):
 
 @ns.route('/algorithm/resource')
 class ResourceList(Resource):
+
+    @api.doc(security='ApiKeyAuth')
+    @login_required()
     def get(self):
         """
         This function would query DPS to see what resources (named based on memory space) are available for
@@ -457,9 +476,12 @@ class ResourceList(Resource):
         """
         try:
             response_body = {"code": None, "message": None}
-            queues = hysds.get_mozart_queues()
+            user = get_authorized_user()
+            queues = job_queue.get_user_queues(user.id)
+            queue_names = list(map(lambda q: q.queue_name, queues))
+
             response_body["code"] = status.HTTP_200_OK
-            response_body["queues"] = queues
+            response_body["queues"] = queue_names
             response_body["message"] = "success"
             return response_body
         except Exception as ex:
@@ -494,7 +516,7 @@ class Build(Resource):
 class Publish(Resource):
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def post(self):
         """
         This endpoint is called by a logged-in user to make an algorithm public

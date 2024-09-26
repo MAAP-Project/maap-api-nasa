@@ -7,6 +7,9 @@ import api.settings as settings
 import time
 import copy
 
+import api.utils.job_queue
+from api.models import job_queue
+
 log = logging.getLogger(__name__)
 
 STATUS_JOB_STARTED = "job-started"
@@ -202,7 +205,7 @@ def create_hysds_io(algorithm_description, inputs, verified=False, submission_ty
     hysds_io["params"] = params
     return hysds_io
 
-def create_job_spec(run_command, inputs, disk_usage, queue_name=settings.DEFAULT_QUEUE, verified=False):
+def create_job_spec(run_command, inputs, disk_usage, queue_name, verified=False):
     """
     Creates the contents of the job spec file
     :param run_command:
@@ -219,6 +222,7 @@ def create_job_spec(run_command, inputs, disk_usage, queue_name=settings.DEFAULT
     job_spec["imported_worker_files"] = {
         "$HOME/.netrc": "/home/ops/.netrc",
         "$HOME/.aws": "/home/ops/.aws",
+        "$HOME/verdi/etc/maap-dps.env": "/home/ops/.maap-dps.env",
         "/tmp": ["/tmp", "rw"]
     }
     job_spec["post"] = ["hysds.triage.triage"]
@@ -410,7 +414,8 @@ def get_algorithms():
     return maap_algo_list
 
 
-def mozart_submit_job(job_type, params={}, queue=settings.DEFAULT_QUEUE, dedup="false", identifier="maap-api_submit"):
+def mozart_submit_job(job_type, params={}, queue="", dedup="false", identifier="maap-api_submit",
+                      job_time_limit=86400):
     """
     Submit a job to Mozart
     :param job_type:
@@ -418,6 +423,7 @@ def mozart_submit_job(job_type, params={}, queue=settings.DEFAULT_QUEUE, dedup="
     :param queue:
     :param dedup:
     :param identifier:
+    :param job_time_limit:
     :return:
     """
 
@@ -443,6 +449,8 @@ def mozart_submit_job(job_type, params={}, queue=settings.DEFAULT_QUEUE, dedup="
     params.pop('username', None)
     job_payload["params"] = json.dumps(params)
     job_payload["enable_dedup"] = dedup
+    job_payload["soft_time_limit"] = job_time_limit
+    job_payload["time_limit"] = job_time_limit
 
     logging.info("job payload: {}".format(json.dumps(job_payload)))
 
@@ -549,7 +557,7 @@ def get_recommended_queue(job_type):
     response = get_job_spec(job_type)
     recommended_queues = response.get("result", None).get("recommended-queues", None)
     recommended_queue = recommended_queues[0] if type(recommended_queues) is list else None
-    return recommended_queue if recommended_queue != "" else settings.DEFAULT_QUEUE
+    return recommended_queue if recommended_queue != "" else api.utils.job_queue.get_default_queue().queue_name
 
 
 def validate_job_submit(hysds_io, user_params):
@@ -588,8 +596,8 @@ def validate_job_submit(hysds_io, user_params):
             if known_params.get(p).get("default") is not None:
                 validated_params[p] = known_params.get(p).get("default")
             else:
-                raise Exception("Parameter {} missing from inputs. Didn't find any default set for it in "
-                                "algorithm specification. Please specify it and attempt to submit.".format(p))
+                raise ValueError("Parameter {} missing from inputs. Didn't find any default set for it in "
+                                 "algorithm specification. Please specify it and attempt to submit.".format(p))
     return validated_params
 
 
@@ -624,20 +632,51 @@ def get_mozart_queues():
         raise Exception("Couldn't get list of available queues")
 
 
-def get_mozart_jobs(username, page_size=10, offset=0):
+def get_mozart_jobs(username, 
+                    end_time=None,
+                    job_type=None,
+                    offset=0, 
+                    page_size=10,
+                    priority=None,
+                    queue=None,
+                    start_time=None,
+                    status=None,
+                    tag=None
+                    ):
     """
-        Returns mozart's job list
-        :param username:
-        :param page_size:
-        :param offset:
-        :return:
-        """
-    params = dict()
-    params["page_size"] = page_size
-    params["offset"] = offset  # this is specifies the offset
+    Returns mozart's job list
+    :param username: Username
+    :param page_size: Page size for pagination
+    :param offset: Offset for pagination
+    :param status: Job status
+    :param end_time: End time
+    :param start_time: Start time
+    :param priority: Job priority
+    :param queue: Queue
+    :param tag: User tag
+    :param job_type: Algorithm type
+    :return: Job list
+    """
+    params = {
+        k: v
+        for k, v in (
+            ("end_time", end_time),
+            ("job_type", job_type),
+            ("offset", offset),
+            ("page_size", page_size),
+            ("priority", priority),
+            ("queue", queue),
+            ("start_time", start_time),
+            ("status", status),
+            ("tag", tag),
+        )
+        if v is not None
+    }
 
     session = requests.Session()
     session.verify = False
+
+    logging.debug("Job params: {}".format(params))
 
     try:
         param_list = ""
@@ -745,8 +784,13 @@ def revoke_mozart_job(job_id, wait_for_completion=False):
     return poll_for_completion(lw_job_id)
 
 
-def pele_get_product_by_id(id):
-    return
-
-
-
+def set_timelimit_for_dps_sandbox(params: dict, queue: job_queue):
+    """
+    Sets the soft_time_limit and time_limit parameters for DPS sandbox queue
+    at job submission
+    :param params:
+    :param queue: Job queue
+    :return: params
+    """
+    params.update({"soft_time_limit": queue.time_limit_minutes * 60,
+                   "time_limit": queue.time_limit_minutes * 60})

@@ -3,61 +3,66 @@ from cachetools import TLRUCache, cached
 from flask_restx import Resource, reqparse
 from flask import request, jsonify, Response
 from flask_api import status
+from sqlalchemy.exc import SQLAlchemyError
+from api.utils.organization import get_member_organizations
+from api.models.role import Role
 from api.restplus import api
 import api.settings as settings
-from api.cas.cas_auth import get_authorized_user, login_required, edl_federated_request, valid_dps_request
+from api.auth.security import get_authorized_user, login_required, valid_dps_request, edl_federated_request, \
+    MEMBER_STATUS_ACTIVE, MEMBER_STATUS_SUSPENDED
 from api.maap_database import db
 from api.utils import github_util
 from api.models.member import Member as Member_db
 from api.models.member_session import MemberSession as MemberSession_db
+from api.models.member_secret import MemberSecret as MemberSecret_db
 from api.schemas.member_schema import MemberSchema
 from api.schemas.member_session_schema import MemberSessionSchema
 from api.utils.email_util import send_user_status_update_active_user_email, \
     send_user_status_update_suspended_user_email, send_user_status_change_email, \
     send_welcome_to_maap_active_user_email, send_welcome_to_maap_suspended_user_email
 from api.models.pre_approved import PreApproved
-from api.schemas.pre_approved_schema import PreApprovedSchema
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 import json
 import boto3
 import requests
 from urllib import parse
+
+from api.utils.http_util import err_response, custom_response
 from api.utils.url_util import proxied_url
+from cryptography.fernet import Fernet
 
 log = logging.getLogger(__name__)
 ns = api.namespace('members', description='Operations for MAAP members')
 s3_client = boto3.client('s3', region_name=settings.AWS_REGION)
 sts_client = boto3.client('sts', region_name=settings.AWS_REGION)
-
-STATUS_ACTIVE = "active"
-STATUS_SUSPENDED = "suspended"
-
-
-def err_response(msg, code=status.HTTP_400_BAD_REQUEST):
-    return {
-        'code': code,
-        'message': msg
-    }, code
+fernet = Fernet(settings.FERNET_KEY)
 
 
 @ns.route('')
 class Member(Resource):
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def get(self):
-        members = db.session.query(
-            Member_db.id,
-            Member_db.username,
-            Member_db.first_name,
-            Member_db.last_name,
-            Member_db.email,
-            Member_db.status,
-            Member_db.creation_date
+
+        member_query = db.session.query(
+            Member_db, Role,
+        ).filter(
+            Member_db.role_id == Role.id
         ).order_by(Member_db.username).all()
 
-        member_schema = MemberSchema()
-        result = [json.loads(member_schema.dumps(m)) for m in members]
+        result = [{
+            'id': m.Member.id,
+            'username': m.Member.username,
+            'first_name': m.Member.first_name,
+            'last_name': m.Member.last_name,
+            'email': m.Member.email,
+            'role_id': m.Member.role_id,
+            'role_name': m.Role.role_name,
+            'status': m.Member.status,
+            'creation_date': m.Member.creation_date.strftime('%m/%d/%Y'),
+        } for m in member_query]
+
         return result
 
 
@@ -65,7 +70,7 @@ class Member(Resource):
 class Member(Resource):
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def get(self, key):
 
         cols = [
@@ -88,6 +93,7 @@ class Member(Resource):
         if member is None:
             return err_response(msg="No member found with key " + key, code=status.HTTP_404_NOT_FOUND)
 
+        member_id = member.id
         member_schema = MemberSchema()
         result = json.loads(member_schema.dumps(member))
 
@@ -95,7 +101,7 @@ class Member(Resource):
             pgt_ticket = db.session \
                 .query(MemberSession_db) \
                 .with_entities(MemberSession_db.session_key) \
-                .filter_by(member_id=member.id) \
+                .filter_by(member_id=member_id) \
                 .order_by(MemberSession_db.id.desc()) \
                 .first()
 
@@ -103,7 +109,7 @@ class Member(Resource):
             pgt_result = json.loads(member_session_schema.dumps(pgt_ticket))
             result = json.loads(json.dumps(dict(result.items() | pgt_result.items())))
 
-        # If the requested user info belongs to the logged in user,
+        # If the requested user info belongs to the logged-in user,
         # also include additional ssh key information belonging to the user
         if member.username == key:
             cols = [
@@ -121,10 +127,12 @@ class Member(Resource):
             member_ssh_info_result = json.loads(member_schema.dumps(member))
             result = json.loads(json.dumps(dict(result.items() | member_ssh_info_result.items())))
 
+        result['organizations'] = get_member_organizations(member_id)
+
         return result
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def post(self, key):
 
         """
@@ -185,7 +193,7 @@ class Member(Resource):
             (~PreApproved.email.like("*%") & PreApproved.email.like(email))
         ).first()
 
-        status = STATUS_SUSPENDED if pre_approved_email is None else STATUS_ACTIVE
+        member_status = MEMBER_STATUS_SUSPENDED if pre_approved_email is None else MEMBER_STATUS_ACTIVE
 
         guest = Member_db(first_name=first_name,
                           last_name=last_name,
@@ -195,14 +203,14 @@ class Member(Resource):
                           public_ssh_key=req_data.get("public_ssh_key", None),
                           public_ssh_key_modified_date=datetime.utcnow(),
                           public_ssh_key_name=req_data.get("public_ssh_key_name", None),
-                          status=status,
+                          status=member_status,
                           creation_date=datetime.utcnow())
 
         db.session.add(guest)
         db.session.commit()
 
         # Send Email Notifications based on member status
-        if status == STATUS_ACTIVE:
+        if member_status == MEMBER_STATUS_ACTIVE:
             send_user_status_change_email(guest, True, True, proxied_url(request))
             send_welcome_to_maap_active_user_email(guest, proxied_url(request))
         else:
@@ -213,7 +221,7 @@ class Member(Resource):
         return json.loads(member_schema.dumps(guest))
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def put(self, key):
 
         """
@@ -267,6 +275,7 @@ class Member(Resource):
             member.public_ssh_key_modified_date = datetime.utcnow()
         member.public_ssh_key = req_data.get("public_ssh_key", member.public_ssh_key)
         member.public_ssh_key_name = req_data.get("public_ssh_key_name", member.public_ssh_key_name)
+        member.role_id = req_data.get("role_id", member.role_id)
         db.session.commit()
 
         member_schema = MemberSchema()
@@ -277,7 +286,7 @@ class Member(Resource):
 class MemberStatus(Resource):
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def post(self, key):
 
         """
@@ -297,24 +306,24 @@ class MemberStatus(Resource):
         if not isinstance(req_data, dict):
             return err_response("Valid JSON body object required.")
 
-        status = req_data.get("status", "")
-        if not isinstance(status, str) or not status:
+        member_status = req_data.get("status", "")
+        if not isinstance(member_status, str) or not member_status:
             return err_response("Valid status string required.")
 
-        if status != STATUS_ACTIVE and status != STATUS_SUSPENDED:
-            return err_response("Status must be either " + STATUS_ACTIVE + " or " + STATUS_SUSPENDED)
+        if member_status != MEMBER_STATUS_ACTIVE and member_status != MEMBER_STATUS_SUSPENDED:
+            return err_response("Status must be either " + MEMBER_STATUS_ACTIVE + " or " + MEMBER_STATUS_SUSPENDED)
 
         member = db.session.query(Member_db).filter_by(username=key).first()
 
         if member is None:
             return err_response(msg="No member found with key " + key, code=404)
 
-        old_status = member.status if member.status is not None else STATUS_SUSPENDED
-        activated = old_status == STATUS_SUSPENDED and status == STATUS_ACTIVE
-        deactivated = old_status == STATUS_ACTIVE and status == STATUS_SUSPENDED
+        old_status = member.status if member.status is not None else MEMBER_STATUS_SUSPENDED
+        activated = old_status == MEMBER_STATUS_SUSPENDED and member_status == MEMBER_STATUS_ACTIVE
+        deactivated = old_status == MEMBER_STATUS_ACTIVE and member_status == MEMBER_STATUS_SUSPENDED
 
         if activated or deactivated:
-            member.status = status
+            member.status = member_status
             db.session.commit()
             gitlab_account = github_util.sync_gitlab_account(
                 activated,
@@ -348,7 +357,7 @@ class MemberStatus(Resource):
 class Self(Resource):
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def get(self):
         authorized_user = get_authorized_user()
 
@@ -371,30 +380,23 @@ class Self(Resource):
             .filter_by(username=authorized_user.username) \
             .first()
 
+        member_id = member.id
+
         if 'proxy-ticket' in request.headers:
             member_schema = MemberSchema()
-            return json.loads(member_schema.dumps(member))
+            result = json.loads(member_schema.dumps(member))
+            result['organizations'] = get_member_organizations(member_id)
+            return result
+
         if 'Authorization' in request.headers:
             return member
-
-
-@ns.route('/selfTest')
-class SelfTest(Resource):
-
-    @api.doc(security='ApiKeyAuth')
-    @login_required
-    def get(self):
-        member = get_authorized_user()
-        member_schema = MemberSchema()
-
-        return json.loads(member_schema.dumps(member))
 
 
 @ns.route('/self/sshKey')
 class PublicSshKeyUpload(Resource):
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def post(self):
         if 'file' not in request.files:
             log.error('Upload attempt with no file')
@@ -417,7 +419,7 @@ class PublicSshKeyUpload(Resource):
         return json.loads(member_schema.dumps(member))
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def delete(self):
         member = get_authorized_user()
 
@@ -432,6 +434,120 @@ class PublicSshKeyUpload(Resource):
         return json.loads(member_schema.dumps(member))
 
 
+@ns.route('/self/secrets')
+class Secrets(Resource):
+
+    @api.doc(security='ApiKeyAuth')
+    @login_required()
+    def get(self):
+
+        try:
+            secrets = \
+                (
+                    db.session.query(
+                        MemberSecret_db.secret_name,
+                        MemberSecret_db.secret_value)
+                    .filter_by(member_id=get_authorized_user().id)
+                    .order_by(MemberSecret_db.secret_name)
+                    .all())
+
+            result = [{
+                'secret_name': s.secret_name
+            } for s in secrets]
+
+            return result
+        except SQLAlchemyError as ex:
+            return err_response(ex, status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @api.doc(security='ApiKeyAuth')
+    @login_required()
+    def post(self):
+
+        try:
+            req_data = request.get_json()
+            if not isinstance(req_data, dict):
+                return err_response("Valid JSON body object required.")
+
+            secret_name = req_data.get("secret_name", "")
+            if not isinstance(secret_name, str) or not secret_name:
+                return err_response("secret_name is required.")
+
+            secret_value = req_data.get("secret_value", "")
+            if not isinstance(secret_value, str) or not secret_value:
+                return err_response("secret_value is required.")
+
+            member = get_authorized_user()
+            secret = db.session.query(MemberSecret_db).filter_by(member_id=member.id, secret_name=secret_name).first()
+
+            if secret is not None:
+                return err_response(msg="Secret already exists with name {}. Please delete and re-create the secret to update it's value. ".format(secret_name))
+
+            encrypted_secret = fernet.encrypt(secret_value.encode()).decode("utf-8")
+
+            new_secret = MemberSecret_db(member_id=member.id,
+                                         secret_name=secret_name,
+                                         secret_value=encrypted_secret,
+                                         creation_date=datetime.utcnow())
+
+            db.session.add(new_secret)
+            db.session.commit()
+
+            return {
+                'secret_name': secret_name
+            }, status.HTTP_200_OK
+
+        except SQLAlchemyError as ex:
+            return err_response(ex, status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@ns.route('/self/secrets/<string:name>')
+class Secrets(Resource):
+
+    @api.doc(security='ApiKeyAuth')
+    @login_required()
+    def get(self, name):
+
+        try:
+            secret = \
+                (
+                    db.session.query(
+                        MemberSecret_db.secret_name,
+                        MemberSecret_db.secret_value)
+                    .filter_by(member_id=get_authorized_user().id, secret_name=name)
+                    .first())
+
+            if secret is None:
+                return err_response(msg="No secret exists with name {}".format(name), code=status.HTTP_404_NOT_FOUND)
+
+            result = {
+                'secret_name': secret.secret_name,
+                'secret_value': fernet.decrypt(secret.secret_value).decode("utf-8")
+            }
+
+            return result, status.HTTP_200_OK
+
+        except SQLAlchemyError as ex:
+            return err_response(ex, status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @api.doc(security='ApiKeyAuth')
+    @login_required()
+    def delete(self, name):
+
+        try:
+            member = get_authorized_user()
+            secret = db.session.query(MemberSecret_db).filter_by(member_id=member.id, secret_name=name).first()
+
+            if secret is None:
+                return err_response(msg="No secret exists with name " + name)
+
+            db.session.delete(secret)
+            db.session.commit()
+
+            return custom_response("Successfully deleted secret {}".format(name))
+        except SQLAlchemyError as ex:
+            return err_response(ex, status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 @ns.route('/self/presignedUrlS3/<string:bucket>/<path:key>')
 class PresignedUrlS3(Resource):
     expiration_param = reqparse.RequestParser()
@@ -439,7 +555,7 @@ class PresignedUrlS3(Resource):
     expiration_param.add_argument('ws', type=str, required=False, default="")
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     @api.expect(expiration_param)
     def get(self, bucket, key):
 
@@ -482,7 +598,7 @@ class AwsAccessRequesterPaysBucket(Resource):
     expiration_param.add_argument('exp', type=int, required=False, default=60 * 60 * 12)
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     @api.expect(expiration_param)
     def get(self):
         member = get_authorized_user()
@@ -519,26 +635,34 @@ class AwsAccessEdcCredentials(Resource):
     """
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def get(self, endpoint_uri):
         s = requests.Session()
         maap_user = get_authorized_user()
 
         if maap_user is None:
-            return Response('Unauthorized', status=401)
+            return Response('Unauthorized', status=status.HTTP_401_UNAUTHORIZED)
         else:
-            json_response = get_edc_credentials(endpoint_uri=endpoint_uri, user_id=maap_user.id)
+            edc_response = get_edc_credentials(endpoint_uri=endpoint_uri, user_id=maap_user.id)
 
-            response = jsonify(
-                accessKeyId=json_response['accessKeyId'],
-                secretAccessKey=json_response['secretAccessKey'],
-                sessionToken=json_response['sessionToken'],
-                expiration=json_response['expiration']
-            )
+            try:
+                edc_response_json = json.loads(edc_response)
+                response = jsonify(
+                    accessKeyId=edc_response_json['accessKeyId'],
+                    secretAccessKey=edc_response_json['secretAccessKey'],
+                    sessionToken=edc_response_json['sessionToken'],
+                    expiration=edc_response_json['expiration']
+                )
 
-            response.headers.add('Access-Control-Allow-Origin', '*')
+                response.headers.add('Access-Control-Allow-Origin', '*')
 
-            return response
+                return response
+
+            except ValueError as ex:
+                response_body = dict()
+                response_body["code"] = status.HTTP_500_INTERNAL_SERVER_ERROR
+                response_body["message"] = edc_response.decode("utf-8")
+                return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
 
 
 @ns.route('/self/awsAccess/workspaceBucket')
@@ -553,7 +677,7 @@ class AwsAccessUserBucketCredentials(Resource):
     """
 
     @api.doc(security='ApiKeyAuth')
-    @login_required
+    @login_required()
     def get(self):
         maap_user = get_authorized_user()
 
@@ -669,85 +793,4 @@ def get_edc_credentials(endpoint_uri, user_id):
     else:
         edl_response = edl_federated_request(url=endpoint)
 
-    return json.loads(edl_response.content)
-
-
-@ns.route('/pre-approved')
-class PreApprovedEmails(Resource):
-
-    @api.doc(security='ApiKeyAuth')
-    @login_required
-    def get(self):
-        pre_approved = db.session.query(
-            PreApproved.email,
-            PreApproved.creation_date
-        ).order_by(PreApproved.email).all()
-
-        pre_approved_schema = PreApprovedSchema()
-        result = [json.loads(pre_approved_schema.dumps(p)) for p in pre_approved]
-        return result
-
-    @api.doc(security='ApiKeyAuth')
-    @login_required
-    def post(self):
-
-        """
-        Create new pre-approved email. Wildcards are supported for starting email characters.
-
-        Format of JSON to post:
-        {
-            "email": ""
-        }
-
-        Sample 1. Any email ending in "@maap-project.org" is pre-approved
-        {
-            "email": "*@maap-project.org"
-        }
-
-        Sample 2. Any email matching "jane.doe@maap-project.org" is pre-approved
-        {
-            "email": "jane.doe@maap-project.org"
-        }
-        """
-
-        req_data = request.get_json()
-        if not isinstance(req_data, dict):
-            return err_response("Valid JSON body object required.")
-
-        email = req_data.get("email", "")
-        if not isinstance(email, str) or not email:
-            return err_response("Valid email is required.")
-
-        pre_approved_email = db.session.query(PreApproved).filter_by(email=email).first()
-
-        if pre_approved_email is not None:
-            return err_response(msg="Email already exists")
-
-        new_email = PreApproved(email=email, creation_date=datetime.utcnow())
-
-        db.session.add(new_email)
-        db.session.commit()
-
-        pre_approved_schema = PreApprovedSchema()
-        return json.loads(pre_approved_schema.dumps(new_email))
-
-
-@ns.route('/pre-approved/<string:email>')
-class PreApprovedEmails(Resource):
-
-    @api.doc(security='ApiKeyAuth')
-    @login_required
-    def delete(self, email):
-        """
-        Delete pre-approved email
-        """
-
-        pre_approved_email = db.session.query(PreApproved).filter_by(email=email).first()
-
-        if pre_approved_email is None:
-            return err_response(msg="Email does not exist")
-
-        db.session.query(PreApproved).filter_by(email=email).delete()
-        db.session.commit()
-
-        return {"code": status.HTTP_200_OK, "message": "Successfully deleted {}.".format(email)}
+    return edl_response.content

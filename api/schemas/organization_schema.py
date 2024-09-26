@@ -1,9 +1,9 @@
-from api.models.member_job import MemberJob
+from api.models.organization import Organization
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 
 
-class MemberJobSchema(SQLAlchemyAutoSchema):
+class OrganizationSchema(SQLAlchemyAutoSchema):
     class Meta:
-        model = MemberJob
+        model = Organization
         include_fk = True
         load_instance = True
