@@ -552,5 +552,40 @@ class Publish(Resource):
         return response_body
 
 
+@ns.route('/processes')
+class Processes(Resource):
+    def get(self):
+        """
+        Request list of registered OGC processes.
+        :return:
+        """
+        msg = "GET registered OGC processes endpoint not yet implemented."
+        return Response(
+                ogc.get_exception(type="FailedGetProcesses", origin_process="GetProcesses",
+                                  ex_message=msg,
+                                  status=status.HTTP_500_INTERNAL_SERVER_ERROR, mimetype='text/xml')
+
+
+    @api.doc(security='ApiKeyAuth')
+    @login_required()
+    def post(self):
+        """
+        Register OGC process.
+        :return:
+        """
+        resp_dict = {}
+        status_code = 200
+        ades_base = ADES_Base(app.config)
+        # Deploy a process
+        # Register a new algorithm
+        # TODO: see how this works with YAML body
+        req_vals = request.get_data()
+        proc_info = ades_base.deploy_proc(req_vals)
+        resp_dict = {"deploymentResult": {"processSummary": proc_info}}
+        status_code = 201
+        return resp_dict, status_code, {'ContentType':'application/json'}
+
+
+
 
 
