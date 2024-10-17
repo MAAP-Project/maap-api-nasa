@@ -643,26 +643,18 @@ class AwsAccessEdcCredentials(Resource):
         if maap_user is None:
             return Response('Unauthorized', status=status.HTTP_401_UNAUTHORIZED)
         else:
-            edc_response = get_edc_credentials(endpoint_uri=endpoint_uri, user_id=maap_user.id)
+            json_response = get_edc_credentials(endpoint_uri=endpoint_uri, user_id=maap_user.id)
 
-            try:
-                edc_response_json = json.loads(edc_response)
-                response = jsonify(
-                    accessKeyId=edc_response_json['accessKeyId'],
-                    secretAccessKey=edc_response_json['secretAccessKey'],
-                    sessionToken=edc_response_json['sessionToken'],
-                    expiration=edc_response_json['expiration']
-                )
+            response = jsonify(
+                accessKeyId=json_response['accessKeyId'],
+                secretAccessKey=json_response['secretAccessKey'],
+                sessionToken=json_response['sessionToken'],
+                expiration=json_response['expiration']
+            )
 
-                response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers.add('Access-Control-Allow-Origin', '*')
 
-                return response
-
-            except ValueError as ex:
-                response_body = dict()
-                response_body["code"] = status.HTTP_500_INTERNAL_SERVER_ERROR
-                response_body["message"] = edc_response.decode("utf-8")
-                return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
+            return response
 
 
 @ns.route('/self/awsAccess/workspaceBucket')
@@ -793,4 +785,4 @@ def get_edc_credentials(endpoint_uri, user_id):
     else:
         edl_response = edl_federated_request(url=endpoint)
 
-    return edl_response.content
+    return edl_response.json()
