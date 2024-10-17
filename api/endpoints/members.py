@@ -785,4 +785,4 @@ def get_edc_credentials(endpoint_uri, user_id):
     else:
         edl_response = edl_federated_request(url=endpoint)
 
-    return json.loads(edl_response.content)
+    return edl_response.json()
