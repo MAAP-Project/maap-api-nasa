@@ -691,7 +691,13 @@ class AwsAccessUserBucketCredentials(Resource):
                     "Sid": "GrantAccessToUserFolder",
                     "Effect": "Allow",
                     "Action": [
-                        "s3:*"
+                        "s3:ListBucket",
+                        "s3:DeleteObject",
+                        "s3:GetObject",
+                        "s3:PutObject",
+                        "s3:RestoreObject",
+                        "s3:ListMultipartUploadParts",
+                        "s3:AbortMultipartUpload"
                     ],
                     "Resource": [
                         "arn:aws:s3:::{settings.WORKSPACE_BUCKET}/{maap_user.username}/*"
