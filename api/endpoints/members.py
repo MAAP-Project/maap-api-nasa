@@ -691,6 +691,16 @@ class AwsAccessUserBucketCredentials(Resource):
                         "s3:ListMultipartUploadParts",
                         "s3:AbortMultipartUpload"
                     ],
+                    "Resource": [
+                        "arn:aws:s3:::{settings.WORKSPACE_BUCKET}/{maap_user.username}/*"
+                    ]
+                }},
+                {{
+                    "Sid": "GrantListAccess",
+                    "Effect": "Allow",
+                    "Action": [
+                        "s3:ListBucket"
+                    ],
                     "Resource": "arn:aws:s3:::{settings.WORKSPACE_BUCKET}",
                     "Condition": {{
                         "StringLike": {{
