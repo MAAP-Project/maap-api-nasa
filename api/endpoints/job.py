@@ -5,6 +5,7 @@ from flask_api import status
 from api.restplus import api
 import api.utils.hysds_util as hysds
 import api.utils.ogc_translate as ogc
+import api.utils.job_queue as job_queue
 import api.settings as settings
 try:
     import urllib.parse as urlparse
@@ -60,9 +61,13 @@ class Submit(Resource):
 
         try:
             dedup = "false" if dedup is None else dedup
-            queue = hysds.get_recommended_queue(job_type=job_type) if queue is None or queue is "" else queue
-            response = hysds.mozart_submit_job(job_type=job_type, params=params, dedup=dedup, queue=queue,
-                                               identifier=identifier)
+            user = get_authorized_user()
+            queue = job_queue.validate_or_get_queue(queue, job_type, user.id)
+            job_time_limit = hysds_io.get("result").get("soft_time_limit", 86400)
+            if job_queue.contains_time_limit(queue):
+                job_time_limit = int(queue.time_limit_minutes) * 60
+            response = hysds.mozart_submit_job(job_type=job_type, params=params, dedup=dedup, queue=queue.queue_name,
+                                               identifier=identifier, job_time_limit=int(job_time_limit))
 
             logging.info("Mozart Response: {}".format(json.dumps(response)))
             job_id = response.get("result")
@@ -78,6 +83,10 @@ class Submit(Resource):
                 return Response(ogc.status_response(job_id=job_id, job_status=job_status), mimetype='text/xml')
             else:
                 raise Exception(response.get("message"))
+        except ValueError as ex:
+            logging.error(traceback.format_exc())
+            return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",
+                                              ex_message=str(ex)), status.HTTP_400_BAD_REQUEST)
         except Exception as ex:
             logging.info("Error submitting job: {}".format(ex))
             return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",

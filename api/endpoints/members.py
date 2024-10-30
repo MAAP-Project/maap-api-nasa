@@ -4,6 +4,8 @@ from flask_restx import Resource, reqparse
 from flask import request, jsonify, Response
 from flask_api import status
 from sqlalchemy.exc import SQLAlchemyError
+from api.utils.organization import get_member_organizations
+from api.models.role import Role
 from api.restplus import api
 import api.settings as settings
 from api.auth.security import get_authorized_user, login_required, valid_dps_request, edl_federated_request, \
@@ -42,18 +44,25 @@ class Member(Resource):
     @api.doc(security='ApiKeyAuth')
     @login_required()
     def get(self):
-        members = db.session.query(
-            Member_db.id,
-            Member_db.username,
-            Member_db.first_name,
-            Member_db.last_name,
-            Member_db.email,
-            Member_db.status,
-            Member_db.creation_date
+
+        member_query = db.session.query(
+            Member_db, Role,
+        ).filter(
+            Member_db.role_id == Role.id
         ).order_by(Member_db.username).all()
 
-        member_schema = MemberSchema()
-        result = [json.loads(member_schema.dumps(m)) for m in members]
+        result = [{
+            'id': m.Member.id,
+            'username': m.Member.username,
+            'first_name': m.Member.first_name,
+            'last_name': m.Member.last_name,
+            'email': m.Member.email,
+            'role_id': m.Member.role_id,
+            'role_name': m.Role.role_name,
+            'status': m.Member.status,
+            'creation_date': m.Member.creation_date.strftime('%m/%d/%Y'),
+        } for m in member_query]
+
         return result
 
 
@@ -84,6 +93,7 @@ class Member(Resource):
         if member is None:
             return err_response(msg="No member found with key " + key, code=status.HTTP_404_NOT_FOUND)
 
+        member_id = member.id
         member_schema = MemberSchema()
         result = json.loads(member_schema.dumps(member))
 
@@ -91,7 +101,7 @@ class Member(Resource):
             pgt_ticket = db.session \
                 .query(MemberSession_db) \
                 .with_entities(MemberSession_db.session_key) \
-                .filter_by(member_id=member.id) \
+                .filter_by(member_id=member_id) \
                 .order_by(MemberSession_db.id.desc()) \
                 .first()
 
@@ -116,6 +126,8 @@ class Member(Resource):
             member_schema = MemberSchema()
             member_ssh_info_result = json.loads(member_schema.dumps(member))
             result = json.loads(json.dumps(dict(result.items() | member_ssh_info_result.items())))
+
+        result['organizations'] = get_member_organizations(member_id)
 
         return result
 
@@ -263,6 +275,7 @@ class Member(Resource):
             member.public_ssh_key_modified_date = datetime.utcnow()
         member.public_ssh_key = req_data.get("public_ssh_key", member.public_ssh_key)
         member.public_ssh_key_name = req_data.get("public_ssh_key_name", member.public_ssh_key_name)
+        member.role_id = req_data.get("role_id", member.role_id)
         db.session.commit()
 
         member_schema = MemberSchema()
@@ -367,9 +380,14 @@ class Self(Resource):
             .filter_by(username=authorized_user.username) \
             .first()
 
+        member_id = member.id
+
         if 'proxy-ticket' in request.headers:
             member_schema = MemberSchema()
-            return json.loads(member_schema.dumps(member))
+            result = json.loads(member_schema.dumps(member))
+            result['organizations'] = get_member_organizations(member_id)
+            return result
+
         if 'Authorization' in request.headers:
             return member
 
@@ -625,26 +643,18 @@ class AwsAccessEdcCredentials(Resource):
         if maap_user is None:
             return Response('Unauthorized', status=status.HTTP_401_UNAUTHORIZED)
         else:
-            edc_response = get_edc_credentials(endpoint_uri=endpoint_uri, user_id=maap_user.id)
+            json_response = get_edc_credentials(endpoint_uri=endpoint_uri, user_id=maap_user.id)
 
-            try:
-                edc_response_json = json.loads(edc_response)
-                response = jsonify(
-                    accessKeyId=edc_response_json['accessKeyId'],
-                    secretAccessKey=edc_response_json['secretAccessKey'],
-                    sessionToken=edc_response_json['sessionToken'],
-                    expiration=edc_response_json['expiration']
-                )
+            response = jsonify(
+                accessKeyId=json_response['accessKeyId'],
+                secretAccessKey=json_response['secretAccessKey'],
+                sessionToken=json_response['sessionToken'],
+                expiration=json_response['expiration']
+            )
 
-                response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers.add('Access-Control-Allow-Origin', '*')
 
-                return response
-
-            except ValueError as ex:
-                response_body = dict()
-                response_body["code"] = status.HTTP_500_INTERNAL_SERVER_ERROR
-                response_body["message"] = edc_response.decode("utf-8")
-                return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
+            return response
 
 
 @ns.route('/self/awsAccess/workspaceBucket')
@@ -680,6 +690,16 @@ class AwsAccessUserBucketCredentials(Resource):
                         "s3:RestoreObject",
                         "s3:ListMultipartUploadParts",
                         "s3:AbortMultipartUpload"
+                    ],
+                    "Resource": [
+                        "arn:aws:s3:::{settings.WORKSPACE_BUCKET}/{maap_user.username}/*"
+                    ]
+                }},
+                {{
+                    "Sid": "GrantListAccess",
+                    "Effect": "Allow",
+                    "Action": [
+                        "s3:ListBucket"
                     ],
                     "Resource": "arn:aws:s3:::{settings.WORKSPACE_BUCKET}",
                     "Condition": {{
@@ -775,4 +795,4 @@ def get_edc_credentials(endpoint_uri, user_id):
     else:
         edl_response = edl_federated_request(url=endpoint)
 
-    return edl_response.content
+    return edl_response.json()
