@@ -6,6 +6,8 @@ from urllib.parse import urlsplit
 from api import settings
 import requests
 import urllib.parse
+import os
+import api.endpoints.constants as constants
 
 log = logging.getLogger(__name__)
 
@@ -58,16 +60,14 @@ class BucketPrefix(Resource):
 
 
 def get_config(ade_host):
-    req = requests.get(settings.MAAP_ENVIRONMENT_FILE)
-    if req.status_code == requests.codes.ok:
-        data = req.json()
-    else:
-        print('Content was not found.')
-
-    base_url = "{0.netloc}".format(urlsplit(urllib.parse.unquote(ade_host)))
-
-    match = next((x for x in data if base_url in x['ade_server']), None)
-    maap_config = next((x for x in data if x['default_host'] == True), None) if match is None else match
-
-    return maap_config
-
+    api_host = os.getenv("MAAP_API_HOST", constants.DEFAULT_API)
+    print("graceal1 api host is ")
+    print(api_host)
+    maap_api_config_endpoint = os.getenv("MAAP_API_CONFIG_ENDPOINT", "api/environment/config")
+    print("graceal1 constants ADE options ")
+    print(constants.ADE_OPTIONS)
+    ade_host = ade_host if ade_host in constants.ADE_OPTIONS else os.getenv("MAAP_ADE_HOST", constants.DEFAULT_ADE)
+    environments_endpoint = "https://" + api_host + "/" + maap_api_config_endpoint + "/"+urllib.parse.quote(urllib.parse.quote("https://", safe=""))+ade_host
+    print("graceal1 environments endpoint is ")
+    print(environments_endpoint)
+    return requests.get(environments_endpoint).json()
