@@ -12,7 +12,7 @@ import api.endpoints.constants as constants
 log = logging.getLogger(__name__)
 
 ns = api.namespace('environment', description='Operations related to the MAAP environment')
-
+print("graceal1 in environment.py for API")
 
 @ns.route('/config')
 class Config(Resource):
@@ -60,6 +60,7 @@ class BucketPrefix(Resource):
 
 
 def get_config(ade_host):
+    print("graceal1 in get_config for API ")
     api_host = os.getenv("MAAP_API_HOST", constants.DEFAULT_API)
     print("graceal1 api host is ")
     print(os.getenv("MAAP_API_HOST"))
