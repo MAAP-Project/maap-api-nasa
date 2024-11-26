@@ -62,7 +62,9 @@ class BucketPrefix(Resource):
 def get_config(ade_host):
     api_host = os.getenv("MAAP_API_HOST", constants.DEFAULT_API)
     print("graceal1 api host is ")
+    print(os.getenv("MAAP_API_HOST"))
     print(api_host)
+    print(ade_host)
     maap_api_config_endpoint = os.getenv("MAAP_API_CONFIG_ENDPOINT", "api/environment/config")
     print("graceal1 constants ADE options ")
     print(constants.ADE_OPTIONS)
