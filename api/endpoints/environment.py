@@ -61,6 +61,7 @@ class BucketPrefix(Resource):
 
 def get_config(ade_host):
     print("graceal1 in get_config for API ")
+    print(os.environ)
     api_host = os.getenv("MAAP_API_HOST", constants.DEFAULT_API)
     print("graceal1 api host is ")
     print(os.getenv("MAAP_API_HOST"))
