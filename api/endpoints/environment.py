@@ -64,7 +64,7 @@ def get_config(ade_host):
     print(ade_host)
     ROOT = os.path.dirname(os.path.abspath(__file__))   
     with open(os.path.join(ROOT, "environments.json")) as f:
-        data = json.loads(f)
+        data = json.load(f)
 
     base_url = "{0.netloc}".format(urlsplit(urllib.parse.unquote(ade_host)))
     print("graceal1 req returned is")
