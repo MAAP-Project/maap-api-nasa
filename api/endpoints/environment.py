@@ -7,6 +7,7 @@ from api import settings
 import requests
 import urllib.parse
 import json
+import os
 
 log = logging.getLogger(__name__)
 
@@ -61,7 +62,8 @@ class BucketPrefix(Resource):
 def get_config(ade_host):
     print("graceal1 in API get_config with")
     print(ade_host)
-    with open("environments.json") as f:
+    ROOT = os.path.dirname(os.path.abspath(__file__))   
+    with open(os.path.join(ROOT, "environments.json")) as f:
         data = json.loads(f)
 
     base_url = "{0.netloc}".format(urlsplit(urllib.parse.unquote(ade_host)))
