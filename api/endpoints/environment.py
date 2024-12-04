@@ -60,18 +60,19 @@ class BucketPrefix(Resource):
 
 
 def get_config(ade_host):
-    print("graceal1 in get_config for API ")
-    print(os.environ)
-    api_host = os.getenv("MAAP_API_HOST", constants.DEFAULT_API)
-    print("graceal1 api host is ")
-    print(os.getenv("MAAP_API_HOST"))
-    print(api_host)
+    print("graceal1 in API get_config with")
     print(ade_host)
-    maap_api_config_endpoint = os.getenv("MAAP_API_CONFIG_ENDPOINT", "api/environment/config")
-    print("graceal1 constants ADE options ")
-    print(constants.ADE_OPTIONS)
-    ade_host = ade_host if ade_host in constants.ADE_OPTIONS else os.getenv("MAAP_ADE_HOST", constants.DEFAULT_ADE)
-    environments_endpoint = "https://" + api_host + "/" + maap_api_config_endpoint + "/"+urllib.parse.quote(urllib.parse.quote("https://", safe=""))+ade_host
-    print("graceal1 environments endpoint is ")
-    print(environments_endpoint)
-    return requests.get(environments_endpoint).json()
+    print(settings.MAAP_ENVIRONMENT_FILE)
+    req = requests.get(settings.MAAP_ENVIRONMENT_FILE)
+    if req.status_code == requests.codes.ok:
+        data = req.json()
+    else:
+        print('Content was not found.')
+
+    base_url = "{0.netloc}".format(urlsplit(urllib.parse.unquote(ade_host)))
+
+    match = next((x for x in data if base_url in x['ade_server']), None)
+    maap_config = next((x for x in data if x['default_host'] == True), None) if match is None else match
+    print("graceal1 the maap_config is")
+    print(maap_config)
+    return maap_config
