@@ -12,7 +12,6 @@ import os
 log = logging.getLogger(__name__)
 
 ns = api.namespace('environment', description='Operations related to the MAAP environment')
-print("graceal1 in environment.py for API")
 
 @ns.route('/config')
 class Config(Resource):
@@ -60,17 +59,12 @@ class BucketPrefix(Resource):
 
 
 def get_config(ade_host):
-    print("graceal1 in API get_config with")
-    print(ade_host)
     ROOT = os.path.dirname(os.path.abspath(__file__))   
     with open(os.path.join(ROOT, "environments.json")) as f:
         data = json.load(f)
 
     base_url = "{0.netloc}".format(urlsplit(urllib.parse.unquote(ade_host)))
-    print("graceal1 req returned is")
-    print(data)
+
     match = next((x for x in data if base_url in x['ade_server']), None)
     maap_config = next((x for x in data if x['default_host'] == True), None) if match is None else match
-    print("graceal1 the maap_config is")
-    print(maap_config)
     return maap_config
