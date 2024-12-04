@@ -6,8 +6,7 @@ from urllib.parse import urlsplit
 from api import settings
 import requests
 import urllib.parse
-import os
-import api.endpoints.constants as constants
+import json
 
 log = logging.getLogger(__name__)
 
@@ -62,16 +61,12 @@ class BucketPrefix(Resource):
 def get_config(ade_host):
     print("graceal1 in API get_config with")
     print(ade_host)
-    print(settings.MAAP_ENVIRONMENT_FILE)
-    req = requests.get(settings.MAAP_ENVIRONMENT_FILE)
-    if req.status_code == requests.codes.ok:
-        data = req.json()
-    else:
-        print('Content was not found.')
+    with open("environments.json") as f:
+        data = json.loads(f)
 
     base_url = "{0.netloc}".format(urlsplit(urllib.parse.unquote(ade_host)))
-    print("graceal1 req returned was")
-    print(req)
+    print("graceal1 req returned is")
+    print(data)
     match = next((x for x in data if base_url in x['ade_server']), None)
     maap_config = next((x for x in data if x['default_host'] == True), None) if match is None else match
     print("graceal1 the maap_config is")
