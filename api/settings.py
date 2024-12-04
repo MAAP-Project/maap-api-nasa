@@ -43,7 +43,7 @@ REGISTER_JOB_REPO_ID = os.getenv('REGISTER_JOB_REPO_ID', '')  # Enter project ID
 GITLAB_TOKEN = os.getenv('GITLAB_TOKEN', 'foobar')
 GITLAB_API_TOKEN = os.getenv('GITLAB_API_TOKEN','')  # New setting inherited from sister, remove comment after API is stable
 
-MAAP_ENVIRONMENT_FILE = os.getenv('MAAP_ENVIRONMENT_FILE', 'https://raw.githubusercontent.com/MAAP-Project/maap-jupyter-ide/develop/maap_environments.json')
+MAAP_ENVIRONMENT_FILE = os.getenv('MAAP_ENVIRONMENT_FILE', 'https://raw.githubusercontent.com/MAAP-Project/maap-workspaces/refs/heads/main/jupyterlab/environments.json')
 
 REPO_NAME = os.getenv('REPO_NAME', 'register-job')
 REPO_PATH = os.getenv('REPO_PATH', '/home/ubuntu/repo')
