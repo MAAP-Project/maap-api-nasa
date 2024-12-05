@@ -66,7 +66,7 @@ def get_config(ade_host):
     except FileNotFoundError:
         msg = "environments.json file could not be found"
         logging.exception(msg)
-        raise Exception(msg)
+        raise FileNotFoundError(msg)
 
     base_url = "{0.netloc}".format(urlsplit(urllib.parse.unquote(ade_host)))
 
