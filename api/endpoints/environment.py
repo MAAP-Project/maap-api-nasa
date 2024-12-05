@@ -59,9 +59,14 @@ class BucketPrefix(Resource):
 
 
 def get_config(ade_host):
-    ROOT = os.path.dirname(os.path.abspath(__file__))   
-    with open(os.path.join(ROOT, "environments.json")) as f:
-        data = json.load(f)
+    try:
+        ROOT = os.path.dirname(os.path.abspath(__file__))   
+        with open(os.path.join(ROOT, "environments.json")) as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        msg = "environments.json file could not be found"
+        logging.exception(msg)
+        raise Exception(msg)
 
     base_url = "{0.netloc}".format(urlsplit(urllib.parse.unquote(ade_host)))
 
