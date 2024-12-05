@@ -6,11 +6,12 @@ from urllib.parse import urlsplit
 from api import settings
 import requests
 import urllib.parse
+import json
+import os
 
 log = logging.getLogger(__name__)
 
 ns = api.namespace('environment', description='Operations related to the MAAP environment')
-
 
 @ns.route('/config')
 class Config(Resource):
@@ -58,16 +59,17 @@ class BucketPrefix(Resource):
 
 
 def get_config(ade_host):
-    req = requests.get(settings.MAAP_ENVIRONMENT_FILE)
-    if req.status_code == requests.codes.ok:
-        data = req.json()
-    else:
-        print('Content was not found.')
+    try:
+        ROOT = os.path.dirname(os.path.abspath(__file__))   
+        with open(os.path.join(ROOT, "environments.json")) as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        msg = "environments.json file could not be found"
+        logging.exception(msg)
+        raise FileNotFoundError(msg)
 
     base_url = "{0.netloc}".format(urlsplit(urllib.parse.unquote(ade_host)))
 
     match = next((x for x in data if base_url in x['ade_server']), None)
     maap_config = next((x for x in data if x['default_host'] == True), None) if match is None else match
-
     return maap_config
-
