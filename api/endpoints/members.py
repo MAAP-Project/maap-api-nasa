@@ -97,7 +97,9 @@ class Member(Resource):
         member_schema = MemberSchema()
         result = json.loads(member_schema.dumps(member))
 
-        if valid_dps_request():
+        # If the request originates from the logged-in user or DPS worker,
+        # include additional profile information belonging to the user
+        if valid_dps_request() or member.username == key:
             pgt_ticket = db.session \
                 .query(MemberSession_db) \
                 .with_entities(MemberSession_db.session_key) \
@@ -105,13 +107,6 @@ class Member(Resource):
                 .order_by(MemberSession_db.id.desc()) \
                 .first()
 
-            member_session_schema = MemberSessionSchema()
-            pgt_result = json.loads(member_session_schema.dumps(pgt_ticket))
-            result = json.loads(json.dumps(dict(result.items() | pgt_result.items())))
-
-        # If the requested user info belongs to the logged-in user,
-        # also include additional ssh key information belonging to the user
-        if member.username == key:
             cols = [
                 Member_db.public_ssh_key_name,
                 Member_db.public_ssh_key_modified_date
@@ -123,9 +118,10 @@ class Member(Resource):
                 .filter_by(username=member.username) \
                 .first()
 
-            member_schema = MemberSchema()
+            member_session_schema = MemberSessionSchema()
+            pgt_result = json.loads(member_session_schema.dumps(pgt_ticket))
             member_ssh_info_result = json.loads(member_schema.dumps(member))
-            result = json.loads(json.dumps(dict(result.items() | member_ssh_info_result.items())))
+            result = json.loads(json.dumps(dict(result.items() | pgt_result.items() | member_ssh_info_result.items())))
 
         result['organizations'] = get_member_organizations(member_id)
 
@@ -380,12 +376,21 @@ class Self(Resource):
             .filter_by(username=authorized_user.username) \
             .first()
 
-        member_id = member.id
+        pgt_ticket = db.session \
+            .query(MemberSession_db) \
+            .with_entities(MemberSession_db.session_key) \
+            .filter_by(member_id=member.id) \
+            .order_by(MemberSession_db.id.desc()) \
+            .first()
+
+        member_session_schema = MemberSessionSchema()
+        member_schema = MemberSchema()
+        pgt_result = json.loads(member_session_schema.dumps(pgt_ticket))
+        member_result = json.loads(member_schema.dumps(member))
+        result = json.loads(json.dumps(dict(member_result.items() | pgt_result.items())))
 
         if 'proxy-ticket' in request.headers:
-            member_schema = MemberSchema()
-            result = json.loads(member_schema.dumps(member))
-            result['organizations'] = get_member_organizations(member_id)
+            result['organizations'] = get_member_organizations(member.id)
             return result
 
         if 'Authorization' in request.headers:
