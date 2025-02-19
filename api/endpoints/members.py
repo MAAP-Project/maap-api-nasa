@@ -384,8 +384,10 @@ class Self(Resource):
             .first()
 
         member_session_schema = MemberSessionSchema()
+        member_schema = MemberSchema()
         pgt_result = json.loads(member_session_schema.dumps(pgt_ticket))
-        result = json.loads(json.dumps(dict(member | pgt_result.items())))
+        member_result = json.loads(member_schema.dumps(member))
+        result = json.loads(json.dumps(dict(member_result.items() | pgt_result.items())))
 
         if 'proxy-ticket' in request.headers:
             result['organizations'] = get_member_organizations(member.id)
