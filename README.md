@@ -4,11 +4,12 @@ The joint ESA-NASA Multi-Mission Algorithm and Analysis Platform (MAAP) focuses 
 Development server: https://api.dit.maap-project.org/api
 
 ## I. Local development using docker
-
+Set your FERNET_KEY environment variable to be a key, doesn't necessarily need to be valid 
 ```bash
 cd docker
 docker-compose -f docker-compose-local.yml up
 ```
+Once you make code changes you might need to delete your maap-api-nasa docker image for these code changes to be reflected. If you are getting a network not found error, try running `docker-compose -f docker-compose-local.yml up --force-recreate`
 
 ## II. Local development using poetry and virtualenv
 
