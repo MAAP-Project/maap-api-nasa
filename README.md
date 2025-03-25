@@ -10,6 +10,8 @@ cd docker
 docker-compose -f docker-compose-local.yml up
 ```
 Once you make code changes you might need to delete your maap-api-nasa docker image for these code changes to be reflected. If you are getting a network not found error, try running `docker-compose -f docker-compose-local.yml up --force-recreate`
+You may also need to set `DATABASE_URL` to postgresql://maapuser:mysecretpassword@host.docker.internal/maap in settings.py
+If you make changes to the settings, rebuild with `docker-compose -f docker-compose-local.yml build`
 
 ## II. Local development using poetry and virtualenv
 
