@@ -550,15 +550,3 @@ class Publish(Resource):
         response_body["success"] = True
 
         return response_body
-
-# Processes section for OGC Compliance 
-@ns.route('/processes')
-class Processes(Resource):
-
-    def get(self):
-        """
-        search algorithms with OGC compliance 
-        :return:
-        """
-        print("graceal in get of processes")
-        return None

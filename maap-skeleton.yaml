@@ -215,6 +215,25 @@ paths:
           schema:
             $ref: "#/definitions/ErrorResponse"
 
+  /processes:
+    get:
+      tags:
+        - Processes
+      description: Get list of processes
+      operationId: get_processes
+
+      responses:
+        200:
+          description: List of processes
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Process"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
   /algorithms:
     get:
       tags:

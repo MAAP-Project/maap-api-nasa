@@ -253,6 +253,55 @@ def create_job_spec(run_command, inputs, disk_usage, queue_name, verified=False)
     job_spec["params"] = params
     return job_spec
 
+def create_job_spec_ogc(run_command, inputs, disk_usage, queue_name, verified=False):
+    """
+    Creates the contents of the job spec file
+    :param run_command:
+    :param inputs:
+    :param disk_usage: minimum free disk usage required to run job specified as
+    "\d+(GB|MB|KB)", e.g. "100GB", "20MB", "10KB"
+    :param queue_name: set the recommended queue to run the algorithm on
+    :param verified: indicated whether algorithm is EcoSML verified
+    :return:
+    """
+    job_spec = dict()
+    job_spec["command"] = "/app/dps_wrapper.sh '{}'".format(run_command)
+    job_spec["disk_usage"] = disk_usage
+    job_spec["imported_worker_files"] = {
+        "$HOME/.netrc": "/home/ops/.netrc",
+        "$HOME/.aws": "/home/ops/.aws",
+        "$HOME/verdi/etc/maap-dps.env": "/home/ops/.maap-dps.env",
+        "/tmp": ["/tmp", "rw"]
+    }
+    job_spec["post"] = ["hysds.triage.triage"]
+    job_spec["recommended-queues"] = [queue_name]
+    params = list()
+    # This part is changed for OGC 
+    for input in inputs:
+        # if param_type == "file":
+        #     destination = "localize"
+        # elif param_type == "positional":
+        #     destination = "positional"
+        # elif param_type == "config":
+        #     destination = "context"
+        # for param in inputs.get(param_type):
+        param_spec = dict()
+        param_spec["name"] = input.get("title")
+        # param_spec["destination"] = destination
+        params.append(param_spec)
+
+    if verified:
+        verified_param = dict()
+        verified_param["name"] = "publish_to_cmr"
+        verified_param["destination"] = "context"
+        cmr_met_param = dict()
+        cmr_met_param["name"] = "cmr_collection_id"
+        cmr_met_param["destination"] = "context"
+        params.append(verified_param)
+        params.append(cmr_met_param)
+    job_spec["params"] = params
+    return job_spec
+
 
 def write_spec_file(spec_type, algorithm, body, repo_name=settings.REPO_NAME):
     """
