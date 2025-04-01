@@ -9,6 +9,7 @@ from flask import current_app
 from .cas_urls import create_cas_proxy_url, create_cas_validate_url, create_cas_proxy_validate_url
 from api.maap_database import db
 from api.models.member import Member
+from api.models.role import Role
 from api.models.member_session import MemberSession
 from api import settings
 from Crypto.PublicKey import RSA
@@ -148,21 +149,34 @@ def validate_cas_request(cas_url):
 
 
 def start_member_session(cas_response, ticket, auto_create_member=False):
-
+    print("graceal1 in start member session")
+    auto_create_member = True
     xml_from_dict = cas_response[1]["cas:serviceResponse"]["cas:authenticationSuccess"]
     attributes = xml_from_dict.get("cas:attributes", {})
     usr = get_cas_attribute_value(attributes, 'preferred_username')
+    print("graceal1 username and attributes are ")
+    print(usr)
+    print(attributes)
+    print(auto_create_member)
+    print("database session query")
+    print(db.session.query(Member).all())
 
     member = db.session.query(Member).filter_by(username=usr).first()
     urs_access_token = get_cas_attribute_value(attributes, 'access_token')
 
     if member is None and auto_create_member:
-        member = Member(first_name=get_cas_attribute_value(attributes, 'given_name'),
+        # need to add the member role to the table
+        role = Role(id=2, role_name="member")
+        member = Member(id=100,
+                        first_name=get_cas_attribute_value(attributes, 'given_name'),
                         last_name=get_cas_attribute_value(attributes, 'family_name'),
                         username=usr,
                         email=get_cas_attribute_value(attributes, 'email'),
                         organization=get_cas_attribute_value(attributes, 'organization'),
-                        urs_token=urs_access_token)
+                        urs_token=urs_access_token,
+                        role_id=2)
+        db.session.add(role)
+        db.session.commit()
         db.session.add(member)
     else:
         member.urs_token = urs_access_token

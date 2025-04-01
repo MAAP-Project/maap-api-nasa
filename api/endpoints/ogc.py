@@ -193,9 +193,6 @@ class Processes(Resource):
             # req_data_string_cleaned = re.sub(regex, '', req_data_string, 0)
             # req_data = json.loads(req_data_string_cleaned)
             req_data = sample_object
-            print("graceal1 about to call git clone")
-            print("graceal1 in git clone and token is ")
-            print(settings.GITLAB_TOKEN)
             repo = git.git_clone()
         except Exception as ex:
             tb = traceback.format_exc()
@@ -211,7 +208,7 @@ class Processes(Resource):
 
             # req_data = request.get_json()
             # ecosml_verified = request.form.get("ecosml_verified", req_data.get("ecosml_verified", False))
-            ecosml_verified = False
+            ecosml_verified = True
             # if type(ecosml_verified) is not bool:
             #     ecosml_verified = json.loads(ecosml_verified.lower())
             # graceal how do we get the run command now? 
@@ -228,11 +225,12 @@ class Processes(Resource):
 
             # validate_register_inputs(run_command,
             #                          request.form.get("algorithm_name", req_data.get("algorithm_name")))
-            algorithm_name = "{}".format(request.form.get("algorithm_name", req_data.get("id")))
+            process = req_data.get("processDescription").get("process")
+            algorithm_name = "{}".format(request.form.get("algorithm_name", process.get("id")))
             print("graceal1 algorithm name is ")
             print(algorithm_name)
-            algorithm_description = request.form.get("algorithm_description", req_data.get("description"))
-            inputs = request.form.get("inputs", req_data.get("inputs"))
+            algorithm_description = request.form.get("algorithm_description", process.get("description"))
+            inputs = request.form.get("inputs", process.get("inputs"))
             # disk_space = request.form.get("disk_space", req_data.get("disk_space"))
             disk_space = 1
             # resource = request.form.get("queue", req_data.get("queue"))
@@ -272,7 +270,7 @@ class Processes(Resource):
             # clean up any old specs from the repo
             repo = git.clean_up_git_repo(repo, repo_name=settings.REPO_NAME)
             # creating hysds-io file
-            hysds_io = hysds.create_hysds_io(algorithm_description=algorithm_description,
+            hysds_io = hysds.create_hysds_io_ogc(algorithm_description=algorithm_description,
                                              inputs=inputs,
                                              verified=ecosml_verified
                                              )
@@ -298,7 +296,7 @@ class Processes(Resource):
                                                   repo_url_w_token=request.form.get("repository_url",
                                                                                     req_data.get("executionUnit").get("href")),
                                                   repo_branch=request.form.get("algorithm_version",
-                                                                               req_data.get("version")),
+                                                                               process.get("version")),
                                                   build_command=None,
                                                   verified=ecosml_verified)
                 hysds.write_file("{}/{}".format(settings.REPO_PATH, settings.REPO_NAME), "config.txt", config)
@@ -310,10 +308,10 @@ class Processes(Resource):
             print("graceal1 done creating the hysds config file ")
 
             # creating file whose contents are returned on ci build success
-            if request.form.get("algorithm_version", req_data.get("version")) is not None:
+            if request.form.get("algorithm_version", process.get("version")) is not None:
                 job_submission_json = hysds.get_job_submission_json(algorithm_name,
                                                                     request.form.get("algorithm_version",
-                                                                                     req_data.get("version")))
+                                                                                     process.get("version")))
             else:
                 job_submission_json = hysds.get_job_submission_json(algorithm_name)
             hysds.write_file("{}/{}".format(settings.REPO_PATH, settings.REPO_NAME), "job-submission.json",

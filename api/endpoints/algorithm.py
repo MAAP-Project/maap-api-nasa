@@ -204,10 +204,10 @@ class Register(Resource):
         """
         try:
             # remove any trailing commas
-            regex = r'''(?<=[}\]"']),(?!\s*[{["'])'''
-            req_data_string = request.data.decode("utf-8")
-            req_data_string_cleaned = re.sub(regex, '', req_data_string, 0)
-            req_data = json.loads(req_data_string_cleaned)
+            # regex = r'''(?<=[}\]"']),(?!\s*[{["'])'''
+            # req_data_string = request.data.decode("utf-8")
+            # req_data_string_cleaned = re.sub(regex, '', req_data_string, 0)
+            # req_data = json.loads(req_data_string_cleaned)
             repo = git.git_clone()
         except Exception as ex:
             tb = traceback.format_exc()
@@ -217,10 +217,64 @@ class Register(Resource):
             response_body["error"] = "{} Traceback: {}".format(ex.message, tb)
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
 
+        req_data = {
+            "run_command" : "sister-isofit/.imgspec/install.sh",
+            "build_command": "sister-isofit/.imgspec/install.sh",
+            "algorithm_name" : "sister-isofit",
+            "algorithm_version": "1.0.0",
+            "algorithm_description" : "The SISTER wrapper for ISOFIT. ISOFIT (Imaging Spectrometer Optimal FITting) contains a set of routines and utilities for fitting surface, atmosphere and instrument models to imaging spectrometer data.",
+
+            "docker_container_url": "registry.imgspec.org/root/ade_base_images/plant:latest",
+            "repository_url" : "https://gitlab.com/geospec/hytools.git",
+            "disk_space": "70GB",
+            "queue": "geospec-job_worker-32gb",
+            "ecosml_verified": True,
+            "inputs" : {
+                "positional":
+                [
+                    {
+                        "name": "verbose",
+                        "default": "False",
+                        "data_type": "boolean"
+
+                    }
+                ],
+                "file":
+                [
+                    {
+                        "name": "l1_granule"
+                    }
+                ],
+                "config":
+                [
+                    {
+                        "name": "surface_reflectance_spectra"
+                    },
+                    {
+                        "name": "vegetation_reflectance_spectra"
+                    },
+                    {
+                        "name": "water_reflectance_spectra"
+                    },
+                    {
+                        "name": "snow_and_liquids_reflectance_spectra"
+                    },
+                    {
+                        "name": "segmentation_size"
+                    },
+                    {
+                        "name": " n_cores",
+                        "default": "32",
+                        "data_type": "number"
+                    }
+                ]
+            }
+        }
+
         try:
             invalid_attributes = ['timestamp']
 
-            req_data = request.get_json()
+            #  = request.get_json()
             ecosml_verified = request.form.get("ecosml_verified", req_data.get("ecosml_verified", False))
             if type(ecosml_verified) is not bool:
                 ecosml_verified = json.loads(ecosml_verified.lower())
@@ -261,16 +315,16 @@ class Register(Resource):
 
         try:
             # validate if input queue is valid
-            user = get_authorized_user()
-            if resource is None:
-                resource = job_queue.get_default_queue().queue_name
-            else:
-                valid_queues = job_queue.get_user_queues(user.id)
-                valid_queue_names = list(map(lambda q: q.queue_name, valid_queues))
-                if resource not in valid_queue_names:
-                    return http_util.err_response(msg=f"User does not have permissions for resource {resource}."
-                                                      f"Please select from one of {valid_queue_names}",
-                                                  code=status.HTTP_400_BAD_REQUEST)
+            # user = get_authorized_user()
+            # if resource is None:
+            #     resource = job_queue.get_default_queue().queue_name
+            # else:
+            #     valid_queues = job_queue.get_user_queues(user.id)
+            #     valid_queue_names = list(map(lambda q: q.queue_name, valid_queues))
+            #     if resource not in valid_queue_names:
+            #         return http_util.err_response(msg=f"User does not have permissions for resource {resource}."
+            #                                           f"Please select from one of {valid_queue_names}",
+            #                                       code=status.HTTP_400_BAD_REQUEST)
             # clean up any old specs from the repo
             repo = git.clean_up_git_repo(repo, repo_name=settings.REPO_NAME)
             # creating hysds-io file
