@@ -19,7 +19,6 @@ import api.utils.ogc_translate as ogc
 from api.auth.security import get_authorized_user, login_required
 from api.maap_database import db
 from api.models.process import Process as Process_db
-from api.models.processOld import ProcessOld as ProcessOld_db
 from api.models.member_algorithm import MemberAlgorithm
 from sqlalchemy import or_, and_
 from datetime import datetime
@@ -43,7 +42,6 @@ class Processes(Resource):
         """
         print("graceal in get of processes in new file")
         response_body = dict()
-        body_dict = dict()
         existing_processes = []
         existing_links =[]
 
@@ -64,10 +62,8 @@ class Processes(Resource):
                                        'status': process.status})
             existing_links.append({'href': process.cwl_link})
         
-        body_dict["processes"] = existing_processes
-        body_dict["links"] = existing_links
-        response_body["body"] = body_dict
-        response_body["code"] = status.HTTP_200_OK
+        response_body["processes"] = existing_processes
+        response_body["links"] = existing_links
         return response_body, status.HTTP_200_OK
 
 
@@ -83,7 +79,7 @@ class Processes(Resource):
         sample_object = {
                 "processDescription": {
                     "id": "test",
-                    "version": "2"
+                    "version": "1"
                 },
                 # note that this represents the CWL from the user 
                 "executionUnit": {
@@ -101,27 +97,6 @@ class Processes(Resource):
             "Accept": "application/json"
         }
 
-        # remove after delete
-        # db.session.query(Process_db).delete()
-        # db.session.commit()
-        # delete old way 
-        processes = db.session.query(ProcessOld_db).all()
-        for process in processes:
-            db.session.delete(process)
-        db.session.commit()
-        print("graceal1 after delete")
-
-        process = Process_db(id="test",
-                                version=1,
-                                status="PENDING", # graceal get this constants from somewhere (like Role.ROLE_GUEST)
-                                process_workflow_link="test",
-                                cwl_link = "test",
-                                user=100
-                                )
-        db.session.add(process)
-        db.session.commit()
-        print("graceal adding with corrected schema ")
-
         # Check if id and version already present in our database
         id = req_data.get("processDescription").get("id")
         process_version = req_data.get("processDescription").get("version")
@@ -132,7 +107,7 @@ class Processes(Resource):
             .first()
         print("graceal existing process is ")
         print(existingProcess)
-        """
+        
         # If process with same ID and version is already present, tell the user they need to use PUT instead to modify
         if existingProcess is not None:
             response_body["code"] = status.HTTP_409_CONFLICT
@@ -162,7 +137,7 @@ class Processes(Resource):
                                 status="PENDING", # graceal get this constants from somewhere (like Role.ROLE_GUEST)
                                 process_workflow_link=process_workflow_link,
                                 cwl_link = cwl_link,
-                                user=user.id 
+                                user=user.id
                                 )
             db.session.add(process)
             db.session.commit()
@@ -173,8 +148,6 @@ class Processes(Resource):
             response_body["code"] = status.HTTP_500_INTERNAL_SERVER_ERROR
             response_body["detail"] = "Failed to start CI/CD to deploy process. GitLab is likely down"
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
-        """
-        return None
         
 @ns.route('/algorithm/<string:process_id>')
 class Describe(Resource):
