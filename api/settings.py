@@ -42,10 +42,11 @@ REGISTER_JOB_REPO_ID = os.getenv('REGISTER_JOB_REPO_ID', '')  # Enter project ID
 # GTILAB Settings
 GITLAB_TOKEN = os.getenv('GITLAB_TOKEN', 'foobar')
 GITLAB_API_TOKEN = os.getenv('GITLAB_API_TOKEN','')  # New setting inherited from sister, remove comment after API is stable
+GITLAB_POST_PROCESS_TOKEN = os.getenv('GITLAB_POST_PROCESS_TOKEN', '')
 
 REPO_NAME = os.getenv('REPO_NAME', 'register-job')
 REPO_PATH = os.getenv('REPO_PATH', '/home/ubuntu/repo')
-VERSION = os.getenv('VERSION', 'master')
+VERSION = os.getenv('VERSION', 'main')
 SUPPORTED_EXTENSIONS = os.getenv('SUPPORTED_EXTENSIONS', 'py,java,sh').split(',')
 
 # Docker container URL

@@ -18,6 +18,7 @@ import api.settings as settings
 import api.utils.ogc_translate as ogc
 from api.auth.security import get_authorized_user, login_required
 from api.maap_database import db
+from api.models.process import Process as Process_db
 from api.models.member_algorithm import MemberAlgorithm
 from sqlalchemy import or_, and_
 from datetime import datetime
@@ -138,8 +139,8 @@ class Processes(Resource):
         #     response_body["message"] = [error_object]
         #     return response_body
 
-    # @api.doc(security='ApiKeyAuth')
-    # @login_required()
+    @api.doc(security='ApiKeyAuth')
+    @login_required()
     def post(self):
         """
         post a new process
@@ -148,49 +149,72 @@ class Processes(Resource):
         print("graceal in post of processes in new file")
         # execution unit should be a cwl with the algorithm 
         sample_object = {
+                "processDescription": {
+                    "id": "test",
+                    "version": "2"
+                },
+                # note that this represents the CWL from the user 
                 "executionUnit": {
-                    "href": "https://github.com/grallewellyn/test-algorithm.git"
+                    "href": "https://raw.githubusercontent.com/MAAP-Project/sardem-sarsen/refs/heads/mlucas/nasa-ogc/workflows/process_sardem-sarsen_mlucas_nasa-ogc.cwl"
                 }
             }
         req_data = sample_object
         response_body = dict()
 
-        # Should I update the headers for this to work??
-
-        # url from Sujen to post CWL at payload
-        url_to_post_cwl = "https://github.com/MAAP-Project"
+        gitlab_post_process_token = settings.GITLAB_POST_PROCESS_TOKEN
+        url_to_post_cwl = "https://repo.dit.maap-project.org/api/v4/projects/31/ref/main/trigger/pipeline?token=" + gitlab_post_process_token
 
         headers = {
             "Content-Type": "application/json",
             "Accept": "application/json"
         }
 
-        cwl_link = req_data.get("executionUnit").get("href")
+        # Check if id and version already present in our database
+        process_id = req_data.get("processDescription").get("id")
+        process_version = req_data.get("processDescription").get("version")
 
-        cwl_payload = {"cwl_link": cwl_link}  
+        existingProcess = db.session \
+            .query(Process_db) \
+            .filter_by(id=process_id, version=process_version) \
+            .first()
+        
+        # If process with same ID and version is already present, tell the user they need to use PUT instead to modify
+        if existingProcess is not None:
+            response_body["code"] = status.HTTP_409_CONFLICT
+            response_body["detail"] = "Duplicate process. Use PUT to modify existing algorithm if you originally published it."
+            return response_body, status.HTTP_409_CONFLICT
+
+        cwl_link = req_data.get("executionUnit").get("href")
+        cwl_payload = {"CWL_URL": cwl_link}  
 
         response = requests.post(url_to_post_cwl, json=cwl_payload, headers=headers)
 
-        if response.status_code == status.HTTP_200_OK:
-            print("Success:", response.json()) 
-            # This is returned by the call to the url that Sujen provides, need to parse this response 
-            gitlab_response = "" 
+        if response.status_code == status.HTTP_201_CREATED:
+            response = response.json()
+            print("Success:", response) 
+            process_workflow_link = response['web_url']
+            response_body["code"] = status.HTTP_201_CREATED
+            response_body["id"] = process_id
+            response_body["version"] = process_version
+            response_body["gitlabWorkflowLink"] = process_workflow_link
+
+            user = get_authorized_user()
+
+            ## in the database, need to store the ID and also the link to the building job 
+            # processID should just be incrementing 
+            process = Process_db(id=process_id,
+                                version=process_version,
+                                status="PENDING", # graceal get this constants from somewhere (like Role.ROLE_GUEST)
+                                process_workflow_link=process_workflow_link,
+                                user=user.id 
+                                )
+            db.session.add(process)
+            db.session.commit()
+
+            return response_body
         else:
-            # graceal make sure this error shows up okay
             print(f"Error {response.status_code}: {response.text}")  
-            response_body["code"] = status.HTTP_400_BAD_REQUEST
-            response_body["message"] = "Failed to start CI/CD to dpeloy process. GitLab is likely down"
-            response_body["error"] = "Error {}: {}".format(response.status_code, response.text)
-            return response_body, status.HTTP_400_BAD_REQUEST
-
-        response_body["code"] = status.HTTP_200_OK
-        response_body["message"] = gitlab_response
-        print("graceal1 returning at the end of posting a processes ")
-        """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <AlgorithmName></AlgorithmName>
-        """
-
-        return response_body, status.HTTP_200_OK
-
+            response_body["code"] = status.HTTP_500_INTERNAL_SERVER_ERROR
+            response_body["detail"] = "Failed to start CI/CD to deploy process. GitLab is likely down"
+            return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
     

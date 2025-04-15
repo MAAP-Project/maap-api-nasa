@@ -315,16 +315,16 @@ class Register(Resource):
 
         try:
             # validate if input queue is valid
-            # user = get_authorized_user()
-            # if resource is None:
-            #     resource = job_queue.get_default_queue().queue_name
-            # else:
-            #     valid_queues = job_queue.get_user_queues(user.id)
-            #     valid_queue_names = list(map(lambda q: q.queue_name, valid_queues))
-            #     if resource not in valid_queue_names:
-            #         return http_util.err_response(msg=f"User does not have permissions for resource {resource}."
-            #                                           f"Please select from one of {valid_queue_names}",
-            #                                       code=status.HTTP_400_BAD_REQUEST)
+            user = get_authorized_user()
+            if resource is None:
+                resource = job_queue.get_default_queue().queue_name
+            else:
+                valid_queues = job_queue.get_user_queues(user.id)
+                valid_queue_names = list(map(lambda q: q.queue_name, valid_queues))
+                if resource not in valid_queue_names:
+                    return http_util.err_response(msg=f"User does not have permissions for resource {resource}."
+                                                      f"Please select from one of {valid_queue_names}",
+                                                  code=status.HTTP_400_BAD_REQUEST)
             # clean up any old specs from the repo
             repo = git.clean_up_git_repo(repo, repo_name=settings.REPO_NAME)
             # creating hysds-io file
