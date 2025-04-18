@@ -1,3 +1,4 @@
+
 from git import Repo
 import logging
 import os
@@ -34,16 +35,10 @@ def update_git_repo(repo, repo_name, algorithm_name):
         repo.index.commit(commit_message)
         origin = repo.remote('origin')
         origin.push()
-        print("graceal1 just pushed to origin in update git repo ")
     except Exception as ex:
         raise Exception("Failed to push changes to git.")
     headcommit = repo.head.commit
     commithash = headcommit.hexsha
-    print("graceal1 printing information about the repo")
-    print(repo)
-    print(repo.head)
-    print(repo.head.commit)
-
     return commithash
 
 
