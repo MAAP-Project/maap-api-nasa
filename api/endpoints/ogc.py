@@ -151,8 +151,6 @@ class Processes(Resource):
 
         # TODO fix this so that it creates a url right  
         deploymentJobsEndpoint = request.host_url + "api/" + ns.name + "/deploymentJobs/" + str(deployment_job_id)
-        print("graceal1 deploymentJobsEndpoint is ")
-        print(deploymentJobsEndpoint)
 
         try:
             gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token=settings.GITLAB_POST_PROCESS_TOKEN)
@@ -166,10 +164,8 @@ class Processes(Resource):
             })
             print(f"Triggered pipeline ID: {pipeline.id}")
         except: 
-            # graceal make sure this is edited object correctly 
-            print("graceal1 failed to submit job with ")
-            print(response)
-            print(response.status_code)
+            # TODO graceal make sure this is edited object correctly 
+            print("graceal failed to submit process to pipeline")
             existingDeployment = db.session \
                 .query(Deployment_db) \
                 .filter_by(job_id=deployment_job_id) \
@@ -177,7 +173,6 @@ class Processes(Resource):
             existingDeployment.status = "failed to submit to "+ existingDeployment.execution_venue
             db.session.commit()
 
-            print(f"Error {response.status_code}: {response.text}")  
             response_body["code"] = status.HTTP_500_INTERNAL_SERVER_ERROR
             response_body["message"] = "Failed to start CI/CD to deploy process. "+settings.DEPLOY_PROCESS_EXECUTION_VENUE+" is likely down"
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
