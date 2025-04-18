@@ -13,4 +13,4 @@ class Deployment(Base):
     id = db.Column(db.String(), nullable=False)
     version = db.Column(db.String(), nullable=False)
     user = db.Column(db.Integer, db.ForeignKey('member.id'), nullable=False)
-    processLocation = db.Column(db.String(), nullable=True)
+    process_location = db.Column(db.String(), nullable=True)

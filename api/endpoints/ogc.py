@@ -26,7 +26,8 @@ from datetime import datetime
 import json
 import requests
 import gitlab
-import time
+from cwl_utils.parser import load_document_by_uri, cwl_v1_2
+import urllib.parse
 
 from api.utils import job_queue
 
@@ -85,14 +86,42 @@ class Processes(Resource):
         req_data = sample_object
         response_body = dict()
 
-        # Check if id and version already present in our database
-        # Need to get the CWL and parse it for id and version myself 
-        id = "test"
-        process_version = 1
+        cwl_link = req_data.get("executionUnit").get("href")
+        try:
+            response = requests.get(cwl_link).text
+        except:
+            print("Error accessing cwl file")
+            response_body["message"] = "Unable to access CWL"
+            return response_body, status.HTTP_400_BAD_REQUEST
+        
+        # TODO right now this will make 2 requests to get the data and I should fix that later
+        cwl_obj = load_document_by_uri(cwl_link, load_all=True)
+
+        workflow = None
+        for i in range(len(cwl_obj)):
+            if type(cwl_obj[i]) == cwl_v1_2.Workflow:
+                workflow = cwl_obj[i]
+        cwl_id = workflow.id
+        match = re.search(r"s:version:\s*(\S+)", response, re.IGNORECASE)
+
+        if not match or not cwl_id:
+            print("Need to provide version at s:version or id")
+            response_body["message"] = "Need to provide version at s:version or id"
+            print(match)
+            print(cwl_id)
+            return response_body, status.HTTP_400_BAD_REQUEST
+        
+        fragment = urllib.parse.urlparse(cwl_id).fragment
+        cwl_id = os.path.basename(fragment)
+        process_version = match.group(1)
+
+        print("graceal1 id and version are")
+        print(cwl_id)
+        print(process_version)
         
         existingProcess = db.session \
             .query(Process_db) \
-            .filter_by(id=id, version=process_version) \
+            .filter_by(id=cwl_id, version=process_version) \
             .first()
         print("graceal existing process is ")
         print(existingProcess)
@@ -104,65 +133,49 @@ class Processes(Resource):
             return response_body, status.HTTP_409_CONFLICT
 
         user = get_authorized_user()
-        cwl_link = req_data.get("executionUnit").get("href")
 
         # need to create deployment before this call to get the job_id 
         deployment = Deployment_db(created=datetime.now(),
                                 execution_venue=settings.DEPLOY_PROCESS_EXECUTION_VENUE, 
                                 status="submitted", # TODO not consistent with gitlab status endpoints I think, but can update later 
-                                cwl_link = cwl_link,
+                                cwl_link=cwl_link,
                                 user=user.id,
-                                id=id,
+                                id=cwl_id,
                                 version=process_version)
-        print("graceal1 created deployment and trying to get job_id")
-        deployment_job_id = deployment.job_id
-        print(deployment_job_id)
         db.session.add(deployment)
         db.session.commit()
 
-        # TODO fix this so that it creates a url right  
-        deploymentJobsEndpoint = CURRENT_API_ENDPOINT + ns + "/deploymentJobs/" + deployment_job_id
-
-        gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token=settings.GITLAB_POST_PROCESS_TOKEN)
-        project = gl.projects.get(settings.GITLAB_PROJECT_ID_POST_PROCESS)
-        pipeline = project.pipelines.create({
-            'ref': settings.VERSION,
-            'variables': [
-                {'key': 'CWL_URL', 'value': cwl_link},
-                {'key': 'CALLBACK_URL', 'value': deploymentJobsEndpoint}
-            ]
-        })
-        print(f"Triggered pipeline ID: {pipeline.id}")
-
-        if response.status_code == status.HTTP_202_ACCEPTED:
-            response = response.json()
-            print("Success:", response) 
-            
-            pipeline_id = response['id']
-            
-            response_body["id"] = id
-            response_body["version"] = process_version
-            response_body["processPipelineLink"] = process_pipeline_link
-            response_body["deploymentJobsEndpoint"] = deploymentJobsEndpoint
-
-            # Update the deployment you just created with the pipeline id and status from gitlab
-            existingDeployment = db.session \
+        deployment = db.session \
                 .query(Deployment_db) \
-                .filter_by(job_id=deployment_job_id) \
+                .filter_by(id=cwl_id,version=process_version,status="submitted") \
                 .first()
-            existingDeployment.pipeline_id = pipeline_id
 
-            # TODO need to somehow get this from putting things together and creating the pipeline
-            process_pipeline_link = settings.DEPLOY_PROCESS_EXECUTION_LINK + pipeline_id
+        print("graceal1 created deployment and trying to get job_id")
+        deployment_job_id = deployment.job_id
+        print(deployment_job_id)
+        
 
-            # TODO check what first state is, just hard code this in 
-            #because already making the cwl request in this function so slow
-            existingDeployment.status = "first state" 
-            
-            db.session.commit()
-            return response_body, status.HTTP_202_ACCEPTED
-        else:
+        # TODO fix this so that it creates a url right  
+        deploymentJobsEndpoint = request.host_url + "api/" + ns.name + "/deploymentJobs/" + str(deployment_job_id)
+        print("graceal1 deploymentJobsEndpoint is ")
+        print(deploymentJobsEndpoint)
+
+        try:
+            gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token=settings.GITLAB_POST_PROCESS_TOKEN)
+            project = gl.projects.get(settings.GITLAB_PROJECT_ID_POST_PROCESS)
+            pipeline = project.pipelines.create({
+                'ref': settings.VERSION,
+                'variables': [
+                    {'key': 'CWL_URL', 'value': cwl_link},
+                    {'key': 'CALLBACK_URL', 'value': deploymentJobsEndpoint}
+                ]
+            })
+            print(f"Triggered pipeline ID: {pipeline.id}")
+        except: 
             # graceal make sure this is edited object correctly 
+            print("graceal1 failed to submit job with ")
+            print(response)
+            print(response.status_code)
             existingDeployment = db.session \
                 .query(Deployment_db) \
                 .filter_by(job_id=deployment_job_id) \
@@ -172,41 +185,70 @@ class Processes(Resource):
 
             print(f"Error {response.status_code}: {response.text}")  
             response_body["code"] = status.HTTP_500_INTERNAL_SERVER_ERROR
-            response_body["detail"] = "Failed to start CI/CD to deploy process. GitLab is likely down"
+            response_body["message"] = "Failed to start CI/CD to deploy process. "+settings.DEPLOY_PROCESS_EXECUTION_VENUE+" is likely down"
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
 
+        # Update the deployment you just created with the pipeline id and status from gitlab
+        existingDeployment = db.session \
+            .query(Deployment_db) \
+            .filter_by(job_id=deployment_job_id) \
+            .first()
+        existingDeployment.pipeline_id = pipeline.id
 
-@ns.route('/deploymentJobs/<integer:job_id>')
+        response_body["id"] = cwl_id
+        response_body["version"] = process_version
+        response_body["deploymentJobsEndpoint"] = deploymentJobsEndpoint
+
+        # TODO make sure this sets the pipeline link right 
+        process_pipeline_link = pipeline.web_url
+        response_body["processPipelineLink"] = process_pipeline_link
+
+        existingDeployment.status = "created" 
+        
+        db.session.commit()
+        return response_body, status.HTTP_202_ACCEPTED
+
+@ns.route('/deploymentJobs/<int:job_id>')
 class Deployment(Resource):
 
     def get(self, job_id):
-        deployment = db.session.query(Deployment_db).filter(job_id=job_id).first()
+        print("graceal1 in deployment jobs get")
+        response_body = dict()
+        deployment = db.session.query(Deployment_db).filter_by(job_id=job_id).first()
 
         if (not deployment):
-            # TODO return 404 or whatever 
-            return None
+            response_body["code"] = status.HTTP_404_NOT_FOUND
+            response_body["message"] = "No deployment with that deployment ID found"
+            return response_body, status.HTTP_404_NOT_FOUND
+        
+        gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token=settings.GITLAB_POST_PROCESS_TOKEN)
+        project = gl.projects.get(settings.GITLAB_PROJECT_ID_POST_PROCESS)
+        pipeline = project.pipelines.get(deployment.pipeline_id)
 
-        # make constant with all possible pending statuses 
-        if (deployment.status == "pending"):
-            # Only query pipeline link if status is not finished 
-            gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token=settings.GITLAB_POST_PROCESS_TOKEN)
-            project = gl.projects.get(settings.GITLAB_PROJECT_ID_POST_PROCESS)
-            pipeline = project.pipelines.get(deployment.pipeline_id)
+        # Only query pipeline link if status is not finished 
+        pending_status_options = ["created", "waiting_for_resource", "preparing", "pending", "running", "scheduled"]
+        if (deployment.status in pending_status_options):
+            print("graceal1 current deployment status was something that was pending")
+            
+            # Update the current pipeline status 
             deployment.status = pipeline.status
             db.session.commit()
 
-            # if the status has changed to successful, then add to the Process table 
-            if (pipeline.status == "successful"):
+            # if the status has changed to success, then add to the Process table 
+            if (pipeline.status == "success"):
+                print("graceal1 pipeline status was pending but is now success so adding ")
                 existingProcess = db.session \
                     .query(Process_db) \
                     .filter_by(id=deployment.id, version=deployment.version) \
                     .first()
                 # if process with same id and version already exist, you just need to overwrite with the same process id 
                 if (existingProcess):
+                    print("graceal1 similar proces already in the same")
                     existingProcess.cwl_link = deployment.cwl_link
                     existingProcess.user = deployment.user
                     process_id = existingProcess.process_id
                 else:
+                    print("graceal1 creating new process to add to the table")
                     process = Process_db(id=deployment.id,
                                     version=deployment.version,
                                     cwl_link=deployment.cwl_link,
@@ -215,7 +257,7 @@ class Deployment(Resource):
                     process_id = process.process_id
                 
                 # TODO correct endpoint 
-                deployment.process_location = CURRENT_API_ENDPOINT + ns + "/processes/"+process_id
+                deployment.process_location = request.host_url + "api/" + ns.name +  "/processes/"+str(process_id)
                 db.session.commit()
         
         response_body = {
@@ -224,7 +266,7 @@ class Deployment(Resource):
             "pipeline": {
                 "executionVenue": deployment.execution_venue,
                 "pipelineId": deployment.pipeline_id,
-                "processPipelineLink": settings.DEPLOY_PROCESS_EXECUTION_LINK + deployment.pipeline_id
+                "processPipelineLink": pipeline.web_url
             },
             "cwl": deployment.cwl_link
         }

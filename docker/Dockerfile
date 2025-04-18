@@ -12,10 +12,15 @@ ENV PATH="${PATH}:/root/.local/bin" \
 
 WORKDIR /maap-api-nasa
 
+# Need to generate poetry.lock and pin cwl-utils version
 COPY pyproject.toml poetry.lock ./
 RUN touch README.md
 
-RUN poetry install --without dev --no-root && rm -rf $POETRY_CACHE_DIR
+#RUN poetry install --without dev --no-root && rm -rf $POETRY_CACHE_DIR
+RUN poetry update --without dev && rm -rf $POETRY_CACHE_DIR
+
+# RUN poetry add cwl-utils@0.33
+# RUN poetry add python-gitlab
 
 FROM python:3.9-slim as runtime
 
