@@ -2,7 +2,8 @@
 FROM python:3.9 as builder
 
 # Install Poetry
-RUN curl -sSL https://install.python-poetry.org | python3 -
+RUN curl -sSL https://install.python-poetry.org | python3 - && \
+    export PATH="/root/.local/bin:$PATH" 
 
 ENV PATH="${PATH}:/root/.local/bin" \
     POETRY_NO_INTERACTION=1 \
@@ -12,15 +13,10 @@ ENV PATH="${PATH}:/root/.local/bin" \
 
 WORKDIR /maap-api-nasa
 
-# Need to generate poetry.lock and pin cwl-utils version
 COPY pyproject.toml poetry.lock ./
 RUN touch README.md
 
-#RUN poetry install --without dev --no-root && rm -rf $POETRY_CACHE_DIR
-RUN poetry update --without dev && rm -rf $POETRY_CACHE_DIR
-
-# RUN poetry add cwl-utils@0.33
-# RUN poetry add python-gitlab
+RUN poetry install --without dev --no-root && rm -rf $POETRY_CACHE_DIR
 
 FROM python:3.9-slim as runtime
 
