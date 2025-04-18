@@ -76,14 +76,8 @@ class Processes(Resource):
         :return:
         """
         print("graceal in post of processes in new file")
-        # execution unit should be a cwl with the algorithm 
-        sample_object = {
-                # note that this represents the CWL from the user 
-                "executionUnit": {
-                    "href": "https://raw.githubusercontent.com/MAAP-Project/sardem-sarsen/refs/heads/mlucas/nasa-ogc/workflows/process_sardem-sarsen_mlucas_nasa-ogc.cwl"
-                }
-            }
-        req_data = sample_object
+        req_data_string = request.data.decode("utf-8")
+        req_data = json.loads(req_data_string)
         response_body = dict()
 
         cwl_link = req_data.get("executionUnit").get("href")
