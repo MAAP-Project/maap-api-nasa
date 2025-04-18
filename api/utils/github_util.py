@@ -1,4 +1,3 @@
-
 from git import Repo
 import logging
 import os

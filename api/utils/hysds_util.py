@@ -205,57 +205,6 @@ def create_hysds_io(algorithm_description, inputs, verified=False, submission_ty
     hysds_io["params"] = params
     return hysds_io
 
-def create_hysds_io_ogc(algorithm_description, inputs, verified=False, submission_type="individual"):
-    """
-    Creates the contents of HySDS IO file
-    :param algorithm_description:
-    :param inputs:
-    :param verified: indicated whether algorithm is EcoSML verified
-    :param submission_type:
-    :return:
-    """
-    hysds_io = dict()
-    hysds_io["label"] = algorithm_description
-    hysds_io["submission_type"] = submission_type
-    params = list()
-
-    for input_key in inputs:
-        param_spec = dict()
-        print("graceal1 printing inputs")
-        print(inputs)
-        print(inputs[input_key])
-        print(inputs[input_key].get("title"))
-        param_spec["name"] = inputs[input_key].get("title")
-        """ Future code to support hardcoded values
-        param_spec["from"] = "value"
-        param_spec["value"] = param.get("value")
-        """
-        # param_spec["from"] = "submitter"
-        # graceal type isnt an input right now 
-        # param_spec["type"] = set_hysds_io_type(input.get("data_type"))
-        # Defaults dont seem to be OGC compliant right now 
-        # if param.get("default") is not None:
-        #     param_spec["default"] = param.get("default")
-        params.append(param_spec)
-
-    if verified:
-        # graceal Need to test this 
-        verified_param = dict()
-        verified_param["name"] = "publish_to_cmr"
-        verified_param["from"] = "submitter"
-        verified_param["type"] = "boolean"
-        verified_param["default"] = "false"
-        cmr_met_param = dict()
-        cmr_met_param["name"] = "cmr_collection_id"
-        cmr_met_param["from"] = "submitter"
-        cmr_met_param["type"] = "text"
-        cmr_met_param["default"] = ""
-        params.append(verified_param)
-        params.append(cmr_met_param)
-
-    hysds_io["params"] = params
-    return hysds_io
-
 def create_job_spec(run_command, inputs, disk_usage, queue_name, verified=False):
     """
     Creates the contents of the job spec file
@@ -293,56 +242,6 @@ def create_job_spec(run_command, inputs, disk_usage, queue_name, verified=False)
             params.append(param_spec)
 
     if verified:
-        verified_param = dict()
-        verified_param["name"] = "publish_to_cmr"
-        verified_param["destination"] = "context"
-        cmr_met_param = dict()
-        cmr_met_param["name"] = "cmr_collection_id"
-        cmr_met_param["destination"] = "context"
-        params.append(verified_param)
-        params.append(cmr_met_param)
-    job_spec["params"] = params
-    return job_spec
-
-def create_job_spec_ogc(run_command, inputs, disk_usage, queue_name, verified=False):
-    """
-    Creates the contents of the job spec file
-    :param run_command:
-    :param inputs:
-    :param disk_usage: minimum free disk usage required to run job specified as
-    "\d+(GB|MB|KB)", e.g. "100GB", "20MB", "10KB"
-    :param queue_name: set the recommended queue to run the algorithm on
-    :param verified: indicated whether algorithm is EcoSML verified
-    :return:
-    """
-    job_spec = dict()
-    job_spec["command"] = "/app/dps_wrapper.sh '{}'".format(run_command)
-    job_spec["disk_usage"] = disk_usage
-    job_spec["imported_worker_files"] = {
-        "$HOME/.netrc": "/home/ops/.netrc",
-        "$HOME/.aws": "/home/ops/.aws",
-        "$HOME/verdi/etc/maap-dps.env": "/home/ops/.maap-dps.env",
-        "/tmp": ["/tmp", "rw"]
-    }
-    job_spec["post"] = ["hysds.triage.triage"]
-    job_spec["recommended-queues"] = [queue_name]
-    params = list()
-    # This part is changed for OGC 
-    for input_key in inputs:
-        # if param_type == "file":
-        #     destination = "localize"
-        # elif param_type == "positional":
-        #     destination = "positional"
-        # elif param_type == "config":
-        #     destination = "context"
-        # for param in inputs.get(param_type):
-        param_spec = dict()
-        param_spec["name"] = inputs[input_key].get("title")
-        # param_spec["destination"] = destination
-        params.append(param_spec)
-
-    if verified:
-        # graceal Need to test this 
         verified_param = dict()
         verified_param["name"] = "publish_to_cmr"
         verified_param["destination"] = "context"
