@@ -128,6 +128,10 @@ class Processes(Resource):
 
         user = get_authorized_user()
 
+        print("graceal1 settings.DEPLOY_PROCESS_EXECUTION_VENUE is ")
+        print(settings.DEPLOY_PROCESS_EXECUTION_VENUE)
+        print("done printing deployment venue")
+
         # need to create deployment before this call to get the job_id 
         deployment = Deployment_db(created=datetime.now(),
                                 execution_venue=settings.DEPLOY_PROCESS_EXECUTION_VENUE, 
