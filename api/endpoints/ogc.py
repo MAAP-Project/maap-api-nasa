@@ -6,6 +6,7 @@ import sqlalchemy
 from flask import request, Response
 from flask_restx import Resource, reqparse
 from flask_api import status
+from flask import current_app
 
 from api.models.member import Member
 from api.restplus import api
@@ -153,7 +154,7 @@ class Processes(Resource):
         print(deployment_job_id)
         
 
-        # TODO fix this so that it creates a url right  
+        # TODO make sure this is returning https not http
         deploymentJobsEndpoint = request.host_url + "api/" + ns.name + "/deploymentJobs/" + str(deployment_job_id)
 
         try:
@@ -192,7 +193,6 @@ class Processes(Resource):
         response_body["version"] = process_version
         response_body["deploymentJobsEndpoint"] = deploymentJobsEndpoint
 
-        # TODO make sure this sets the pipeline link right 
         process_pipeline_link = pipeline.web_url
         response_body["processPipelineLink"] = process_pipeline_link
 
@@ -205,7 +205,7 @@ class Processes(Resource):
 class Deployment(Resource):
 
     def get(self, job_id):
-        print("graceal1 in deployment jobs get")
+        current_app.logger.debug("graceal1 in deployment jobs get")
         response_body = dict()
         deployment = db.session.query(Deployment_db).filter_by(job_id=job_id).first()
 
@@ -221,7 +221,7 @@ class Deployment(Resource):
         # Only query pipeline link if status is not finished 
         pending_status_options = ["created", "waiting_for_resource", "preparing", "pending", "running", "scheduled"]
         if (deployment.status in pending_status_options):
-            print("graceal1 current deployment status was something that was pending")
+            current_app.logger.debug("graceal1 current deployment status was something that was pending")
             
             # Update the current pipeline status 
             deployment.status = pipeline.status
@@ -229,27 +229,33 @@ class Deployment(Resource):
 
             # if the status has changed to success, then add to the Process table 
             if (pipeline.status == "success"):
-                print("graceal1 pipeline status was pending but is now success so adding ")
+                current_app.logger.debug("graceal1 pipeline status was pending but is now success so adding ")
                 existingProcess = db.session \
                     .query(Process_db) \
                     .filter_by(id=deployment.id, version=deployment.version) \
                     .first()
                 # if process with same id and version already exist, you just need to overwrite with the same process id 
                 if (existingProcess):
-                    print("graceal1 similar proces already in the same")
+                    current_app.logger.debug("graceal1 similar proces already in the same")
                     existingProcess.cwl_link = deployment.cwl_link
                     existingProcess.user = deployment.user
                     process_id = existingProcess.process_id
                 else:
-                    print("graceal1 creating new process to add to the table")
+                    current_app.logger.debug("graceal1 creating new process to add to the table")
                     process = Process_db(id=deployment.id,
                                     version=deployment.version,
                                     cwl_link=deployment.cwl_link,
                                     user=deployment.user)
                     db.session.add(process)
+                    db.session.commit()
+
+                    process = db.session \
+                        .query(Process_db) \
+                        .filter_by(id=deployment.id, version=deployment.version) \
+                        .first()
                     process_id = process.process_id
                 
-                # TODO correct endpoint 
+                # TODO fix this so returning https not http 
                 deployment.process_location = request.host_url + "api/" + ns.name +  "/processes/"+str(process_id)
                 db.session.commit()
         
