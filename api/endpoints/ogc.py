@@ -300,6 +300,9 @@ class Describe(Resource):
         
         print("graceal got response for hysds get job spec")
         print(response)
+        current_app.logger.debug("graceal got response for hysds get job spec")
+        current_app.logger.debug(response)
+
 
         # hysdsio_type = job_type.replace("job-", "hysds-io-")
         # hysds_io = hysds.get_hysds_io(hysdsio_type)
