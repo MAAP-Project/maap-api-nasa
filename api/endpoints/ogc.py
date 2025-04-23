@@ -90,6 +90,8 @@ class Processes(Resource):
             return response_body, status.HTTP_400_BAD_REQUEST
         
         # TODO right now this will make 2 requests to get the data and I should fix that later
+        # ideally need to save all the contents to a file then read from that for load document
+        # do saving and deleting of this file in try catch 
         cwl_obj = load_document_by_uri(cwl_link, load_all=True)
 
         workflow = None
@@ -124,7 +126,7 @@ class Processes(Resource):
         # If process with same ID and version is already present, tell the user they need to use PUT instead to modify
         if existingProcess is not None:
             response_body["code"] = status.HTTP_409_CONFLICT
-            response_body["detail"] = "Duplicate process. Use PUT to modify existing algorithm if you originally published it."
+            response_body["detail"] = "Duplicate process. Use PUT to modify existing process if you originally published it."
             return response_body, status.HTTP_409_CONFLICT
 
         user = get_authorized_user()
@@ -153,9 +155,7 @@ class Processes(Resource):
         deployment_job_id = deployment.job_id
         print(deployment_job_id)
         
-
-        # TODO make sure this is returning https not http
-        deploymentJobsEndpoint = request.host_url + "api/" + ns.name + "/deploymentJobs/" + str(deployment_job_id)
+        deploymentJobsEndpoint = "/deploymentJobs/" + str(deployment_job_id)
 
         try:
             gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token=settings.GITLAB_POST_PROCESS_TOKEN)
@@ -200,16 +200,18 @@ class Processes(Resource):
         
         db.session.commit()
         return response_body, status.HTTP_202_ACCEPTED
-
+  
 @ns.route('/deploymentJobs/<int:job_id>')
 class Deployment(Resource):
 
+    @api.doc(security='ApiKeyAuth')
+    @login_required()
     def get(self, job_id):
         current_app.logger.debug("graceal1 in deployment jobs get")
         response_body = dict()
         deployment = db.session.query(Deployment_db).filter_by(job_id=job_id).first()
 
-        if (not deployment):
+        if deployment is None:
             response_body["code"] = status.HTTP_404_NOT_FOUND
             response_body["message"] = "No deployment with that deployment ID found"
             return response_body, status.HTTP_404_NOT_FOUND
@@ -220,7 +222,7 @@ class Deployment(Resource):
 
         # Only query pipeline link if status is not finished 
         pending_status_options = ["created", "waiting_for_resource", "preparing", "pending", "running", "scheduled"]
-        if (deployment.status in pending_status_options):
+        if deployment.status in pending_status_options:
             current_app.logger.debug("graceal1 current deployment status was something that was pending")
             
             # Update the current pipeline status 
@@ -228,14 +230,14 @@ class Deployment(Resource):
             db.session.commit()
 
             # if the status has changed to success, then add to the Process table 
-            if (pipeline.status == "success"):
+            if pipeline.status == "success":
                 current_app.logger.debug("graceal1 pipeline status was pending but is now success so adding ")
                 existingProcess = db.session \
                     .query(Process_db) \
                     .filter_by(id=deployment.id, version=deployment.version) \
                     .first()
                 # if process with same id and version already exist, you just need to overwrite with the same process id 
-                if (existingProcess):
+                if existingProcess:
                     current_app.logger.debug("graceal1 similar proces already in the same")
                     existingProcess.cwl_link = deployment.cwl_link
                     existingProcess.user = deployment.user
@@ -255,8 +257,7 @@ class Deployment(Resource):
                         .first()
                     process_id = process.process_id
                 
-                # TODO fix this so returning https not http 
-                deployment.process_location = request.host_url + "api/" + ns.name +  "/processes/"+str(process_id)
+                deployment.process_location = "/processes/"+str(process_id)
                 db.session.commit()
         
         response_body = {
@@ -270,14 +271,45 @@ class Deployment(Resource):
             "cwl": deployment.cwl_link
         }
 
-        if (deployment.process_location):
+        if deployment.process_location:
             response_body["processLocation"] = deployment.process_location
         return response_body, status.HTTP_200_OK
         
    
-@ns.route('/algorithm/<string:process_id>')
+@ns.route('/processes/<string:process_id>')
 class Describe(Resource):
 
     def get(self, process_id):
-        process = db.session.query(Process_db).filter(process_id=process_id).first()
-        # Need to get the rest from hysds, figure out how to make calls from Sujen 
+        print("graceal in the body of describe")
+        response_body = dict()
+
+        existingProcess = db.session \
+                    .query(Process_db) \
+                    .filter_by(process_id=process_id) \
+                    .first()
+        if existingProcess is None:
+            response_body["code"] = status.HTTP_404_NOT_FOUND
+            response_body["message"] = "No process with that process ID found"
+            return response_body, status.HTTP_404_NOT_FOUND 
+        
+        job_type = "job-{}:{}".format(existingProcess.id, existingProcess.version)
+        print("graceal printing job type")
+        print(job_type)
+        # maybe change to get_hysds_io
+        response = hysds.get_job_spec(job_type)
+        
+        print("graceal got response for hysds get job spec")
+        print(response)
+
+        # hysdsio_type = job_type.replace("job-", "hysds-io-")
+        # hysds_io = hysds.get_hysds_io(hysdsio_type)
+        # print("graceal got response hysds io")
+        # print(hysds_io)
+        # if response is None:
+        #     response_body["code"] = status.HTTP_404_NOT_FOUND
+        #     response_body["message"] = "No process with that process ID found on HySDS"
+        #     return response_body, status.HTTP_404_NOT_FOUND 
+        # print("graceal result of response")
+        # print(response.get("result"))
+        
+        return response_body
