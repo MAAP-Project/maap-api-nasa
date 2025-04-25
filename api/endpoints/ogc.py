@@ -292,7 +292,8 @@ class Describe(Resource):
             response_body["message"] = "No process with that process ID found"
             return response_body, status.HTTP_404_NOT_FOUND 
         
-        job_type = "job-{}:{}".format(existingProcess.id, existingProcess.version)
+        # job_type = "job-{}:{}".format(existingProcess.id, existingProcess.version)
+        job_type = "job-{}:{}".format(existingProcess.id, "1.0.0")
         print("graceal printing job type")
         print(job_type)
         # maybe change to get_hysds_io
