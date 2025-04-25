@@ -297,18 +297,20 @@ class Describe(Resource):
         print("graceal printing job type")
         print(job_type)
         # maybe change to get_hysds_io
-        response = hysds.get_job_spec(job_type)
+        # response = hysds.get_job_spec(job_type)
         
-        print("graceal got response for hysds get job spec")
-        print(response)
-        current_app.logger.debug("graceal got response for hysds get job spec")
-        current_app.logger.debug(response)
+        # print("graceal got response for hysds get job spec")
+        # print(response)
+        # current_app.logger.debug("graceal got response for hysds get job spec")
+        # current_app.logger.debug(response)
 
 
-        # hysdsio_type = job_type.replace("job-", "hysds-io-")
-        # hysds_io = hysds.get_hysds_io(hysdsio_type)
-        # print("graceal got response hysds io")
-        # print(hysds_io)
+        hysdsio_type = job_type.replace("job-", "hysds-io-")
+        hysds_io = hysds.get_hysds_io(hysdsio_type)
+        current_app.logger.debug("graceal got response hysds io")
+        current_app.logger.debug(hysds_io)
+        print("graceal1 got response hysds io")
+        print(hysds_io)
         # if response is None:
         #     response_body["code"] = status.HTTP_404_NOT_FOUND
         #     response_body["message"] = "No process with that process ID found on HySDS"
