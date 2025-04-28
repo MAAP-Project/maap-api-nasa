@@ -293,29 +293,35 @@ class Describe(Resource):
             return response_body, status.HTTP_404_NOT_FOUND 
         
         # job_type = "job-{}:{}".format(existingProcess.id, existingProcess.version)
-        job_type = "job-{}:{}".format(existingProcess.id, "1.0.0")
-        print("graceal printing job type")
-        print(job_type)
         # maybe change to get_hysds_io
         # response = hysds.get_job_spec(job_type)
-        
-        # print("graceal got response for hysds get job spec")
-        # print(response)
-        # current_app.logger.debug("graceal got response for hysds get job spec")
-        # current_app.logger.debug(response)
 
-
-        hysdsio_type = job_type.replace("job-", "hysds-io-")
-        hysds_io = hysds.get_hysds_io(hysdsio_type)
+        hysdsio_type = "hysds-io-{}:{}".format(existingProcess.id, existingProcess.version)
+        response = hysds.get_hysds_io(hysdsio_type)
         current_app.logger.debug("graceal got response hysds io")
-        current_app.logger.debug(hysds_io)
+        current_app.logger.debug(response)
         print("graceal1 got response hysds io")
-        print(hysds_io)
-        # if response is None:
-        #     response_body["code"] = status.HTTP_404_NOT_FOUND
-        #     response_body["message"] = "No process with that process ID found on HySDS"
-        #     return response_body, status.HTTP_404_NOT_FOUND 
-        # print("graceal result of response")
-        # print(response.get("result"))
+        print(response)
+        if response is None or not response.get("success"):
+            response_body["code"] = status.HTTP_404_NOT_FOUND
+            response_body["message"] = "No process with that process ID found on HySDS"
+            return response_body, status.HTTP_404_NOT_FOUND 
+
+        response = response.get("result")
+        print("graceal result of response")
+        print(response)
+        response_body["description"] = response.get("description")
+        response_body["id"] = response.get("id")
+        response_body["version"] = response.get("job-version")
+        # is this close enough to the same thing? 
+        response_body["title"] = response.get("label")
+        # need to refine this to be what OGC is expecting, etc.
+        count = 1
+        response_body["inputs"] = {}
+        for param in response.get("params"):
+            response_body["inputs"]["additionalProp"+str(count)] = {"title": param.get("name"), "description": param.get("description"), "type": param.get("type"), "placeholder": param.get("placeholder"), "default": param.get("default")}
+            count+=1
+        # important things missing: outputs, 
+        response_body["links"] = {"href": existingProcess.cwl_link}
         
         return response_body
