@@ -311,7 +311,7 @@ class Describe(Resource):
         print("graceal result of response")
         print(response)
         response_body["description"] = response.get("description")
-        response_body["id"] = response.get("id")
+        response_body["id"] = existingProcess.id
         response_body["version"] = response.get("job-version")
         # is this close enough to the same thing? 
         response_body["title"] = response.get("label")
@@ -324,4 +324,4 @@ class Describe(Resource):
         # important things missing: outputs, 
         response_body["links"] = [{"href": existingProcess.cwl_link}]
         
-        return response_body
+        return response_body, status.HTTP_200_OK
