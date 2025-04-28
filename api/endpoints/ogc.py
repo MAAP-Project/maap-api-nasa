@@ -322,6 +322,6 @@ class Describe(Resource):
             response_body["inputs"]["additionalProp"+str(count)] = {"title": param.get("name"), "description": param.get("description"), "type": param.get("type"), "placeholder": param.get("placeholder"), "default": param.get("default")}
             count+=1
         # important things missing: outputs, 
-        response_body["links"] = {"href": existingProcess.cwl_link}
+        response_body["links"] = [{"href": existingProcess.cwl_link}]
         
         return response_body
