@@ -16,4 +16,4 @@ docker/logs/
 /logs/
 /dist/
 
-/docker/docker-compose-local.yml
+docker/docker-compose-local.yml
