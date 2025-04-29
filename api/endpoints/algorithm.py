@@ -427,7 +427,7 @@ class Describe(Resource):
                                                   ex_message="Algorithm not found. {}".format(job_type)),
                                 status=status.HTTP_404_NOT_FOUND,mimetype='text/xml')
             params = response.get("result").get("params")
-            queue = response.get("result").get("recommended-queues")[0]
+            queue = response.get("result").get("recommended-queues", [""])[0]
             response_body = ogc.describe_process_response(algo_id, params, queue)
             return Response(response_body, mimetype='text/xml')
         except Exception as ex:
