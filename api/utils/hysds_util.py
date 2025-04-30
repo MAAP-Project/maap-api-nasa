@@ -560,7 +560,7 @@ def get_recommended_queue(job_type):
     return recommended_queue if recommended_queue != "" else api.utils.job_queue.get_default_queue().queue_name
 
 
-def validate_job_submit(hysds_io, user_params):
+def validate_job_submit(hysds_io, user_params, username):
     """
     Given user's input params and the hysds-io spec for the job type
     This function validates if all the input params were provided,
@@ -587,7 +587,7 @@ def validate_job_submit(hysds_io, user_params):
     """
     validated_params = dict()
     # do not miss the username in params
-    validated_params["username"] = user_params.get("username")
+    validated_params["username"] = username
     for p in known_params:
         if user_params.get(p) is not None:
             validated_params[p] = user_params.get(p)
