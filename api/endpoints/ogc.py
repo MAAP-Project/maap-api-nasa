@@ -84,7 +84,9 @@ class Processes(Resource):
             response = response.text
         except:
             print("Error accessing cwl file")
-            response_body["message"] = "Unable to access CWL"
+            # Technically response_body["type"] is required but that is a whole thing to implement with URIs: https://datatracker.ietf.org/doc/html/rfc7807
+            response_body["status"] = status.HTTP_400_BAD_REQUEST
+            response_body["detail"] = "Unable to access CWL"
             return response_body, status.HTTP_400_BAD_REQUEST
         
         # TODO right now this will make 2 requests to get the data and I should fix that later
@@ -100,8 +102,8 @@ class Processes(Resource):
         match = re.search(r"s:version:\s*(\S+)", response, re.IGNORECASE)
 
         if not match or not cwl_id:
-            response_body["code"] = status.HTTP_400_BAD_REQUEST
-            response_body["message"] = "Need to provide version at s:version or id"
+            response_body["status"] = status.HTTP_400_BAD_REQUEST
+            response_body["detail"] = "Need to provide version at s:version or id"
             print(match)
             print(cwl_id)
             return response_body, status.HTTP_400_BAD_REQUEST
@@ -123,8 +125,9 @@ class Processes(Resource):
         
         # If process with same ID and version is already present, tell the user they need to use PUT instead to modify
         if existingProcess is not None:
-            response_body["code"] = status.HTTP_409_CONFLICT
+            response_body["status"] = status.HTTP_409_CONFLICT
             response_body["detail"] = "Duplicate process. Use PUT to modify existing process if you originally published it."
+            response_body["additionalProperties"] = {"process_id": existingProcess.process_id}
             return response_body, status.HTTP_409_CONFLICT
 
         user = get_authorized_user()
@@ -176,8 +179,8 @@ class Processes(Resource):
             existingDeployment.status = "Failed to submit to "+ existingDeployment.execution_venue
             db.session.commit()
 
-            response_body["code"] = status.HTTP_500_INTERNAL_SERVER_ERROR
-            response_body["message"] = "Failed to start CI/CD to deploy process. "+settings.DEPLOY_PROCESS_EXECUTION_VENUE+" is likely down"
+            response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
+            response_body["detail"] = "Failed to start CI/CD to deploy process. "+settings.DEPLOY_PROCESS_EXECUTION_VENUE+" is likely down"
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
 
         # Update the deployment you just created with the pipeline id and status from gitlab
@@ -209,8 +212,8 @@ class Deployment(Resource):
         deployment = db.session.query(Deployment_db).filter_by(job_id=job_id).first()
 
         if deployment is None:
-            response_body["code"] = status.HTTP_404_NOT_FOUND
-            response_body["message"] = "No deployment with that deployment ID found"
+            response_body["status"] = status.HTTP_404_NOT_FOUND
+            response_body["detail"] = "No deployment with that deployment ID found"
             return response_body, status.HTTP_404_NOT_FOUND
         
         gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token=settings.GITLAB_POST_PROCESS_TOKEN)
@@ -285,8 +288,8 @@ class Describe(Resource):
                     .filter_by(process_id=process_id) \
                     .first()
         if existingProcess is None:
-            response_body["code"] = status.HTTP_404_NOT_FOUND
-            response_body["message"] = "No process with that process ID found"
+            response_body["status"] = status.HTTP_404_NOT_FOUND
+            response_body["detail"] = "No process with that process ID found"
             return response_body, status.HTTP_404_NOT_FOUND 
         
         # job_type = "job-{}:{}".format(existingProcess.id, existingProcess.version)
@@ -300,8 +303,8 @@ class Describe(Resource):
         print("graceal1 got response hysds io")
         print(response)
         if response is None or not response.get("success"):
-            response_body["code"] = status.HTTP_404_NOT_FOUND
-            response_body["message"] = "No process with that process ID found on HySDS"
+            response_body["status"] = status.HTTP_404_NOT_FOUND
+            response_body["detail"] = "No process with that process ID found on HySDS"
             return response_body, status.HTTP_404_NOT_FOUND 
 
         response = response.get("result")
@@ -335,8 +338,8 @@ class Describe(Resource):
         try:
             user = get_authorized_user()
         except:
-            response_body["code"] = status.HTTP_500_INTERNAL_SERVER_ERROR
-            response_body["message"] = "Failed authenticate user"
+            response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
+            response_body["detail"] = "Failed authenticate user"
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
             
         # Get existing process 
@@ -346,8 +349,8 @@ class Describe(Resource):
                     .first()
         
         if existingProcess is None:
-            response_body["code"] = status.HTTP_404_NOT_FOUND
-            response_body["message"] = "No process with that process ID found"
+            response_body["status"] = status.HTTP_404_NOT_FOUND
+            response_body["detail"] = "No process with that process ID found"
             return response_body, status.HTTP_404_NOT_FOUND 
         
         req_data_string = request.data.decode("utf-8")
@@ -358,8 +361,8 @@ class Describe(Resource):
         print(existingProcess.user)
         # Make sure same user who originally posted process 
         if user.id != existingProcess.user:
-            response_body["code"] = status.HTTP_403_FORBIDDEN
-            response_body["message"] = "You can only modify processes that you posted originally"
+            response_body["status"] = status.HTTP_403_FORBIDDEN
+            response_body["detail"] = "You can only modify processes that you posted originally"
             return response_body, status.HTTP_403_FORBIDDEN 
         
         try:
@@ -369,7 +372,7 @@ class Describe(Resource):
             response = response.text
         except:
             print("Error accessing cwl file")
-            response_body["message"] = "Unable to access CWL"
+            response_body["detail"] = "Unable to access CWL"
             return response_body, status.HTTP_400_BAD_REQUEST
         
         # delete the previous entry from HySDS 
@@ -379,8 +382,8 @@ class Describe(Resource):
         #     hysds.delete_mozart_job_type(job_type)
         #     print("graceal1 done deleting the job in mozart")
         # except: 
-        #     response_body["code"] = status.HTTP_500_INTERNAL_SERVER_ERROR
-        #     response_body["message"] = "Failed to process request to delete {}".format(job_type)
+        #     response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
+        #     response_body["detail"] = "Failed to process request to delete {}".format(job_type)
         #     return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
         
         # TODO right now this will make 2 requests to get the data and I should fix that later
@@ -396,8 +399,8 @@ class Describe(Resource):
         match = re.search(r"s:version:\s*(\S+)", response, re.IGNORECASE)
 
         if not match or not new_cwl_id:
-            response_body["code"] = status.HTTP_400_BAD_REQUEST
-            response_body["message"] = "Need to provide version at s:version or id"
+            response_body["status"] = status.HTTP_400_BAD_REQUEST
+            response_body["detail"] = "Need to provide version at s:version or id"
             print(match)
             print(new_cwl_id)
             return response_body, status.HTTP_400_BAD_REQUEST
@@ -411,8 +414,8 @@ class Describe(Resource):
         print(new_process_version)
 
         if new_cwl_id != existingProcess.id or new_process_version != existingProcess.version:
-            response_body["code"] = status.HTTP_400_BAD_REQUEST
-            response_body["message"] = "Need to provide same id and version as previous process which is {}:{}".format(existingProcess.id, existingProcess.version)
+            response_body["status"] = status.HTTP_400_BAD_REQUEST
+            response_body["detail"] = "Need to provide same id and version as previous process which is {}:{}".format(existingProcess.id, existingProcess.version)
             return response_body, status.HTTP_400_BAD_REQUEST
 
         # need to create deployment before this call to get the job_id 
@@ -458,8 +461,8 @@ class Describe(Resource):
             existingDeployment.status = "Failed to submit to "+ existingDeployment.execution_venue
             db.session.commit()
 
-            response_body["code"] = status.HTTP_500_INTERNAL_SERVER_ERROR
-            response_body["message"] = "Failed to start CI/CD to deploy process. "+settings.DEPLOY_PROCESS_EXECUTION_VENUE+" is likely down"
+            response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
+            response_body["detail"] = "Failed to start CI/CD to deploy process. "+settings.DEPLOY_PROCESS_EXECUTION_VENUE+" is likely down"
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
 
         # Update the deployment you just created with the pipeline id and status from gitlab
@@ -503,8 +506,8 @@ class Describe(Resource):
 #                     .filter_by(process_id=process_id) \
 #                     .first()
 #         if existingProcess is None:
-#             response_body["code"] = status.HTTP_404_NOT_FOUND
-#             response_body["message"] = "No process with that process ID found"
+#             response_body["status"] = status.HTTP_404_NOT_FOUND
+#             response_body["detail"] = "No process with that process ID found"
 #             return response_body, status.HTTP_404_NOT_FOUND 
         
 #         inputs = req_data.get("inputs")
@@ -520,8 +523,8 @@ class Describe(Resource):
 #             # graceal, should do this add add validation steps later 
 #             # params = hysds.validate_job_submit(hysds_io, input_params)
 #         except Exception as ex:
-#             response_body["code"] = status.HTTP_500_INTERNAL_SERVER_ERROR
-#             response_body["message"] = "Error validating inputs with HySDS"
+#             response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
+#             response_body["detail"] = "Error validating inputs with HySDS"
 #             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
 
 #         try:
