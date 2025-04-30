@@ -15,5 +15,3 @@ local
 docker/logs/
 /logs/
 /dist/
-
-docker/docker-compose-local.yml

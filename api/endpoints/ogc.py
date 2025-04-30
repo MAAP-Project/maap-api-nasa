@@ -21,6 +21,7 @@ from api.auth.security import get_authorized_user, login_required
 from api.maap_database import db
 from api.models.process import Process as Process_db
 from api.models.deployment import Deployment as Deployment_db
+from api.models.process_job import ProcessJob as ProcessJob_db
 from api.models.member_algorithm import MemberAlgorithm
 from sqlalchemy import or_, and_
 from datetime import datetime
@@ -70,6 +71,8 @@ class Processes(Resource):
     def post(self):
         """
         post a new process
+        Changes to OGC schema: 
+        - for 409 error, adding additionalProperies which is a dictionary with the process id
         :return:
         """
         print("graceal in post of processes in new file")
@@ -371,7 +374,9 @@ class Describe(Resource):
             response.raise_for_status()
             response = response.text
         except:
+            # TODO debatable what error code this should be 
             print("Error accessing cwl file")
+            response_body["status"] = status.HTTP_400_BAD_REQUEST
             response_body["detail"] = "Unable to access CWL"
             return response_body, status.HTTP_400_BAD_REQUEST
         
@@ -482,85 +487,278 @@ class Describe(Resource):
         
         db.session.commit()
         return response_body, status.HTTP_202_ACCEPTED
-  
     
-# @ns.route('/processes/<string:process_id>/execution')
-# class Describe(Resource):
-
-#     @api.doc(security='ApiKeyAuth')
-#     @login_required()
-#     def post(self, process_id):
-#         """
-#         This posts a job to execute 
-#         Changes to OGC schema: 
-#         - adding queue to request body 
-#         :return:
-#         """
-#         print("graceal in the body of executing a job")
-#         req_data_string = request.data.decode("utf-8")
-#         req_data = json.loads(req_data_string)
-#         response_body = dict()
-
-#         existingProcess = db.session \
-#                     .query(Process_db) \
-#                     .filter_by(process_id=process_id) \
-#                     .first()
-#         if existingProcess is None:
-#             response_body["status"] = status.HTTP_404_NOT_FOUND
-#             response_body["detail"] = "No process with that process ID found"
-#             return response_body, status.HTTP_404_NOT_FOUND 
+    @api.doc(security='ApiKeyAuth')
+    @login_required()
+    def delete(self, process_id):
+        """
+        delete an existing process
+        Must be the same user who posted the process 
+        :return:
+        """
+        response_body = dict()
+        try:
+            user = get_authorized_user()
+        except:
+            response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
+            response_body["detail"] = "Failed authenticate user"
+            return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
+            
+        # Get existing process 
+        existingProcess = db.session \
+                    .query(Process_db) \
+                    .filter_by(process_id=process_id) \
+                    .first()
         
-#         inputs = req_data.get("inputs")
-#         print("graceal1 inputs from post are")
-#         print(inputs)
-#         job_type = "job-{}:{}".format(existingProcess.id, existingProcess.version)
+        if existingProcess is None:
+            response_body["status"] = status.HTTP_404_NOT_FOUND
+            response_body["detail"] = "No process with that process ID found"
+            return response_body, status.HTTP_404_NOT_FOUND 
 
-#         # validate the inputs provided by user against the registered spec for the job
-#         try:
-#             hysdsio_type = job_type.replace("job-", "hysds-io-")
-#             hysds_io = hysds.get_hysds_io(hysdsio_type)
-#             logging.info("Found HySDS-IO: {}".format(hysds_io))
-#             # graceal, should do this add add validation steps later 
-#             # params = hysds.validate_job_submit(hysds_io, input_params)
-#         except Exception as ex:
-#             response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
-#             response_body["detail"] = "Error validating inputs with HySDS"
-#             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
-
-#         try:
-#             user = get_authorized_user()
-#             queue = req_data.get("queue")
-#             queue = job_queue.validate_or_get_queue(queue, job_type, user.id)
-#             job_time_limit = hysds_io.get("result").get("soft_time_limit", 86400)
-#             if job_queue.contains_time_limit(queue):
-#                 job_time_limit = int(queue.time_limit_minutes) * 60
-#             # what is dedup?? 
-#             response = hysds.mozart_submit_job(job_type=job_type, params=inputs, dedup=dedup, queue=queue.queue_name,
-#                                                identifier="{}:{}".format(existingProcess.id, existingProcess.version), job_time_limit=int(job_time_limit))
-
-#             logging.info("Mozart Response: {}".format(json.dumps(response)))
-#             job_id = response.get("result")
-#             if job_id is not None:
-#                 logging.info("Submitted Job with HySDS ID: {}".format(job_id))
-#                 # the status is hard coded because we query too fast before the record even shows up in ES
-#                 # we wouldn't have a Job ID unless it was a valid payload and got accepted by the system
-#                 if response.get("orig_job_status") is not None:
-#                     job_status = response.get("orig_job_status")
-#                 else:
-#                     job_status = "job-queued"
-#                 self._log_job_submission(job_id, input_params)
-#                 return Response(ogc.status_response(job_id=job_id, job_status=job_status), mimetype='text/xml')
-#             else:
-#                 raise Exception(response.get("message"))
-#         except ValueError as ex:
-#             logging.error(traceback.format_exc())
-#             return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",
-#                                               ex_message=str(ex)), status.HTTP_400_BAD_REQUEST)
-#         except Exception as ex:
-#             logging.info("Error submitting job: {}".format(ex))
-#             return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",
-#                             ex_message="Failed to submit job of type {}. Exception Message: {}"
-#                             .format(job_type, ex)), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # Make sure same user who originally posted process 
+        if user.id != existingProcess.user:
+            response_body["status"] = status.HTTP_403_FORBIDDEN
+            response_body["detail"] = "You can only modify processes that you posted originally"
+            return response_body, status.HTTP_403_FORBIDDEN 
         
+        # delete the process from HySDS 
+        try:
+            job_type = "job-{}:{}".format(existingProcess.id, existingProcess.version)
+            print("gracael1 about to delete the job in mozart")
+            hysds.delete_mozart_job_type(job_type)
+            print("graceal1 done deleting the job in mozart")
+        except: 
+            response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
+            response_body["detail"] = "Failed to process request to delete {}".format(job_type)
+            return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
         
-#         return response_body, status.HTTP_202_ACCEPTED
+
+@ns.route('/processes/<string:process_id>/execution')
+class ExecuteJob(Resource):
+
+    @api.doc(security='ApiKeyAuth')
+    @login_required()
+    def post(self, process_id):
+        """
+        This posts a job to execute 
+        Changes to OGC schema: 
+        - adding queue to request body 
+        - adding dedup to request body (optional)
+        - adding tag to the request body
+        :return:
+        """
+        print("graceal in the body of executing a job")
+        req_data_string = request.data.decode("utf-8")
+        req_data = json.loads(req_data_string)
+        response_body = dict()
+
+        existingProcess = db.session \
+                    .query(Process_db) \
+                    .filter_by(process_id=process_id) \
+                    .first()
+        if existingProcess is None:
+            response_body["status"] = status.HTTP_404_NOT_FOUND
+            response_body["detail"] = "No process with that process ID found"
+            return response_body, status.HTTP_404_NOT_FOUND 
+        
+        inputs = req_data.get("inputs")
+        queue = req_data.get("queue")
+        dedup = req_data.get("dedup")
+        tag = req_data.get("tag")
+            
+        print("graceal1 inputs from post are")
+        print(inputs)
+        job_type = "job-{}:{}".format(existingProcess.id, existingProcess.version)
+
+        # validate the inputs provided by user against the registered spec for the job
+        try:
+            hysdsio_type = job_type.replace("job-", "hysds-io-")
+            hysds_io = hysds.get_hysds_io(hysdsio_type)
+            logging.info("Found HySDS-IO: {}".format(hysds_io))
+            # graceal, should do this add add validation steps later 
+            # params = hysds.validate_job_submit(hysds_io, input_params)
+        except Exception as ex:
+            response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
+            response_body["detail"] = "Error validating inputs with HySDS"
+            return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
+
+        try:
+            user = get_authorized_user()
+            # dedup will be optional for clientside. The point of dedup is to catch 
+            # If the user is submitting the same job with the same inputs so that it isn't run again 
+            dedup = "false" if dedup is None else dedup
+
+            queue = job_queue.validate_or_get_queue(queue, job_type, user.id)
+            job_time_limit = hysds_io.get("result").get("soft_time_limit", 86400)
+            if job_queue.contains_time_limit(queue):
+                job_time_limit = int(queue.time_limit_minutes) * 60
+            response = hysds.mozart_submit_job(job_type=job_type, params=inputs, dedup=dedup, queue=queue.queue_name,
+                                               identifier=tag or "{}:{}".format(existingProcess.id, existingProcess.version), job_time_limit=int(job_time_limit))
+
+            logging.info("Mozart Response: {}".format(json.dumps(response)))
+            job_id = response.get("result")
+            if job_id is not None:
+                logging.info("Submitted Job with HySDS ID: {}".format(job_id))
+                # the status is hard coded because we query too fast before the record even shows up in ES
+                # we wouldn't have a Job ID unless it was a valid payload and got accepted by the system
+                # TODO right now I am just hardcoding accepted for the status because that is what OGC wants, 
+                # one of: accepted, running, failed, successful, dismissed
+                # if response.get("orig_job_status") is not None:
+                #     job_status = response.get("orig_job_status")
+                # else:
+                #     job_status = "job-queued"
+                submitted_time = datetime.now()
+                processJob = ProcessJob_db(user=user.id,
+                    job_id=job_id, 
+                    submitted_time=submitted_time, 
+                    process_id=existingProcess.process_id,
+                    status="accepted")
+                db.session.add(processJob)
+                db.session.commit()
+                processJob = db.session \
+                    .query(ProcessJob_db) \
+                    .filter_by(job_id=job_id, submitted_time=submitted_time) \
+                    .first()
+                response_body = {"id": processJob.id, "processID": existingProcess.process_id, "created": submitted_time, "status": "accepted"}
+                return response_body, status.HTTP_202_ACCEPTED
+            else:
+                response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
+                response_body["detail"] = response.get("message")
+                return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
+        except ValueError as ex:
+            logging.error(traceback.format_exc())
+            response_body["status"] = status.HTTP_400_BAD_REQUEST
+            response_body["detail"] = "FailedJobSubmit: " + str(ex)
+            return response_body, status.HTTP_400_BAD_REQUEST 
+        
+        except Exception as ex:
+            logging.info("Error submitting job: {}".format(ex))
+            response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
+            response_body["detail"] = "FailedJobSubmit: " + str(ex)
+            return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
+        
+
+@ns.route('/job/<string:job_id>/results')
+class Result(Resource):
+    
+    @api.doc(security='ApiKeyAuth')
+    @login_required()
+    def get(self, job_id):
+        """
+        This will return the result of the job that successfully completed or failed. If job failed, you can see the
+         error traceback.
+        :return:
+        """
+        response_body = dict()
+
+        try:
+            prod_list = list()
+            logging.info("Finding result of job with id {}".format(job_id))
+            logging.info("Retrieved Mozart job id: {}".format(job_id))
+            existingJob = db.session \
+                .query(ProcessJob_db) \
+                .filter_by(id=job_id) \
+                .first()
+            if existingJob is None:
+                response_body["status"] = status.HTTP_404_NOT_FOUND
+                response_body["detail"] = "No job with that job ID found"
+                return response_body, status.HTTP_404_NOT_FOUND 
+
+            response = hysds.get_mozart_job(existingJob.job_id)
+            print("graceal1 response from mozart with results is ")
+            print(response)
+            job_info = response.get("job").get("job_info").get("metrics").get("products_staged")
+            traceback = response.get("traceback")
+            if job_info is not None:
+                for product in job_info:
+                    prod = dict()
+                    prod["urls"] = product.get("urls")
+                    clickable_url = "https://s3.console.aws.amazon.com/s3/buckets/"
+                    for url in prod["urls"]:
+                        if url.startswith("s3://"):
+                            clickable_url += url.split(":80/")[1] + "/?region=us-east-1&tab=overview"
+                    prod["urls"].append(clickable_url)
+                    prod["id"] = product.get("id")
+                    prod_list.append(prod)
+                    if traceback is not None:
+                        # TODO pass prod_list even if failed??
+                        response_body["status"] = status.HTTP_200_OK
+                        response_body["detail"] = "Job failed and traceback is " + str(traceback)
+                        return response_body, status.HTTP_200_OK 
+                count = 1
+                for prod_item in prod_list:
+                    response_body["additionalProp"+str(count)] = prod_item
+                    count += 1
+                return response_body, status.HTTP_200_OK 
+        except Exception as ex:
+            response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
+            response_body["detail"] = "Failed to get job result of job with id: {}. " \
+                                                         "{}. If you don't see expected results," \
+                                                         " please contact administrator " \
+                                                         "of DPS".format(job_id, ex)
+            return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
+        
+@ns.route('/job/<string:job_id>')
+class Status(Resource):
+
+    @api.doc(security='ApiKeyAuth')
+    @login_required()
+    def get(self, job_id):
+        """
+        Shows the status of the job
+        :return:
+        """
+        response_body = dict()
+
+        existingJob = db.session \
+            .query(ProcessJob_db) \
+            .filter_by(id=job_id) \
+            .first()
+        if existingJob is None:
+            response_body["status"] = status.HTTP_404_NOT_FOUND
+            response_body["detail"] = "No job with that job ID found"
+            return response_body, status.HTTP_404_NOT_FOUND 
+        
+        response_body["created"] = existingJob.submitted_time
+        response_body["processID"] = existingJob.process_id
+        response_body["id"] = existingJob.id
+        
+        # Dont update if status is already finished
+        finished_statuses = ["successful", "failed", "dismissed"]
+        if existingJob.status in finished_statuses:
+            response_body["status"] = existingJob.status
+            response_body["finished"] = existingJob.completed_time
+            return response_body, status.HTTP_200_OK 
+        else:
+            try:
+                # Request to HySDS to check the current status
+                response = hysds.mozart_job_status(job_id=existingJob.job_id)
+                status = response.get("status")
+                # TODO make status conform to OGC 
+                print("graceal1 status from hysds is ")
+                print(status)
+                response_body["status"] = status
+                # TODO rewrite this if statement based on possible statuses 
+                if status in finished_statuses:
+                    response_body["finished"] = existingJob.completed_time
+                return response_body, status.HTTP_200_OK 
+            except: 
+                response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
+                response_body["detail"] = "Failed to get job status of job with id: {}. " \
+                                              "Please check back a little later for " \
+                                              "job execution status. If still not found," \
+                                              " please contact administrator " \
+                                              "of DPS".format(job_id)
+                return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
+    
+    @api.doc(security='ApiKeyAuth')
+    @login_required() 
+    def delete(self, job_id):
+        """
+        This will cancel a job execution and remove it from the jobs list. Will cancel a finished job
+        :return:
+        """
+        response_body = dict()
+        response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
+        response_body["detail"] = "This function hasnt been implemented yet"
+        return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
