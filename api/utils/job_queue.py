@@ -221,6 +221,8 @@ def validate_or_get_queue(queue: str, job_type: str, user_id: int):
         queue = next(q for q in valid_queues if q.queue_name == recommended_queue)
 
     valid_queue_names = list(map(lambda q: q.queue_name, valid_queues))
+    print("graceal1 printing valid queues for the user")
+    print(valid_queue_names)
     if queue not in valid_queue_names:
         raise ValueError(f"User does not have access to {queue}. Valid queues: {valid_queue_names}")
 

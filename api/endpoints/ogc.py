@@ -587,13 +587,22 @@ class ExecuteJob(Resource):
             # dedup will be optional for clientside. The point of dedup is to catch 
             # If the user is submitting the same job with the same inputs so that it isn't run again 
             dedup = "false" if dedup is None else dedup
-
+            print("graceal1 about to get the queue")
             queue = job_queue.validate_or_get_queue(queue, job_type, user.id)
+            print("graceal1 got the queue and it is")
+            print(queue)
             job_time_limit = hysds_io.get("result").get("soft_time_limit", 86400)
             if job_queue.contains_time_limit(queue):
                 job_time_limit = int(queue.time_limit_minutes) * 60
+            print("graceal1 about to submit job to mozart with ")
+            print(job_type)
+            print(inputs)
+            print(dedup)
+            print(queue.queue_name)
+            print(int(job_time_limit))
             response = hysds.mozart_submit_job(job_type=job_type, params=inputs, dedup=dedup, queue=queue.queue_name,
                                                identifier=tag or "{}:{}".format(existingProcess.id, existingProcess.version), job_time_limit=int(job_time_limit))
+            print("graceal1 after the mozart call submitting the job")
 
             logging.info("Mozart Response: {}".format(json.dumps(response)))
             job_id = response.get("result")
