@@ -48,12 +48,14 @@ class Submit(Resource):
         logging.info("Dedup: {}".format(dedup))
         logging.info("Identifier: {}".format(identifier))
 
+        user = get_authorized_user()
+
         # validate the inputs provided by user against the registered spec for the job
         try:
             hysdsio_type = job_type.replace("job-", "hysds-io-")
             hysds_io = hysds.get_hysds_io(hysdsio_type)
             logging.info("Found HySDS-IO: {}".format(hysds_io))
-            params = hysds.validate_job_submit(hysds_io, input_params)
+            params = hysds.validate_job_submit(hysds_io, input_params, user.username)
         except Exception as ex:
             return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",
                             ex_message="Failed to submit job of type {}. Exception Message: {}"
@@ -61,7 +63,6 @@ class Submit(Resource):
 
         try:
             dedup = "false" if dedup is None else dedup
-            user = get_authorized_user()
             queue = job_queue.validate_or_get_queue(queue, job_type, user.id)
             job_time_limit = hysds_io.get("result").get("soft_time_limit", 86400)
             if job_queue.contains_time_limit(queue):
