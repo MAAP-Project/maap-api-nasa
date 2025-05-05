@@ -140,7 +140,7 @@ class CmrGranuleData(Resource):
                 return Response(response.text, status=401)
             else:
                 urs_token = db.session.query(Member).filter_by(id=maap_user.id).first().urs_token
-                s.headers.update({'Authorization': f'Bearer {urs_token},Basic {settings.MAAP_EDL_CREDS}',
+                s.headers.update({'Authorization': f'Bearer {settings.MAAP_TEMP_URS_TOKEN},Basic {settings.MAAP_EDL_CREDS}',
                                   'Connection': 'close'})
 
                 response = s.get(url=response.url, stream=True)

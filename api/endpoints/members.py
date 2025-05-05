@@ -787,7 +787,7 @@ def get_edc_credentials(endpoint_uri, user_id):
 
     s.headers.update(
         {
-            'Authorization': f'Bearer {settings.MAAP_TEMP_URS_TOKEN},Basic {settings.MAAP_EDL_CREDS}',
+            'Authorization': f'Bearer {urs_token},Basic {settings.MAAP_EDL_CREDS}',
             'Connection': 'close'
         }
     )
