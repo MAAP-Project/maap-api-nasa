@@ -624,10 +624,12 @@ class ExecuteJob(Resource):
                     status="accepted")
                 db.session.add(processJob)
                 db.session.commit()
+                print("graceal1 about to query back to prorcess job")
                 processJob = db.session \
                     .query(ProcessJob_db) \
-                    .filter_by(job_id=job_id, submitted_time=submitted_time) \
+                    .filter_by(job_id=job_id, status="accepted") \
                     .first()
+                print("graceal1 done querying processJob")
                 response_body = {"id": processJob.id, "processID": existingProcess.process_id, "created": submitted_time, "status": "accepted"}
                 return response_body, status.HTTP_202_ACCEPTED
             else:
