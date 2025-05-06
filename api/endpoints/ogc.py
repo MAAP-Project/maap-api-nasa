@@ -567,6 +567,12 @@ class ExecuteJob(Resource):
         tag = req_data.get("tag")
         
         job_type = "job-{}:{}".format(existingProcess.id, existingProcess.version)
+        try:
+            user = get_authorized_user()
+        except Exception as ex:
+            response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
+            response_body["detail"] = "Error validating user"
+            return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
 
         # validate the inputs provided by user against the registered spec for the job
         try:
@@ -580,7 +586,6 @@ class ExecuteJob(Resource):
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
 
         try:
-            user = get_authorized_user()
             # dedup will be optional for clientside. The point of dedup is to catch 
             # If the user is submitting the same job with the same inputs so that it isn't run again 
             dedup = "false" if dedup is None else dedup
