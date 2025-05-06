@@ -33,6 +33,7 @@ UMM_G_VERSION = os.getenv('UMM_G_VERSION', '1.6')
 ###
 MAAP_WMTS_XML = os.getenv('MAAP_WMTS_XML', '/maap-api-nasa/api/maap.wmts.xml')
 MAAP_EDL_CREDS = os.getenv('MAAP_EDL_CREDS','')
+MAAP_TEMP_URS_TOKEN = os.getenv('MAAP_TEMP_URS_TOKEN','')
 
 # GIT settings
 GIT_REPO_URL = os.getenv('GIT_REPO_URL','https://gitlab-ci-token:$TOKEN@repo.dit.maap-project.org/root/register-job.git')
