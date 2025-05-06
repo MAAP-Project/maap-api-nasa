@@ -573,8 +573,7 @@ class ExecuteJob(Resource):
             hysdsio_type = job_type.replace("job-", "hysds-io-")
             hysds_io = hysds.get_hysds_io(hysdsio_type)
             logging.info("Found HySDS-IO: {}".format(hysds_io))
-            # graceal, should do this add add validation steps later 
-            # params = hysds.validate_job_submit(hysds_io, input_params, user.username)
+            params = hysds.validate_job_submit(hysds_io, inputs, user.username)
         except Exception as ex:
             response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
             response_body["detail"] = "Error validating inputs with HySDS"
@@ -589,7 +588,7 @@ class ExecuteJob(Resource):
             job_time_limit = hysds_io.get("result").get("soft_time_limit", 86400)
             if job_queue.contains_time_limit(queue):
                 job_time_limit = int(queue.time_limit_minutes) * 60
-            response = hysds.mozart_submit_job(job_type=job_type, params=inputs, dedup=dedup, queue=queue.queue_name,
+            response = hysds.mozart_submit_job(job_type=job_type, params=params, dedup=dedup, queue=queue.queue_name,
                                                identifier=tag or "{}:{}".format(existingProcess.id, existingProcess.version), job_time_limit=int(job_time_limit))
 
             logging.info("Mozart Response: {}".format(json.dumps(response)))
