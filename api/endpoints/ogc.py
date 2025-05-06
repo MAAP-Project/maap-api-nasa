@@ -574,7 +574,7 @@ class ExecuteJob(Resource):
             hysds_io = hysds.get_hysds_io(hysdsio_type)
             logging.info("Found HySDS-IO: {}".format(hysds_io))
             # graceal, should do this add add validation steps later 
-            # params = hysds.validate_job_submit(hysds_io, input_params)
+            # params = hysds.validate_job_submit(hysds_io, input_params, user.username)
         except Exception as ex:
             response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
             response_body["detail"] = "Error validating inputs with HySDS"
