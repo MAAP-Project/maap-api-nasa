@@ -569,6 +569,8 @@ def validate_job_submit(hysds_io, user_params, username):
     :param user_params:
     :return:
     """
+    print("graceal1 in validate_job_submit with ")
+    print(username)
     # building a dictionary of key value pairs of the parameters registered
     reg_params = hysds_io.get("result").get("params")
     known_params = dict()
@@ -579,6 +581,8 @@ def validate_job_submit(hysds_io, user_params, username):
         param_info["default"] = param.get("default", None)
         param_info["type"] = param.get("type", str)
         known_params[param_name] = param_info
+    print("graceal1 done with first loop")
+    print(known_params)
 
     """
     Verify if user provided all the parameters
@@ -589,13 +593,20 @@ def validate_job_submit(hysds_io, user_params, username):
     # do not miss the username in params
     validated_params["username"] = username
     for p in known_params:
+        print("graceal1 in the loop checking for ")
+        print(p)
         if user_params.get(p) is not None:
             validated_params[p] = user_params.get(p)
+            print("first if ")
             # TODO: Check datatype of input, if provided in spec
         else:
             if known_params.get(p).get("default") is not None:
                 validated_params[p] = known_params.get(p).get("default")
+                print("2nd if")
             else:
+                print("graceal1 raising error ")
+                print("Parameter {} missing from inputs. Didn't find any default set for it in "
+                                 "algorithm specification. Please specify it and attempt to submit.".format(p))
                 raise ValueError("Parameter {} missing from inputs. Didn't find any default set for it in "
                                  "algorithm specification. Please specify it and attempt to submit.".format(p))
     return validated_params
