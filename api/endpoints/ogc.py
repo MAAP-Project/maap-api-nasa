@@ -137,28 +137,8 @@ class Processes(Resource):
 
         user = get_authorized_user()
 
-        # need to create deployment before this call to get the job_id 
-        deployment = Deployment_db(created=datetime.now(),
-                                execution_venue=settings.DEPLOY_PROCESS_EXECUTION_VENUE, 
-                                status="submitted", # TODO not consistent with gitlab status endpoints I think, but can update later 
-                                cwl_link=cwl_link,
-                                user=user.id,
-                                id=cwl_id,
-                                version=process_version)
-        db.session.add(deployment)
-        db.session.commit()
-
-        deployment = db.session \
-                .query(Deployment_db) \
-                .filter_by(id=cwl_id,version=process_version,status="submitted") \
-                .first()
-
-        deployment_job_id = deployment.job_id
-
         try:
-            # graceal change this back
-            #gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token=settings.GITLAB_POST_PROCESS_TOKEN)
-            gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token="f")
+            gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token=settings.GITLAB_POST_PROCESS_TOKEN)
             project = gl.projects.get(settings.GITLAB_PROJECT_ID_POST_PROCESS)
             pipeline = project.pipelines.create({
                 'ref': settings.VERSION,
@@ -167,16 +147,24 @@ class Processes(Resource):
                 ]
             })
             print(f"Triggered pipeline ID: {pipeline.id}")
-        except: 
-            # TODO graceal make sure this is edited object correctly 
-            print("graceal failed to submit process to pipeline")
-            existing_deployment = db.session \
-                .query(Deployment_db) \
-                .filter_by(job_id=deployment_job_id) \
-                .first()
-            existing_deployment.status = "Failed to submit to "+ existing_deployment.execution_venue
+            
+            deployment = Deployment_db(created=datetime.now(),
+                                    execution_venue=settings.DEPLOY_PROCESS_EXECUTION_VENUE, 
+                                    status="submitted", # TODO not consistent with gitlab status endpoints I think, but can update later 
+                                    cwl_link=cwl_link,
+                                    user=user.id,
+                                    id=cwl_id,
+                                    version=process_version)
+            db.session.add(deployment)
             db.session.commit()
 
+            deployment = db.session \
+                    .query(Deployment_db) \
+                    .filter_by(id=cwl_id,version=process_version,status="submitted") \
+                    .first()
+
+            deployment_job_id = deployment.job_id
+        except: 
             response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
             response_body["detail"] = "Failed to start CI/CD to deploy process. "+settings.DEPLOY_PROCESS_EXECUTION_VENUE+" is likely down"
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -291,17 +279,11 @@ class Deployment(Resource):
 
     @api.doc(security='ApiKeyAuth')
     @login_required()
-    def get(self):
-        try:
-            req_data_string = request.data.decode("utf-8")
-            req_data = json.loads(req_data_string)
-            job_id = req_data["job_id"]
-        except:
-            response_body["status"] = status.HTTP_400_BAD_REQUEST
-            response_body["detail"] = "Expect request body to include job_id"
-            return response_body, status.HTTP_400_BAD_REQUEST
-        
-        deployment = db.session.query(Deployment_db).filter_by(job_id=job_id).first()
+    def get(self, deployment_id):
+        """
+        Query the current status of an algorithm being deployed 
+        """
+        deployment = db.session.query(Deployment_db).filter_by(job_id=deployment_id).first()
         response_body, status_code = update_status_post_process_if_applicable(deployment, req_data, query_pipeline=True)
         
         return response_body, status_code
@@ -316,6 +298,7 @@ class Deployment(Resource):
         Update the status of a deployment once the pipeline has finished 
         :return:
         """
+        response_body = dict()
         try:
             req_data_string = request.data.decode("utf-8")
             req_data = json.loads(req_data_string)
@@ -451,25 +434,6 @@ class Describe(Resource):
             response_body["detail"] = "Need to provide same id and version as previous process which is {}:{}".format(existing_process.id, existing_process.version)
             return response_body, status.HTTP_400_BAD_REQUEST
 
-        # need to create deployment before this call to get the job_id 
-        deployment = Deployment_db(created=datetime.now(),
-                                execution_venue=settings.DEPLOY_PROCESS_EXECUTION_VENUE, 
-                                status="submitted", # TODO not consistent with gitlab status endpoints I think, but can update later 
-                                cwl_link=cwl_link,
-                                user=user.id,
-                                id=existing_process.id,
-                                version=existing_process.version)
-        db.session.add(deployment)
-        db.session.commit()
-
-        # Get the deployment you just committed to access its now assigned job id 
-        deployment = db.session \
-                .query(Deployment_db) \
-                .filter_by(id=existing_process.id,version=existing_process.version,status="submitted") \
-                .first()
-
-        deployment_job_id = deployment.job_id
-
         # Post the process to the deployment venue 
         try:
             gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token=settings.GITLAB_POST_PROCESS_TOKEN)
@@ -481,16 +445,24 @@ class Describe(Resource):
                 ]
             })
             print(f"Triggered pipeline ID: {pipeline.id}")
-        except: 
-            # TODO graceal make sure this is edited object correctly 
-            print("graceal failed to submit process to pipeline")
-            existing_deployment = db.session \
-                .query(Deployment_db) \
-                .filter_by(job_id=deployment_job_id) \
-                .first()
-            existing_deployment.status = "Failed to submit to "+ existing_deployment.execution_venue
+            deployment = Deployment_db(created=datetime.now(),
+                                execution_venue=settings.DEPLOY_PROCESS_EXECUTION_VENUE, 
+                                status="submitted", # TODO not consistent with gitlab status endpoints I think, but can update later 
+                                cwl_link=cwl_link,
+                                user=user.id,
+                                id=existing_process.id,
+                                version=existing_process.version)
+            db.session.add(deployment)
             db.session.commit()
 
+            # Get the deployment you just committed to access its now assigned job id 
+            deployment = db.session \
+                    .query(Deployment_db) \
+                    .filter_by(id=existing_process.id,version=existing_process.version,status="submitted") \
+                    .first()
+
+            deployment_job_id = deployment.job_id
+        except: 
             response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
             response_body["detail"] = "Failed to start CI/CD to deploy process. "+settings.DEPLOY_PROCESS_EXECUTION_VENUE+" is likely down"
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
