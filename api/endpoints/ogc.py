@@ -52,8 +52,8 @@ class Processes(Resource):
         """
         print("graceal in get of processes in new file")
         response_body = dict()
-        existing_processes = []
-        existing_links =[]
+        existing_processes_return = []
+        existing_links_return =[]
 
         existing_processes = db.session \
             .query(Process_db).all()
@@ -61,13 +61,13 @@ class Processes(Resource):
         print(existing_processes)
 
         for process in existing_processes:
-            existing_processes.append({'process_id': process.process_id,
+            existing_processes_return.append({'process_id': process.process_id,
                                        'id': process.id, 
                                        'version': process.version})
-            existing_links.append({'href': process.cwl_link})
+            existing_links_return.append({'href': process.cwl_link})
         
-        response_body["processes"] = existing_processes
-        response_body["links"] = existing_links
+        response_body["processes"] = existing_processes_return
+        response_body["links"] = existing_links_return
         return response_body, status.HTTP_200_OK
 
     @api.doc(security='ApiKeyAuth')
@@ -295,7 +295,7 @@ def update_status_post_process_if_applicable(job_id, query_pipeline=False):
             deployment.process_location = "/processes/"+str(process_id)
             db.session.commit()
     # graceal make sure this is showing up right 
-    pipeline_url = pipeline_url_template.replace("{pipeline_id}", deployment.pipeline_id)
+    pipeline_url = pipeline_url_template.replace("{pipeline_id}", str(deployment.pipeline_id))
     
     response_body = {
         "created": deployment.created,
