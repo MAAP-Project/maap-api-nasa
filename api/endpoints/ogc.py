@@ -718,7 +718,7 @@ class Status(Resource):
             response_body["detail"] = "No job with that job ID found"
             return response_body, status.HTTP_404_NOT_FOUND 
         
-        response_body["created"] = existing_job.submitted_time
+        response_body["created"] = existing_job.submitted_time.isoformat()
         response_body["processID"] = existing_job.process_id
         response_body["id"] = existing_job.id
         
@@ -726,7 +726,7 @@ class Status(Resource):
         finished_statuses = ["successful", "failed", "dismissed"]
         if existing_job.status in finished_statuses:
             response_body["status"] = existing_job.status
-            response_body["finished"] = existing_job.completed_time
+            response_body["finished"] = existing_job.completed_time.isoformat()
             return response_body, status.HTTP_200_OK 
         else:
             try:
@@ -738,8 +738,16 @@ class Status(Resource):
                 print(current_status)
                 response_body["status"] = current_status
                 # TODO rewrite this if statement based on possible statuses 
+                # If status has now changed to completed
                 if current_status in finished_statuses:
-                    response_body["finished"] = existing_job.completed_time
+                    print("graceal hysds response, look for something to use for completed time")
+                    print(response)
+                    completed_time = datetime.now()
+                    response_body["finished"] = completed_time.isoformat()
+                    # graceal comment these in when I have completed time right 
+                    # existing_job.completed_time = completed_time
+                    # existing_job.status = current_status
+                    # db.session.commit()
                 return response_body, status.HTTP_200_OK 
             except: 
                 response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
