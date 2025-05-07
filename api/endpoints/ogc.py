@@ -218,7 +218,7 @@ def update_status_post_process_if_applicable(deployment, req_data, query_pipelin
             except:
                 # graceal check that detail shows up right 
                 response_body["status"] = status.HTTP_400_BAD_REQUEST
-                response_body["detail"] = "Payload from 3rd party should have status at [\"object_attributes\"][\"status\"]]"
+                response_body["detail"] = 'Payload from 3rd party should have status at ["object_attributes"]["status"]]'
                 return response_body, status.HTTP_400_BAD_REQUEST
         
         # Update the current pipeline status 
@@ -305,7 +305,7 @@ class Deployment(Resource):
             pipeline_id = req_data["object_attributes"]["id"]
         except:
             response_body["status"] = status.HTTP_400_BAD_REQUEST
-            response_body["detail"] = "Expect request body to include job_id at [\"object_attributes\"][\"id\"]]"
+            response_body["detail"] = 'Expected request body to include job_id at ["object_attributes"]["id"]]'
             return response_body, status.HTTP_400_BAD_REQUEST
         
         # Filtering by current execution venue because pipeline id not guaranteed to be unique across different
@@ -520,11 +520,13 @@ class Describe(Resource):
         
         # delete the process from HySDS 
         try:
-            job_type = "job-{}:{}".format(existing_process.id, existing_process.version)
-            hysds.delete_mozart_job_type(job_type)
+            # graceal move this back
             # Delete from database
             db.session.delete(existing_process)
             db.session.commit()
+            job_type = "job-{}:{}".format(existing_process.id, existing_process.version)
+            hysds.delete_mozart_job_type(job_type)
+            
             response_body["status"] = status.HTTP_200_OK 
             response_body["detail"] = "Deleted process"
             return response_body, status.HTTP_200_OK 
