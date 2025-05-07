@@ -193,7 +193,7 @@ If the pipeline was successful, add the process to the table
 In the case where a logged in user is querying check the updated status by querying the pipeline
 In the case where a authenticated 3rd party is making the call, get the updated status from the payload
 """
-def update_status_post_process_if_applicable(deployment, req_data, query_pipeline=False):
+def update_status_post_process_if_applicable(deployment, req_data=None, query_pipeline=False):
     status_code = status.HTTP_200_OK
 
     response_body = dict()
@@ -216,7 +216,6 @@ def update_status_post_process_if_applicable(deployment, req_data, query_pipelin
             try:
                 updated_status = req_data["object_attributes"]["status"]
             except:
-                # graceal check that detail shows up right 
                 response_body["status"] = status.HTTP_400_BAD_REQUEST
                 response_body["detail"] = 'Payload from 3rd party should have status at ["object_attributes"]["status"]]'
                 return response_body, status.HTTP_400_BAD_REQUEST
@@ -284,7 +283,7 @@ class Deployment(Resource):
         Query the current status of an algorithm being deployed 
         """
         deployment = db.session.query(Deployment_db).filter_by(job_id=deployment_id).first()
-        response_body, status_code = update_status_post_process_if_applicable(deployment, req_data, query_pipeline=True)
+        response_body, status_code = update_status_post_process_if_applicable(deployment, req_data=None, query_pipeline=True)
         
         return response_body, status_code
     
@@ -311,7 +310,7 @@ class Deployment(Resource):
         # Filtering by current execution venue because pipeline id not guaranteed to be unique across different
         # deployment venues, so check for the current one 
         deployment = db.session.query(Deployment_db).filter_by(pipeline_id=pipeline_id,execution_venue=settings.DEPLOY_PROCESS_EXECUTION_VENUE).first()
-        response_body, status_code = update_status_post_process_if_applicable(deployment, req_data)
+        response_body, status_code = update_status_post_process_if_applicable(deployment, req_data, query_pipeline=False)
 
         return response_body, status_code
    
@@ -520,13 +519,11 @@ class Describe(Resource):
         
         # delete the process from HySDS 
         try:
-            # graceal move this back
+            job_type = "job-{}:{}".format(existing_process.id, existing_process.version)
+            hysds.delete_mozart_job_type(job_type)
             # Delete from database
             db.session.delete(existing_process)
             db.session.commit()
-            job_type = "job-{}:{}".format(existing_process.id, existing_process.version)
-            hysds.delete_mozart_job_type(job_type)
-            
             response_body["status"] = status.HTTP_200_OK 
             response_body["detail"] = "Deleted process"
             return response_body, status.HTTP_200_OK 
@@ -735,13 +732,13 @@ class Status(Resource):
             try:
                 # Request to HySDS to check the current status
                 response = hysds.mozart_job_status(job_id=existing_job.id)
-                status = response.get("status")
+                current_status = response.get("status")
                 # TODO graceal make status conform to OGC 
                 print("graceal1 status from hysds is ")
-                print(status)
-                response_body["status"] = status
+                print(current_status)
+                response_body["status"] = current_status
                 # TODO rewrite this if statement based on possible statuses 
-                if status in finished_statuses:
+                if current_status in finished_statuses:
                     response_body["finished"] = existing_job.completed_time
                 return response_body, status.HTTP_200_OK 
             except: 

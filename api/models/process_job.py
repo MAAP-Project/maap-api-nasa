@@ -13,4 +13,3 @@ class ProcessJob(Base):
     status = db.Column(db.String())
     # Process id of the process this job was submitted for 
     process_id = db.Column(db.Integer, db.ForeignKey('process.process_id'), nullable=False)
-    # member = db.relationship('Member', backref=db.backref('jobs'))
