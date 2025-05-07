@@ -599,13 +599,20 @@ class Describe(Resource):
         
         # delete the process from HySDS 
         try:
-            print("graceal1 right above the delete line")
-            print(existing_process.id)
-            print(existing_process.version)
+            # NEED TO MOVE THIS BACK
+            # Delete from database
+            db.session.delete(existing_process)
+            db.session.commit()
+            response_body["status"] = status.HTTP_200_OK 
+            response_body["detail"] = "Deleted process"
+            hysds.delete_mozart_job_type("job-sardem-sarsen:1.0.0")
+
             job_type = "job-{}:{}".format(existing_process.id, existing_process.version)
             print("graceal1 about to delete the job in mozart")
             hysds.delete_mozart_job_type(job_type)
             print("graceal1 done deleting the job in mozart")
+
+            return response_body, status.HTTP_200_OK 
         except: 
             response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
             response_body["detail"] = "Failed to process request to delete {}".format(job_type)
