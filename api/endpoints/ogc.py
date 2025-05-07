@@ -169,8 +169,6 @@ class Processes(Resource):
         print("graceal1 created deployment and trying to get job_id")
         deployment_job_id = deployment.job_id
         print(deployment_job_id)
-        
-        deploymentJobsEndpoint = "/deploymentJobs/" + str(deployment_job_id)
 
         try:
             gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token=settings.GITLAB_POST_PROCESS_TOKEN)
@@ -178,8 +176,7 @@ class Processes(Resource):
             pipeline = project.pipelines.create({
                 'ref': settings.VERSION,
                 'variables': [
-                    {'key': 'CWL_URL', 'value': cwl_link},
-                    {'key': 'CALLBACK_URL', 'value': deploymentJobsEndpoint}
+                    {'key': 'CWL_URL', 'value': cwl_link}
                 ]
             })
             print(f"Triggered pipeline ID: {pipeline.id}")
@@ -206,7 +203,9 @@ class Processes(Resource):
 
         response_body["id"] = cwl_id
         response_body["version"] = process_version
-        response_body["deploymentJobsEndpoint"] = deploymentJobsEndpoint
+        response_body["deploymentJobId"] = deployment_job_id
+        # graceal do we want this? 
+        # response_body["deploymentJobEndpoint"] = "/deploymentJobs"
 
         response_body["processPipelineLink"] = pipeline.web_url
 
@@ -221,13 +220,15 @@ If the pipeline was successful, add the process to the table
 In the case where a logged in user is querying check the updated status by querying the pipeline
 In the case where a authenticated 3rd party is making the call, get the updated status from the payload
 """
-def update_status_post_process_if_applicable(job_id, query_pipeline=False):
+def update_status_post_process_if_applicable(deployment, req_data, query_pipeline=False):
     print("graceal1 in the post process function and query pipeline is ")
     print(query_pipeline)
+    print(deployment)
+    print(deployment.id)
+
     status_code = status.HTTP_200_OK
 
     response_body = dict()
-    deployment = db.session.query(Deployment_db).filter_by(job_id=job_id).first()
 
     if deployment is None:
         response_body["status"] = status.HTTP_404_NOT_FOUND
@@ -245,10 +246,6 @@ def update_status_post_process_if_applicable(job_id, query_pipeline=False):
         # Get the updated status from an authenticated 3rd party from the payload 
         else:
             try:
-                req_data_string = request.data.decode("utf-8")
-                req_data = json.loads(req_data_string)
-                print("graceal1 trying to read the payload and its ")
-                print(req_data)
                 updated_status = req_data["object_attributes"]["status"]
             except:
                 # graceal check that detail shows up right 
@@ -313,28 +310,49 @@ def update_status_post_process_if_applicable(job_id, query_pipeline=False):
 
     return response_body, status_code
     
-@ns.route('/deploymentJobs/<int:job_id>')
+@ns.route('/deploymentJobs')
 class Deployment(Resource):
 
     @api.doc(security='ApiKeyAuth')
     @login_required()
-    def get(self, job_id):
+    def get(self):
         current_app.logger.debug("graceal1 in deployment jobs get")
+        try:
+            req_data_string = request.data.decode("utf-8")
+            req_data = json.loads(req_data_string)
+            job_id = req_data["job_id"]
+        except:
+            response_body["status"] = status.HTTP_400_BAD_REQUEST
+            response_body["detail"] = "Expect request body to include job_id"
+            return response_body, status.HTTP_400_BAD_REQUEST
         
-        response_body, status_code = update_status_post_process_if_applicable(job_id, query_pipeline=True)
+        deployment = db.session.query(Deployment_db).filter_by(job_id=job_id).first()
+        response_body, status_code = update_status_post_process_if_applicable(deployment, req_data, query_pipeline=True)
         
         return response_body, status_code
     
     @api.doc(security='ApiKeyAuth')
     @authenticate_third_party()
-    def post(self, job_id):
+    def post(self):
         """
         Update the status of a deployment once the pipeline has finished 
         :return:
         """
-        print("graceal1 in post of deploymentJobs, so successful login")
+        print("graceal1 in post of deploymentJobs, so successful login and payload is")
+        print(request.data.decode("utf-8"))
+        try:
+            req_data_string = request.data.decode("utf-8")
+            req_data = json.loads(req_data_string)
+            pipeline_id = req_data["object_attributes"]["id"]
+            print("graceal1 found pipeline id to be ")
+            print(pipeline_id)
+        except:
+            response_body["status"] = status.HTTP_400_BAD_REQUEST
+            response_body["detail"] = "Expect request body to include job_id at [\"object_attributes\"][\"id\"]]"
+            return response_body, status.HTTP_400_BAD_REQUEST
         
-        response_body, status_code = update_status_post_process_if_applicable(job_id)
+        deployment = db.session.query(Deployment_db).filter_by(pipeline_id=pipeline_id).first()
+        response_body, status_code = update_status_post_process_if_applicable(deployment, req_data)
 
         return response_body, status_code
    
@@ -500,8 +518,6 @@ class Describe(Resource):
                 .first()
 
         deployment_job_id = deployment.job_id
-        
-        deploymentJobsEndpoint = "/deploymentJobs/" + str(deployment_job_id)
 
         # Post the process to the deployment venue 
         try:
@@ -510,8 +526,7 @@ class Describe(Resource):
             pipeline = project.pipelines.create({
                 'ref': settings.VERSION,
                 'variables': [
-                    {'key': 'CWL_URL', 'value': cwl_link},
-                    {'key': 'CALLBACK_URL', 'value': deploymentJobsEndpoint}
+                    {'key': 'CWL_URL', 'value': cwl_link}
                 ]
             })
             print(f"Triggered pipeline ID: {pipeline.id}")
@@ -538,7 +553,9 @@ class Describe(Resource):
 
         response_body["id"] = existing_process.id
         response_body["version"] = existing_process.version
-        response_body["deploymentJobsEndpoint"] = deploymentJobsEndpoint
+        response_body["deploymentJobId"] = deployment_job_id
+        # graceal do we want this? 
+        # response_body["deploymentJobEndpoint"] = "/deploymentJobs"
 
         response_body["processPipelineLink"] = pipeline.web_url
 
@@ -582,8 +599,11 @@ class Describe(Resource):
         
         # delete the process from HySDS 
         try:
+            print("graceal1 right above the delete line")
+            print(existing_process.id)
+            print(existing_process.version)
             job_type = "job-{}:{}".format(existing_process.id, existing_process.version)
-            print("gracael1 about to delete the job in mozart")
+            print("graceal1 about to delete the job in mozart")
             hysds.delete_mozart_job_type(job_type)
             print("graceal1 done deleting the job in mozart")
         except: 
