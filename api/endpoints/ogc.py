@@ -38,8 +38,9 @@ log = logging.getLogger(__name__)
 ns = api.namespace('ogc', description='OGC compliant endpoints')
 
 pending_status_options = ["created", "waiting_for_resource", "preparing", "pending", "running", "scheduled"]
-# graceal- can this be hard coded in? Want to avoid making calls and storing it in the database 
-pipeline_url_template = "https://repo.dit.maap-project.org/root/deploy-ogc-hysds/-/pipelines/{pipeline_id}"
+# graceal- can this be hard coded in? Want to avoid making to get the pipeline to then get its web_url and 
+# want to avoid storing it in the database, so storing it as a template makes the most sense 
+pipeline_url_template = settings.GITLAB_URL_POST_PROCESS+"/root/deploy-ogc-hysds/-/pipelines/{pipeline_id}"
 
 # Processes section for OGC Compliance 
 @ns.route('/processes')
@@ -50,15 +51,12 @@ class Processes(Resource):
         search processes with OGC compliance 
         :return:
         """
-        print("graceal in get of processes in new file")
         response_body = dict()
         existing_processes_return = []
         existing_links_return =[]
 
         existing_processes = db.session \
             .query(Process_db).all()
-        print("graceal1 printing existing processes")
-        print(existing_processes)
 
         for process in existing_processes:
             existing_processes_return.append({'process_id': process.process_id,
@@ -79,7 +77,6 @@ class Processes(Resource):
         - for 409 error, adding additionalProperies which is a dictionary with the process id
         :return:
         """
-        print("graceal in post of processes in new file")
         req_data_string = request.data.decode("utf-8")
         req_data = json.loads(req_data_string)
         response_body = dict()
@@ -125,17 +122,11 @@ class Processes(Resource):
         fragment = urllib.parse.urlparse(cwl_id).fragment
         cwl_id = os.path.basename(fragment)
         process_version = match.group(1)
-
-        print("graceal1 id and version are")
-        print(cwl_id)
-        print(process_version)
         
         existing_process = db.session \
             .query(Process_db) \
             .filter_by(id=cwl_id, version=process_version) \
             .first()
-        print("graceal existing process is ")
-        print(existing_process)
         
         # If process with same ID and version is already present, tell the user they need to use PUT instead to modify
         if existing_process is not None:
@@ -145,10 +136,6 @@ class Processes(Resource):
             return response_body, status.HTTP_409_CONFLICT
 
         user = get_authorized_user()
-
-        print("graceal1 settings.DEPLOY_PROCESS_EXECUTION_VENUE is ")
-        print(settings.DEPLOY_PROCESS_EXECUTION_VENUE)
-        print("done printing deployment venue")
 
         # need to create deployment before this call to get the job_id 
         deployment = Deployment_db(created=datetime.now(),
@@ -166,12 +153,12 @@ class Processes(Resource):
                 .filter_by(id=cwl_id,version=process_version,status="submitted") \
                 .first()
 
-        print("graceal1 created deployment and trying to get job_id")
         deployment_job_id = deployment.job_id
-        print(deployment_job_id)
 
         try:
-            gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token=settings.GITLAB_POST_PROCESS_TOKEN)
+            # graceal change this back
+            #gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token=settings.GITLAB_POST_PROCESS_TOKEN)
+            gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token="f")
             project = gl.projects.get(settings.GITLAB_PROJECT_ID_POST_PROCESS)
             pipeline = project.pipelines.create({
                 'ref': settings.VERSION,
@@ -183,11 +170,11 @@ class Processes(Resource):
         except: 
             # TODO graceal make sure this is edited object correctly 
             print("graceal failed to submit process to pipeline")
-            existingDeployment = db.session \
+            existing_deployment = db.session \
                 .query(Deployment_db) \
                 .filter_by(job_id=deployment_job_id) \
                 .first()
-            existingDeployment.status = "Failed to submit to "+ existingDeployment.execution_venue
+            existing_deployment.status = "Failed to submit to "+ existing_deployment.execution_venue
             db.session.commit()
 
             response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -195,21 +182,19 @@ class Processes(Resource):
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
 
         # Update the deployment you just created with the pipeline id and status from gitlab
-        existingDeployment = db.session \
+        existing_deployment = db.session \
             .query(Deployment_db) \
             .filter_by(job_id=deployment_job_id) \
             .first()
-        existingDeployment.pipeline_id = pipeline.id
+        existing_deployment.pipeline_id = pipeline.id
 
         response_body["id"] = cwl_id
         response_body["version"] = process_version
-        response_body["deploymentJobId"] = deployment_job_id
-        # graceal do we want this? 
-        # response_body["deploymentJobEndpoint"] = "/deploymentJobs"
+        response_body["deploymentJobEndpoint"] = "/deploymentJobs/" + str(deployment_job_id)
 
         response_body["processPipelineLink"] = pipeline.web_url
 
-        existingDeployment.status = "created" 
+        existing_deployment.status = "created" 
         
         db.session.commit()
         return response_body, status.HTTP_202_ACCEPTED
@@ -221,11 +206,6 @@ In the case where a logged in user is querying check the updated status by query
 In the case where a authenticated 3rd party is making the call, get the updated status from the payload
 """
 def update_status_post_process_if_applicable(deployment, req_data, query_pipeline=False):
-    print("graceal1 in the post process function and query pipeline is ")
-    print(query_pipeline)
-    print(deployment)
-    print(deployment.id)
-
     status_code = status.HTTP_200_OK
 
     response_body = dict()
@@ -259,7 +239,6 @@ def update_status_post_process_if_applicable(deployment, req_data, query_pipelin
 
         # if the status has changed to success, then add to the Process table 
         if updated_status == "success":
-            current_app.logger.debug("graceal1 pipeline status was pending but is now success so adding ")
             existing_process = db.session \
                 .query(Process_db) \
                 .filter_by(id=deployment.id, version=deployment.version) \
@@ -268,12 +247,10 @@ def update_status_post_process_if_applicable(deployment, req_data, query_pipelin
             # This is for the case when multiple deployments start before any of them can successfully finish
             # Now, if someone try to post a process with the same id/version, they would get a 409 duplicate error
             if existing_process:
-                current_app.logger.debug("graceal1 similar proces already in the same")
                 existing_process.cwl_link = deployment.cwl_link
                 existing_process.user = deployment.user
                 process_id = existing_process.process_id
             else:
-                current_app.logger.debug("graceal1 creating new process to add to the table")
                 process = Process_db(id=deployment.id,
                                 version=deployment.version,
                                 cwl_link=deployment.cwl_link,
@@ -291,7 +268,6 @@ def update_status_post_process_if_applicable(deployment, req_data, query_pipelin
             
             deployment.process_location = "/processes/"+str(process_id)
             db.session.commit()
-    # graceal make sure this is showing up right 
     pipeline_url = pipeline_url_template.replace("{pipeline_id}", str(deployment.pipeline_id))
     
     response_body = {
@@ -309,14 +285,13 @@ def update_status_post_process_if_applicable(deployment, req_data, query_pipelin
         response_body["processLocation"] = deployment.process_location
 
     return response_body, status_code
-    
-@ns.route('/deploymentJobs')
+
+@ns.route('/deploymentJobs/<string:deployment_id>')
 class Deployment(Resource):
 
     @api.doc(security='ApiKeyAuth')
     @login_required()
     def get(self):
-        current_app.logger.debug("graceal1 in deployment jobs get")
         try:
             req_data_string = request.data.decode("utf-8")
             req_data = json.loads(req_data_string)
@@ -331,6 +306,9 @@ class Deployment(Resource):
         
         return response_body, status_code
     
+@ns.route('/deploymentJobs')
+class Deployment(Resource):
+
     @api.doc(security='ApiKeyAuth')
     @authenticate_third_party()
     def post(self):
@@ -338,20 +316,18 @@ class Deployment(Resource):
         Update the status of a deployment once the pipeline has finished 
         :return:
         """
-        print("graceal1 in post of deploymentJobs, so successful login and payload is")
-        print(request.data.decode("utf-8"))
         try:
             req_data_string = request.data.decode("utf-8")
             req_data = json.loads(req_data_string)
             pipeline_id = req_data["object_attributes"]["id"]
-            print("graceal1 found pipeline id to be ")
-            print(pipeline_id)
         except:
             response_body["status"] = status.HTTP_400_BAD_REQUEST
             response_body["detail"] = "Expect request body to include job_id at [\"object_attributes\"][\"id\"]]"
             return response_body, status.HTTP_400_BAD_REQUEST
         
-        deployment = db.session.query(Deployment_db).filter_by(pipeline_id=pipeline_id).first()
+        # Filtering by current execution venue because pipeline id not guaranteed to be unique across different
+        # deployment venues, so check for the current one 
+        deployment = db.session.query(Deployment_db).filter_by(pipeline_id=pipeline_id,execution_venue=settings.DEPLOY_PROCESS_EXECUTION_VENUE).first()
         response_body, status_code = update_status_post_process_if_applicable(deployment, req_data)
 
         return response_body, status_code
@@ -360,7 +336,6 @@ class Deployment(Resource):
 class Describe(Resource):
 
     def get(self, process_id):
-        print("graceal in the body of describe")
         response_body = dict()
 
         existing_process = db.session \
@@ -378,18 +353,12 @@ class Describe(Resource):
 
         hysdsio_type = "hysds-io-{}:{}".format(existing_process.id, existing_process.version)
         response = hysds.get_hysds_io(hysdsio_type)
-        current_app.logger.debug("graceal got response hysds io")
-        current_app.logger.debug(response)
-        print("graceal1 got response hysds io")
-        print(response)
         if response is None or not response.get("success"):
             response_body["status"] = status.HTTP_404_NOT_FOUND
             response_body["detail"] = "No process with that process ID found on HySDS"
             return response_body, status.HTTP_404_NOT_FOUND 
 
         response = response.get("result")
-        print("graceal result of response")
-        print(response)
         response_body["description"] = response.get("description")
         response_body["id"] = existing_process.id
         response_body["version"] = response.get("job-version")
@@ -436,9 +405,6 @@ class Describe(Resource):
         req_data_string = request.data.decode("utf-8")
         req_data = json.loads(req_data_string)
 
-        print("graceal1 comparing the user ids")
-        print(user.id)
-        print(existing_process.user)
         # Make sure same user who originally posted process 
         if user.id != existing_process.user:
             response_body["status"] = status.HTTP_403_FORBIDDEN
@@ -457,18 +423,7 @@ class Describe(Resource):
             response_body["detail"] = "Unable to access CWL"
             return response_body, status.HTTP_400_BAD_REQUEST
         
-        # delete the previous entry from HySDS 
-        # try:
-        #     job_type = "job-{}:{}".format(existing_process.id, existing_process.version)
-        #     print("gracael1 about to delete the job in mozart")
-        #     hysds.delete_mozart_job_type(job_type)
-        #     print("graceal1 done deleting the job in mozart")
-        # except: 
-        #     response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
-        #     response_body["detail"] = "Failed to process request to delete {}".format(job_type)
-        #     return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
-        
-        # TODO right now this will make 2 requests to get the data and I should fix that later
+        # TODO graceal right now this will make 2 requests to get the data and I should fix that later
         # ideally need to save all the contents to a file then read from that for load document
         # do saving and deleting of this file in try catch 
         cwl_obj = load_document_by_uri(cwl_link, load_all=True)
@@ -490,10 +445,6 @@ class Describe(Resource):
         fragment = urllib.parse.urlparse(new_cwl_id).fragment
         new_cwl_id = os.path.basename(fragment)
         new_process_version = match.group(1)
-
-        print("graceal1 New id and version are")
-        print(new_cwl_id)
-        print(new_process_version)
 
         if new_cwl_id != existing_process.id or new_process_version != existing_process.version:
             response_body["status"] = status.HTTP_400_BAD_REQUEST
@@ -533,11 +484,11 @@ class Describe(Resource):
         except: 
             # TODO graceal make sure this is edited object correctly 
             print("graceal failed to submit process to pipeline")
-            existingDeployment = db.session \
+            existing_deployment = db.session \
                 .query(Deployment_db) \
                 .filter_by(job_id=deployment_job_id) \
                 .first()
-            existingDeployment.status = "Failed to submit to "+ existingDeployment.execution_venue
+            existing_deployment.status = "Failed to submit to "+ existing_deployment.execution_venue
             db.session.commit()
 
             response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -545,21 +496,19 @@ class Describe(Resource):
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
 
         # Update the deployment you just created with the pipeline id and status from gitlab
-        existingDeployment = db.session \
+        existing_deployment = db.session \
             .query(Deployment_db) \
             .filter_by(job_id=deployment_job_id) \
             .first()
-        existingDeployment.pipeline_id = pipeline.id
+        existing_deployment.pipeline_id = pipeline.id
 
         response_body["id"] = existing_process.id
         response_body["version"] = existing_process.version
-        response_body["deploymentJobId"] = deployment_job_id
-        # graceal do we want this? 
-        # response_body["deploymentJobEndpoint"] = "/deploymentJobs"
+        response_body["deploymentJobEndpoint"] = "/deploymentJobs/" + str(deployment_job_id)
 
         response_body["processPipelineLink"] = pipeline.web_url
 
-        existingDeployment.status = "created" 
+        existing_deployment.status = "created" 
         
         db.session.commit()
         return response_body, status.HTTP_202_ACCEPTED
@@ -600,10 +549,7 @@ class Describe(Resource):
         # delete the process from HySDS 
         try:
             job_type = "job-{}:{}".format(existing_process.id, existing_process.version)
-            print("graceal1 about to delete the job in mozart")
             hysds.delete_mozart_job_type(job_type)
-            print("graceal1 done deleting the job in mozart")
-
             # Delete from database
             db.session.delete(existing_process)
             db.session.commit()
@@ -630,7 +576,6 @@ class ExecuteJob(Resource):
         - adding tag to the request body
         :return:
         """
-        print("graceal in the body of executing a job")
         req_data_string = request.data.decode("utf-8")
         req_data = json.loads(req_data_string)
         response_body = dict()
@@ -692,18 +637,14 @@ class ExecuteJob(Resource):
                 # else:
                 #     job_status = "job-queued"
                 submitted_time = datetime.now()
-                processJob = ProcessJob_db(user=user.id,
-                    job_id=job_id, 
+                process_job = ProcessJob_db(user=user.id,
+                    id=job_id, 
                     submitted_time=submitted_time, 
                     process_id=existing_process.process_id,
                     status="accepted")
-                db.session.add(processJob)
+                db.session.add(process_job)
                 db.session.commit()
-                processJob = db.session \
-                    .query(ProcessJob_db) \
-                    .filter_by(job_id=job_id, status="accepted") \
-                    .first()
-                response_body = {"id": processJob.id, "Job ID": job_id, "processID": existing_process.process_id, "created": submitted_time.isoformat(), "status": "accepted"}
+                response_body = {"id": job_id, "processID": existing_process.process_id, "created": submitted_time.isoformat(), "status": "accepted"}
                 return response_body, status.HTTP_202_ACCEPTED
             else:
                 response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -739,16 +680,16 @@ class Result(Resource):
             prod_list = list()
             logging.info("Finding result of job with id {}".format(job_id))
             logging.info("Retrieved Mozart job id: {}".format(job_id))
-            existingJob = db.session \
+            existing_job = db.session \
                 .query(ProcessJob_db) \
                 .filter_by(id=job_id) \
                 .first()
-            if existingJob is None:
+            if existing_job is None:
                 response_body["status"] = status.HTTP_404_NOT_FOUND
                 response_body["detail"] = "No job with that job ID found"
                 return response_body, status.HTTP_404_NOT_FOUND 
 
-            response = hysds.get_mozart_job(existingJob.job_id)
+            response = hysds.get_mozart_job(existing_job.id)
             print("graceal1 response from mozart with results is ")
             print(response)
             job_info = response.get("job").get("job_info").get("metrics").get("products_staged")
@@ -765,7 +706,7 @@ class Result(Resource):
                     prod["id"] = product.get("id")
                     prod_list.append(prod)
                     if traceback is not None:
-                        # TODO pass prod_list even if failed??
+                        # TODO graceal pass prod_list even if failed??
                         response_body["status"] = status.HTTP_200_OK
                         response_body["detail"] = "Job failed and traceback is " + str(traceback)
                         return response_body, status.HTTP_200_OK 
@@ -784,6 +725,9 @@ class Result(Resource):
         
 @ns.route('/job/<string:job_id>')
 class Status(Resource):
+    parser = api.parser()
+    parser.add_argument('wait_for_completion', default=False, required=False, type=bool,
+                        help="Wait for Cancel job to finish")
 
     @api.doc(security='ApiKeyAuth')
     @login_required()
@@ -794,37 +738,37 @@ class Status(Resource):
         """
         response_body = dict()
 
-        existingJob = db.session \
+        existing_job = db.session \
             .query(ProcessJob_db) \
             .filter_by(id=job_id) \
             .first()
-        if existingJob is None:
+        if existing_job is None:
             response_body["status"] = status.HTTP_404_NOT_FOUND
             response_body["detail"] = "No job with that job ID found"
             return response_body, status.HTTP_404_NOT_FOUND 
         
-        response_body["created"] = existingJob.submitted_time
-        response_body["processID"] = existingJob.process_id
-        response_body["id"] = existingJob.id
+        response_body["created"] = existing_job.submitted_time
+        response_body["processID"] = existing_job.process_id
+        response_body["id"] = existing_job.id
         
         # Dont update if status is already finished
         finished_statuses = ["successful", "failed", "dismissed"]
-        if existingJob.status in finished_statuses:
-            response_body["status"] = existingJob.status
-            response_body["finished"] = existingJob.completed_time
+        if existing_job.status in finished_statuses:
+            response_body["status"] = existing_job.status
+            response_body["finished"] = existing_job.completed_time
             return response_body, status.HTTP_200_OK 
         else:
             try:
                 # Request to HySDS to check the current status
-                response = hysds.mozart_job_status(job_id=existingJob.job_id)
+                response = hysds.mozart_job_status(job_id=existing_job.id)
                 status = response.get("status")
-                # TODO make status conform to OGC 
+                # TODO graceal make status conform to OGC 
                 print("graceal1 status from hysds is ")
                 print(status)
                 response_body["status"] = status
                 # TODO rewrite this if statement based on possible statuses 
                 if status in finished_statuses:
-                    response_body["finished"] = existingJob.completed_time
+                    response_body["finished"] = existing_job.completed_time
                 return response_body, status.HTTP_200_OK 
             except: 
                 response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -839,10 +783,58 @@ class Status(Resource):
     @login_required() 
     def delete(self, job_id):
         """
-        This will cancel a job execution and remove it from the jobs list. Will cancel a finished job
+        This will cancel a running job or delete a queued job
         :return:
         """
         response_body = dict()
-        response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
-        response_body["detail"] = "This function hasnt been implemented yet"
-        return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
+        # TODO: add optional parameter wait_for_completion to wait for cancel job to complete.
+        # Since this can take a long time, we don't wait by default.
+        wait_for_completion = request.args.get("wait_for_completion", False)
+        try:
+            # check if job is non-running
+            current_status = hysds.mozart_job_status(job_id).get("status")
+            logging.info("current job status: {}".format(current_status))
+
+            if current_status is None:
+                response_body["status"] = status.HTTP_404_NOT_FOUND
+                response_body["detail"] = "Job with id {} not found".format(job_id)
+                return response_body, status.HTTP_404_NOT_FOUND 
+
+            # Revoke if job started
+            elif current_status == hysds.STATUS_JOB_STARTED:
+                logging.info("Submitting Revoke job for Job {}".format(job_id))
+                purge_id, res = hysds.revoke_mozart_job(job_id=job_id, wait_for_completion=wait_for_completion)
+                logging.info("Revoke Job Submission Response: {} {}".format(purge_id, res))
+                response = ogc.status_response(job_id=job_id, job_status=hysds.STATUS_JOB_QUEUED)
+
+            # Purge if job queued
+            elif current_status == hysds.STATUS_JOB_QUEUED:
+                logging.info("Submitting Purge job for Job {}".format(job_id))
+                purge_id, res = hysds.delete_mozart_job(job_id=job_id, wait_for_completion=wait_for_completion)
+                logging.info("Purge Job Submission Response: {} {}".format(purge_id, res))
+                response = ogc.status_response(job_id=job_id, job_status=hysds.STATUS_JOB_QUEUED)
+            # For all other statuses, we cannot cancel
+            else:
+                response_body["status"] = status.HTTP_400_BAD_REQUEST
+                response_body["detail"] = "Not allowed to cancel job with status {}".format(current_status)
+                return response_body, status.HTTP_400_BAD_REQUEST 
+
+            if not wait_for_completion:
+                response_body["status"] = status.HTTP_202_ACCEPTED
+                response_body["detail"] = response
+                return response_body, status.HTTP_202_ACCEPTED 
+            else:
+                cancel_job_status = res.get("status")
+                response = ogc.status_response(job_id=job_id, job_status=res.get("status"))
+                if not cancel_job_status == hysds.STATUS_JOB_COMPLETED:
+                    response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
+                    response_body["detail"] = response
+                    return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
+                else:
+                    response_body["status"] = status.HTTP_202_ACCEPTED
+                    response_body["detail"] = response
+                    return response_body, status.HTTP_202_ACCEPTED 
+        except Exception as ex:
+            response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
+            response_body["detail"] = "Failed to dismiss job {}. Please try again or contact DPS administrator. {}".format(job_id, ex)
+            return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 

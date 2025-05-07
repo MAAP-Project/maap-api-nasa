@@ -5,10 +5,9 @@ from api.maap_database import db
 class ProcessJob(Base):
     __tablename__ = 'process_job'
 
-    id = db.Column(db.Integer, primary_key=True)
+    # This is what is passed back from HySDS, will always be unique 
+    id = db.Column(db.String(), primary_key=True)
     user = db.Column(db.Integer, db.ForeignKey('member.id'), nullable=False)
-    # This is what is passed back from HySDS
-    job_id = db.Column(db.String())
     submitted_time = db.Column(db.DateTime())
     completed_time = db.Column(db.DateTime())
     status = db.Column(db.String())
