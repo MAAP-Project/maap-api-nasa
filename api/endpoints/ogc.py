@@ -647,6 +647,16 @@ class Result(Resource):
         """
         response_body = dict()
 
+        # graceal delete this, just adding successful for testing 
+        user = get_authorized_user()
+        process_job = ProcessJob_db(user=user.id,
+            id="72b73d3a-be5c-4f80-bb59-7793155bab31", 
+            submitted_time=datetime.now(), 
+            process_id=8,
+            status="accepted")
+        db.session.add(process_job)
+        db.session.commit()
+
         try:
             prod_list = list()
             logging.info("Finding result of job with id {}".format(job_id))
