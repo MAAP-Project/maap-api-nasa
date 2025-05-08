@@ -37,6 +37,7 @@ log = logging.getLogger(__name__)
 
 ns = api.namespace('ogc', description='OGC compliant endpoints')
 
+hysds_finished_statuses = ["job-revoked", "job-failed", "job-completed"]
 pending_status_options = ["created", "waiting_for_resource", "preparing", "pending", "running", "scheduled"]
 # graceal- can this be hard coded in? Want to avoid making to get the pipeline to then get its web_url and 
 # want to avoid storing it in the database, so storing it as a template makes the most sense 
@@ -718,8 +719,8 @@ class Status(Resource):
             response_body["detail"] = "No job with that job ID found"
             return response_body, status.HTTP_404_NOT_FOUND 
         
-        print("graceal1 getting more detailed information from mozart")
-        print(hysds.get_jobs_info(existing_job.id))
+        # print("graceal1 getting more detailed information from mozart")
+        # print(hysds.get_jobs_info(existing_job.id))
         
         response_body["created"] = existing_job.submitted_time.isoformat()
         response_body["processID"] = existing_job.process_id
@@ -729,33 +730,25 @@ class Status(Resource):
         # graceal is job-offline a finished status? I don't think so
         # Also if I could get more information from hysds about the job like time to complete, etc. 
         # that would be useful for the client, right now can copy the way that jobs list is doing it 
-        finished_statuses = ["job-revoked", "job-failed", "job-completed"]
-        if existing_job.status in finished_statuses:
+        if existing_job.status in hysds_finished_statuses:
             response_body["status"] = existing_job.status
-            response_body["finished"] = existing_job.completed_time.isoformat()
+            # response_body["finished"] = existing_job.completed_time.isoformat()
             return response_body, status.HTTP_200_OK 
         else:
             try:
-                # Request to HySDS to check the current status
+                # Request to HySDS to check the current status if last checked the job hadnt finished 
                 response = hysds.mozart_job_status(job_id=existing_job.id)
                 current_status = response.get("status")
-                # TODO graceal make status conform to OGC 
-                print("graceal1 status from hysds is ")
-                print(current_status)
-                print("graceal hysds response, look for something to use for completed time")
-                print(response)
+                # TODO graceal make status conform to OGC? 
                 response_body["status"] = current_status
-                # TODO rewrite this if statement based on possible statuses 
-                # If status has now changed to completed
-                if current_status in finished_statuses:
-                    print("graceal hysds response, look for something to use for completed time")
-                    print(response)
-                    completed_time = datetime.now()
-                    response_body["finished"] = completed_time.isoformat()
+                # graceal try to get useful information 
+                # If status has now changed to completed, update some information about the job for easy access later
+                #if current_status in hysds_finished_statuses:
+                    # response_body["finished"] = completed_time.isoformat()
                     # graceal comment these in when I have completed time right 
                     # existing_job.completed_time = completed_time
-                # existing_job.status = current_status
-                # db.session.commit()
+                existing_job.status = current_status
+                db.session.commit()
                 return response_body, status.HTTP_200_OK 
             except: 
                 response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -806,6 +799,8 @@ class Status(Resource):
                 response_body["detail"] = "Not allowed to cancel job with status {}".format(current_status)
                 return response_body, status.HTTP_400_BAD_REQUEST 
 
+            print("graceal1 printing response to see where date is in it")
+            print(response)
             if not wait_for_completion:
                 response_body["status"] = status.HTTP_202_ACCEPTED
                 response_body["detail"] = response
