@@ -723,7 +723,7 @@ class Status(Resource):
         response_body["id"] = existing_job.id
         
         # Dont update if status is already finished
-        finished_statuses = ["successful", "failed", "dismissed"]
+        finished_statuses = ["successful", "failed", "dismissed", "job-completed"]
         if existing_job.status in finished_statuses:
             response_body["status"] = existing_job.status
             response_body["finished"] = existing_job.completed_time.isoformat()
@@ -736,6 +736,8 @@ class Status(Resource):
                 # TODO graceal make status conform to OGC 
                 print("graceal1 status from hysds is ")
                 print(current_status)
+                print("graceal hysds response, look for something to use for completed time")
+                print(response)
                 response_body["status"] = current_status
                 # TODO rewrite this if statement based on possible statuses 
                 # If status has now changed to completed
