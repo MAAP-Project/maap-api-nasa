@@ -718,6 +718,10 @@ class Status(Resource):
             response_body["detail"] = "No job with that job ID found"
             return response_body, status.HTTP_404_NOT_FOUND 
         
+        response = hysds.mozart_job_status(job_id=existing_job.id)
+        print("graceal1 response from hysds is ")
+        print(response)
+        
         response_body["created"] = existing_job.submitted_time.isoformat()
         response_body["processID"] = existing_job.process_id
         response_body["id"] = existing_job.id
@@ -748,8 +752,8 @@ class Status(Resource):
                     response_body["finished"] = completed_time.isoformat()
                     # graceal comment these in when I have completed time right 
                     # existing_job.completed_time = completed_time
-                    # existing_job.status = current_status
-                    # db.session.commit()
+                # existing_job.status = current_status
+                # db.session.commit()
                 return response_body, status.HTTP_200_OK 
             except: 
                 response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
