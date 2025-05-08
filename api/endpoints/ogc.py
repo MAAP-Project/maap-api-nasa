@@ -49,7 +49,7 @@ class Processes(Resource):
 
     def get(self):
         """
-        search processes with OGC compliance 
+        Search all processes 
         :return:
         """
         response_body = dict()
@@ -73,7 +73,7 @@ class Processes(Resource):
     @login_required()
     def post(self):
         """
-        post a new process
+        Post a new process
         Changes to OGC schema: 
         - for 409 error, adding additionalProperies which is a dictionary with the process id
         :return:
@@ -295,7 +295,7 @@ class Deployment(Resource):
     @authenticate_third_party()
     def post(self):
         """
-        Update the status of a deployment once the pipeline has finished 
+        Called by authenticated 3rd parties to update the status of a deploying process via webhooks
         :return:
         """
         response_body = dict()
@@ -319,6 +319,9 @@ class Deployment(Resource):
 class Describe(Resource):
 
     def get(self, process_id):
+        """
+        Get more detailed information about a specific process 
+        """
         response_body = dict()
 
         existing_process = db.session \
@@ -362,7 +365,7 @@ class Describe(Resource):
     @login_required()
     def put(self, process_id):
         """
-        replace an existing process
+        Replace an existing process
         Must be the same user who posted the process 
         :return:
         """
@@ -489,8 +492,7 @@ class Describe(Resource):
     @login_required()
     def delete(self, process_id):
         """
-        delete an existing process
-        Must be the same user who posted the process 
+        Delete an existing process if you created it 
         :return:
         """
         response_body = dict()
