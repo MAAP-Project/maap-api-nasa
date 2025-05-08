@@ -803,18 +803,18 @@ class Status(Resource):
             print(response)
             if not wait_for_completion:
                 response_body["status"] = status.HTTP_202_ACCEPTED
-                response_body["detail"] = response
+                response_body["detail"] = response.decode("utf-8")
                 return response_body, status.HTTP_202_ACCEPTED 
             else:
                 cancel_job_status = res.get("status")
                 response = ogc.status_response(job_id=job_id, job_status=res.get("status"))
                 if not cancel_job_status == hysds.STATUS_JOB_COMPLETED:
                     response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
-                    response_body["detail"] = response
+                    response_body["detail"] = response.decode("utf-8")
                     return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
                 else:
                     response_body["status"] = status.HTTP_202_ACCEPTED
-                    response_body["detail"] = response
+                    response_body["detail"] = response.decode("utf-8")
                     return response_body, status.HTTP_202_ACCEPTED 
         except Exception as ex:
             response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
