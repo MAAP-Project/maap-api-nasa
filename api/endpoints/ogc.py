@@ -718,16 +718,18 @@ class Status(Resource):
             response_body["detail"] = "No job with that job ID found"
             return response_body, status.HTTP_404_NOT_FOUND 
         
-        response = hysds.mozart_job_status(job_id=existing_job.id)
-        print("graceal1 response from hysds is ")
-        print(response)
+        print("graceal1 getting more detailed information from mozart")
+        print(hysds.get_jobs_info(existing_job.id))
         
         response_body["created"] = existing_job.submitted_time.isoformat()
         response_body["processID"] = existing_job.process_id
         response_body["id"] = existing_job.id
         
         # Dont update if status is already finished
-        finished_statuses = ["successful", "failed", "dismissed", "job-completed"]
+        # graceal is job-offline a finished status? I don't think so
+        # Also if I could get more information from hysds about the job like time to complete, etc. 
+        # that would be useful for the client, right now can copy the way that jobs list is doing it 
+        finished_statuses = ["job-revoked", "job-failed", "job-completed"]
         if existing_job.status in finished_statuses:
             response_body["status"] = existing_job.status
             response_body["finished"] = existing_job.completed_time.isoformat()
