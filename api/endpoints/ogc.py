@@ -828,3 +828,58 @@ class Status(Resource):
             response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
             response_body["detail"] = "Failed to dismiss job {}. Please try again or contact DPS administrator. {}".format(job_id, ex)
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
+
+@ns.route('/jobs')
+class Jobs(Resource):
+    parser = api.parser()
+    parser.add_argument('page_size', required=False, type=str, help="Job Listing Pagination Size")
+    parser.add_argument('offset', required=False, type=str, help="Job Listing Pagination Offset")
+    parser.add_argument('job_type', type=str, help="Job type + version, e.g. topsapp:v1.0", required=False)
+    parser.add_argument('tag', type=str, help="User-defined job tag", required=False)
+    parser.add_argument('queue', type=str, help="Submitted job queue", required=False)
+    parser.add_argument('priority', type=int, help="Job priority, 0-9", required=False)
+    parser.add_argument('start_time', type=str, help="Start time of @timestamp field", required=False)
+    parser.add_argument('end_time', type=str, help="Start time of @timestamp field", required=False)
+    parser.add_argument('get_job_details', type=bool, help="Return full details if True. "
+                                                           "List of job id's if false. Default True.", required=False)
+    parser.add_argument('status', type=str, help="Job status, e.g. Accepted, Running, Succeeded, Failed, etc.",
+                        required=False)
+    parser.add_argument('username', required=False, type=str, help="Username of job submitter")
+
+    @api.doc(security='ApiKeyAuth')
+    @login_required()
+    def get(self):
+        """
+        Returns a list of jobs for a given user
+
+        :param get_job_details: Boolean that returns job details if set to True or just job ID's if set to False. Default is True.
+        :param page_size: Page size for pagination
+        :param offset: Offset for pagination
+        :param status: Job status
+        :param end_time: End time
+        :param start_time: Start time
+        :param priority: Job priority
+        :param queue: Queue
+        :param tag: User tag
+        :param job_type: Algorithm type
+        :param username: Username
+        :return: List of jobs for a given user that matches query params provided
+        """
+
+        user = get_authorized_user()
+        response_body, status = hysds.get_mozart_jobs_from_query_params(request.args, user)
+        """
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <Jobs>
+                    <Job>
+                        <JobID></JobID>
+                        <JobStatus></JobStatus>
+                        <JobType></JobType>
+                        <JobParams></JobParams>
+                    </Job>
+                    <Job>...</Job>
+                    <Job>...</Job>
+                    ...
+                    <Jobs>
+        """
+        return response_body, status

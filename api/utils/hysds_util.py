@@ -6,6 +6,8 @@ import requests
 import api.settings as settings
 import time
 import copy
+import api.utils.ogc_translate as ogc
+from flask_api import status
 
 import api.utils.job_queue
 from api.models import job_queue
@@ -600,6 +602,64 @@ def validate_job_submit(hysds_io, user_params, username):
                                  "algorithm specification. Please specify it and attempt to submit.".format(p))
     return validated_params
 
+
+def get_mozart_jobs_from_query_params(query_params, user):
+    defaults = {
+        "username": None,
+        "get_job_details": True,
+        # To preserve existing behavior, set default to True. In the future, we should set this to False.
+        "page_size": 10,
+        "offset": 0,
+        "status": None,
+        "end_time": None,
+        "start_time": None,
+        "priority": None,
+        "queue": None,
+        "tag": None,
+        "job_type": None
+    }
+    response_body = dict()
+
+    # Get params and set default values
+    params = {key: query_params.get(key, default) for key, default in defaults.items()}
+
+    username = user.username
+
+    # Allow the username to be changed for admin roles using the username param
+    if user.is_admin() and params['username'] is not None:
+        username = params['username']
+
+    is_param_true = lambda x: x if isinstance(x, bool) else x.lower() == 'true'
+    get_job_details = is_param_true(params['get_job_details'])
+
+    # If status is provided, make sure it is HySDS-compliant
+    if params['status'] is not None:
+        params['status'] = ogc.get_hysds_status_from_wps(params['status'])
+
+    # Filter out the non-query params for the Mozart request
+    exclude_list = ["username", "get_job_details"]
+    filtered_query_params = {k: v for k, v in params.items() if k not in exclude_list and v is not None}
+
+    try:
+        logging.info("Finding jobs for user: {}".format(username))
+        # Get list of jobs ids for the user
+        response = get_mozart_jobs(username, **filtered_query_params)
+        job_list = response.get("result")
+        logging.info("Found Jobs: {}".format(job_list))
+
+        if get_job_details:
+            # Get job info per job
+            job_list = get_jobs_info(x.get("id") for x in job_list)
+
+        response_body["status"] = status.HTTP_200_OK
+        response_body["jobs"] = job_list
+        response_body["message"] = "success"
+        return response_body, status.HTTP_200_OK
+    except Exception as ex:
+        response_body["message"] = "Failed to get jobs for user {}. please contact administrator " \
+                                                        "of DPS".format(username)
+        response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
+        return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
 
 def get_mozart_job(job_id):
     job_status = mozart_job_status(job_id).get("status")
