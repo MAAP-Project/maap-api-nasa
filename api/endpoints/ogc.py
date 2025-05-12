@@ -808,8 +808,14 @@ class Status(Resource):
                 response_body["detail"] = response.decode("utf-8")
                 return response_body, status.HTTP_202_ACCEPTED 
             else:
+                print("graceal1 in the else because wait for completed was true")
+                print(res)
                 cancel_job_status = res.get("status")
+                print(cancel_job_status)
+                print(hysds.STATUS_JOB_COMPLETED)
                 response = ogc.status_response(job_id=job_id, job_status=res.get("status"))
+                print("graceal1 response is ")
+                print(response.decode("utf-8"))
                 if not cancel_job_status == hysds.STATUS_JOB_COMPLETED:
                     response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
                     response_body["detail"] = response.decode("utf-8")
