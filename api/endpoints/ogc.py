@@ -42,6 +42,7 @@ pending_status_options = ["created", "waiting_for_resource", "preparing", "pendi
 # graceal- can this be hard coded in? Want to avoid making to get the pipeline to then get its web_url and 
 # want to avoid storing it in the database, so storing it as a template makes the most sense 
 pipeline_url_template = settings.GITLAB_URL_POST_PROCESS+"/root/deploy-ogc-hysds/-/pipelines/{pipeline_id}"
+INITIAL_JOB_STATUS="accepted"
 
 # Processes section for OGC Compliance 
 @ns.route('/processes')
@@ -60,7 +61,7 @@ class Processes(Resource):
             .query(Process_db).all()
 
         for process in existing_processes:
-            existing_processes_return.append({'process_id': process.process_id,
+            existing_processes_return.append({'processID': process.process_id,
                                        'id': process.id, 
                                        'version': process.version})
             existing_links_return.append({'href': process.cwl_link})
@@ -133,7 +134,7 @@ class Processes(Resource):
         if existing_process is not None:
             response_body["status"] = status.HTTP_409_CONFLICT
             response_body["detail"] = "Duplicate process. Use PUT to modify existing process if you originally published it."
-            response_body["additionalProperties"] = {"process_id": existing_process.process_id}
+            response_body["additionalProperties"] = {"processID": existing_process.process_id}
             return response_body, status.HTTP_409_CONFLICT
 
         user = get_authorized_user()
@@ -179,9 +180,9 @@ class Processes(Resource):
 
         response_body["id"] = cwl_id
         response_body["version"] = process_version
-        response_body["deploymentJobEndpoint"] = "/deploymentJobs/" + str(deployment_job_id)
+        response_body["deploymentJobsEndpoint"] = "/deploymentJobs/" + str(deployment_job_id)
 
-        response_body["processPipelineLink"] = pipeline.web_url
+        response_body["processPipelineLink"] = {"href": pipeline.web_url}
 
         existing_deployment.status = "created" 
         
@@ -264,9 +265,9 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
         "pipeline": {
             "executionVenue": deployment.execution_venue,
             "pipelineId": deployment.pipeline_id,
-            "processPipelineLink": pipeline_url
+            "processPipelineLink": {"href": pipeline_url}
         },
-        "cwl": deployment.cwl_link
+        "cwl": {"href": deployment.cwl_link}
     }
 
     if deployment.process_location:
@@ -479,9 +480,9 @@ class Describe(Resource):
 
         response_body["id"] = existing_process.id
         response_body["version"] = existing_process.version
-        response_body["deploymentJobEndpoint"] = "/deploymentJobs/" + str(deployment_job_id)
+        response_body["deploymentJobsEndpoint"] = "/deploymentJobs/" + str(deployment_job_id)
 
-        response_body["processPipelineLink"] = pipeline.web_url
+        response_body["processPipelineLink"] = {"href": pipeline.web_url}
 
         existing_deployment.status = "created" 
         
@@ -615,10 +616,10 @@ class ExecuteJob(Resource):
                     id=job_id, 
                     submitted_time=submitted_time, 
                     process_id=existing_process.process_id,
-                    status="accepted")
+                    status=INITIAL_JOB_STATUS)
                 db.session.add(process_job)
                 db.session.commit()
-                response_body = {"id": job_id, "processID": existing_process.process_id, "created": submitted_time.isoformat(), "status": "accepted"}
+                response_body = {"id": job_id, "processID": existing_process.process_id, "created": submitted_time.isoformat(), "status": INITIAL_JOB_STATUS}
                 return response_body, status.HTTP_202_ACCEPTED
             else:
                 response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -842,7 +843,7 @@ class Jobs(Resource):
     parser.add_argument('end_time', type=str, help="Start time of @timestamp field", required=False)
     parser.add_argument('get_job_details', type=bool, help="Return full details if True. "
                                                            "List of job id's if false. Default True.", required=False)
-    parser.add_argument('status', type=str, help="Job status, e.g. Accepted, Running, Succeeded, Failed, etc.",
+    parser.add_argument('status', type=str, help="Job status, e.g. job-started, job-completed, job-failed, etc.",
                         required=False)
     parser.add_argument('username', required=False, type=str, help="Username of job submitter")
 
