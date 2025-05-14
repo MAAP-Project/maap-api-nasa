@@ -334,12 +334,16 @@ class Describe(Resource):
             response_body["detail"] = "No process with that process ID found"
             return response_body, status.HTTP_404_NOT_FOUND 
         
-        # job_type = "job-{}:{}".format(existing_process.id, existing_process.version)
+        job_type = "job-{}:{}".format(existing_process.id, existing_process.version)
         # maybe change to get_hysds_io
-        # response = hysds.get_job_spec(job_type)
+        response = hysds.get_job_spec(job_type)
+        print("graceal1 response from hysds get job spec")
+        print(response)
 
         hysdsio_type = "hysds-io-{}:{}".format(existing_process.id, existing_process.version)
         response = hysds.get_hysds_io(hysdsio_type)
+        print("graceal1 response from hysds was ")
+        print(response)
         if response is None or not response.get("success"):
             response_body["status"] = status.HTTP_404_NOT_FOUND
             response_body["detail"] = "No process with that process ID found on HySDS"
@@ -351,6 +355,7 @@ class Describe(Resource):
         response_body["version"] = response.get("job-version")
         # is this close enough to the same thing? 
         response_body["title"] = response.get("label")
+        response_body["processID"] = process_id
         # need to refine this to be what OGC is expecting, etc.
         count = 1
         response_body["inputs"] = {}
