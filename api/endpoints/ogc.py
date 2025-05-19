@@ -868,6 +868,7 @@ class Jobs(Resource):
 
         user = get_authorized_user()
         params = dict(request.args)
+        response_body = dict()
         # change process id to job_type and send that so HySDS understands 
         print("graceal1 printing process id from dict")
         logging.info("graceal printing process id from dict")
@@ -881,12 +882,17 @@ class Jobs(Resource):
                 .first()
             if existing_process is not None:
                 params["job_type"]="job-"+existing_process.id+":"+existing_process.version
+            else:
+                response_body["status"] = status.HTTP_200_OK
+                response_body["jobs"] = []
+                return response_body, status.HTTP_200_OK
         response_body, status = hysds.get_mozart_jobs_from_query_params(params, user)
         
         jobs_list = response_body["jobs"]
         print("graceal request.args")
         print(request.args)
-        #print(jobs_list)
+        print(jobs_list)
+        print(type(jobs_list))
         print(request.args.get("min_duration"))
         print(request.args.get("max_duration"))
         logging.info(request.args.get("min_duration"))
