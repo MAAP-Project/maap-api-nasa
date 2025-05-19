@@ -940,10 +940,11 @@ class Jobs(Resource):
                         print("graceal in the if statement that start and end time are present")
                         fmt = "%Y-%m-%dT%H:%M:%S.%f"
                         # Remove the Z and format 
-                        start_dt = datetime.strptime(time_start[:-1], fmt)
-                        end_dt = datetime.strptime(time_end[:-1], fmt)
+                        # start_dt = datetime.strptime(time_start[:-1], fmt)
+                        # end_dt = datetime.strptime(time_end[:-1], fmt)
 
-                        duration = (end_dt - start_dt).total_seconds()
+                        # duration = (end_dt - start_dt).total_seconds()
+                        duration =0
                         print("duration is ")
                         print(duration)
                         
