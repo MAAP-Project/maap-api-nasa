@@ -925,9 +925,9 @@ class Jobs(Resource):
 
                         duration = (end_dt - start_dt).total_seconds()
                         print("duration is ")
-                        print(duration)   
-                        min_duration = int(request.args.get("min_duration"))
-                        max_duration = int(request.args.get("max_duration"))      
+                        print(duration)
+                        min_duration = int(request.args.get("min_duration")) if request.args.get("min_duration") else None
+                        max_duration = int(request.args.get("max_duration")) if request.args.get("max_duration") else None  
 
                         if ((min_duration is None or duration >= min_duration) and
                             (max_duration is None or duration <= max_duration)):
