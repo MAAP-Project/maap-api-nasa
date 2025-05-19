@@ -867,7 +867,7 @@ class Jobs(Resource):
         """
 
         user = get_authorized_user()
-        params = copy.deepcopy(request.args)
+        params = dict(request.args)
         # change process id to job_type and send that so HySDS understands 
         if request.args.get("process_id"):
             existing_process = db.session \
@@ -881,7 +881,10 @@ class Jobs(Resource):
         jobs_list = response_body["jobs"]
         print("graceal request.args")
         print(request.args)
-        print(jobs_list)
+        #print(jobs_list)
+        print(request.args.get("min_duration"))
+        print(request.args.get("max_duration"))
+
         if (request.args.get("min_duration") or request.args.get("max_duration")):
             print("one of request args was duration")
             jobs_in_duration_range = []
@@ -902,8 +905,8 @@ class Jobs(Resource):
                         duration = (end_dt - start_dt).total_seconds()
                         print("duration is ")
                         print(duration)   
-                        min_duration = request.args.get("min_duration") 
-                        max_duration = request.args.get("max_duration")       
+                        min_duration = int(request.args.get("min_duration"))
+                        max_duration = int(request.args.get("max_duration"))      
 
                         if ((min_duration is None or duration >= min_duration) and
                             (max_duration is None or duration <= max_duration)):
