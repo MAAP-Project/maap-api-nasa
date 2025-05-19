@@ -891,12 +891,13 @@ class Jobs(Resource):
         jobs_list = response_body["jobs"]
         print("graceal request.args")
         print(request.args)
-        print(jobs_list)
-        print(type(jobs_list))
         print(request.args.get("min_duration"))
         print(request.args.get("max_duration"))
         logging.info(request.args.get("min_duration"))
         logging.info(request.args.get("max_duration"))
+        print("graceal printing jobs")
+        for job in jobs_list:
+            print(job)
 
         if (request.args.get("min_duration") or request.args.get("max_duration")):
             print("one of request args was duration")
@@ -946,6 +947,25 @@ class Jobs(Resource):
                 print(response_body["jobs"])
                 print(response_body["jobs"][:limit])
                 response_body["jobs"] = response_body["jobs"][:limit]
+
+        links = []
+        # Need to get the CWLs to return as links with the jobs 
+        for job in response_body["jobs"]:
+            try:
+                print("graceal trying to get start and end times")
+                job_type = job[next(iter(job))]["job"]["type"].replace("job-", "")
+                id = job_type.split(":")
+                existing_process = db.session \
+                    .query(Process_db) \
+                    .filter_by(id=id[0], version=id[1]) \
+                    .first()
+                if existing_process:
+                    links.append({"href": existing_process.cwl_link})
+                else:
+                    links.append({"href": ""})
+            except: 
+                print("Error getting job type to get CWLs")
+        response_body["links"] = links
         """
                     <?xml version="1.0" encoding="UTF-8"?>
                     <Jobs>
