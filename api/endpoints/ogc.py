@@ -899,6 +899,7 @@ class Jobs(Resource):
         for job in jobs_list:
             print(job)
 
+        # Filter based on start and end times if min/ max duration was passed as a parameter 
         if (request.args.get("min_duration") or request.args.get("max_duration")):
             print("one of request args was duration")
             logging.info("one of the request args was duration")
@@ -931,7 +932,8 @@ class Jobs(Resource):
                         if ((min_duration is None or duration >= min_duration) and
                             (max_duration is None or duration <= max_duration)):
                             jobs_in_duration_range.append(job)
-                except:
+                except Exception as ex:
+                    print(ex)
                     print("Unable to determine if job falls in min/max duration range because not in correct format")
                 print("graceal resetting the jobs returned to the jobs in duration range ")
                 response_body["jobs"] = jobs_in_duration_range
