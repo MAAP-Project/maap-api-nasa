@@ -869,7 +869,12 @@ class Jobs(Resource):
         user = get_authorized_user()
         params = dict(request.args)
         # change process id to job_type and send that so HySDS understands 
+        print("graceal1 printing process id from dict")
+        logging.info("graceal printing process id from dict")
+        print(request.args.get("process_id"))
+        logging.info(request.args.get("process_id"))
         if request.args.get("process_id"):
+            print("graceal in if statement because process ID")
             existing_process = db.session \
                 .query(Process_db) \
                 .filter_by(process_id=request.args.get("process_id")) \
@@ -884,9 +889,12 @@ class Jobs(Resource):
         #print(jobs_list)
         print(request.args.get("min_duration"))
         print(request.args.get("max_duration"))
+        logging.info(request.args.get("min_duration"))
+        logging.info(request.args.get("max_duration"))
 
         if (request.args.get("min_duration") or request.args.get("max_duration")):
             print("one of request args was duration")
+            logging.info("one of the request args was duration")
             jobs_in_duration_range = []
             for job in jobs_list:
                 try:
@@ -896,6 +904,9 @@ class Jobs(Resource):
                     print("start and end times are")
                     print(time_start)
                     print(time_end)
+                    logging.info("start and end times are")
+                    logging.info(time_start)
+                    logging.info(time_end)
                     if time_start and time_end:
                         fmt = "%Y-%m-%dT%H:%M:%S.%f"
                         # Remove the Z and format 
