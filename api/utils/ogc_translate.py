@@ -23,6 +23,12 @@ WPS_TO_HYSDS_JOB_STATUS_MAP = {
  "Deleted": None, 
  "Offline": "job-offline"}
 
+def hysds_to_wps_status(hysds_status):
+    for status in WPS_TO_HYSDS_JOB_STATUS_MAP:
+        if WPS_TO_HYSDS_JOB_STATUS_MAP.get(status) == hysds_status:
+            return status
+    return None 
+
 def set_namespaces(xml_element):
     xml_element.set("xmlns:wps", "http://www.opengis.net/wps/2.0")
     xml_element.set("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance")

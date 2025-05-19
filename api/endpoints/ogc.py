@@ -951,9 +951,11 @@ class Jobs(Resource):
                 response_body["jobs"] = response_body["jobs"][:limit]
 
         links = []
+        jobs_with_required_fields = []
         # Need to get the CWLs to return as links with the jobs 
         for job in response_body["jobs"]:
             try:
+                job_with_required_fields = job
                 print("graceal trying to get start and end times")
                 job_type = job[next(iter(job))]["job"]["type"].replace("job-", "")
                 id = job_type.split(":")
@@ -961,13 +963,22 @@ class Jobs(Resource):
                     .query(Process_db) \
                     .filter_by(id=id[0], version=id[1]) \
                     .first()
+                job_with_required_fields["id"] = next(iter(job))
+                # graceal should this be hard coded in if the example options are process, wps, openeo?
+                job_with_required_fields["type"] = "process"
+                hysds_status = job[next(iter(job))]["status"]
+                wps_status = ogc.hysds_to_wps_status(hysds_status)
+                job_with_required_fields["status"] = wps_status
                 if existing_process:
                     links.append({"href": existing_process.cwl_link})
+                    job_with_required_fields["processID"] = existing_process.process_id
                 else:
                     links.append({"href": ""})
+                jobs_with_required_fields.append(job_with_required_fields)
             except: 
                 print("Error getting job type to get CWLs")
         response_body["links"] = links
+        response_body["jobs"] = jobs_with_required_fields
         """
                     <?xml version="1.0" encoding="UTF-8"?>
                     <Jobs>
