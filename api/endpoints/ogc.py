@@ -39,11 +39,12 @@ log = logging.getLogger(__name__)
 ns = api.namespace('ogc', description='OGC compliant endpoints')
 
 hysds_finished_statuses = ["job-revoked", "job-failed", "job-completed"]
+wps_finished_statuses = ["Succeeded", "Failed", "Dismissed", "Deduped"]
 pending_status_options = ["created", "waiting_for_resource", "preparing", "pending", "running", "scheduled"]
 # graceal- can this be hard coded in? Want to avoid making to get the pipeline to then get its web_url and 
 # want to avoid storing it in the database, so storing it as a template makes the most sense 
 pipeline_url_template = settings.GITLAB_URL_POST_PROCESS+"/root/deploy-ogc-hysds/-/pipelines/{pipeline_id}"
-INITIAL_JOB_STATUS="accepted"
+INITIAL_JOB_STATUS="Accepted"
 
 # Processes section for OGC Compliance 
 @ns.route('/processes')
@@ -207,7 +208,7 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
         return response_body, status.HTTP_404_NOT_FOUND
 
     # Only query pipeline link if status is not finished 
-    if deployment.status in pending_status_options:
+    if deployment.status not in wps_finished_statuses:
         # Get the updated status from a logged in user from querying the pipeline
         if query_pipeline:
             gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token=settings.GITLAB_POST_PROCESS_TOKEN)
@@ -224,11 +225,14 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
                 return response_body, status.HTTP_400_BAD_REQUEST
         
         # Update the current pipeline status 
-        deployment.status = updated_status
+        print("graceal1 updated status for get/post deploymentJobs is ")
+        print(updated_status)
+        wps_status = ogc.hysds_to_wps_status(updated_status)
+        deployment.status = wps_status
         db.session.commit()
 
         # if the status has changed to success, then add to the Process table 
-        if updated_status == "success":
+        if wps_status == "Succeeded":
             existing_process = db.session \
                 .query(Process_db) \
                 .filter_by(id=deployment.id, version=deployment.version) \
@@ -285,6 +289,7 @@ class Deployment(Resource):
         """
         Query the current status of an algorithm being deployed 
         """
+        print("graceal1 in get deploymentJobs")
         deployment = db.session.query(Deployment_db).filter_by(job_id=deployment_id).first()
         response_body, status_code = update_status_post_process_if_applicable(deployment, req_data=None, query_pipeline=True)
         
@@ -300,6 +305,7 @@ class Deployment(Resource):
         Called by authenticated 3rd parties to update the status of a deploying process via webhooks
         :return:
         """
+        print("graceal1 in post deploymentJobs")
         response_body = dict()
         try:
             req_data_string = request.data.decode("utf-8")
@@ -452,7 +458,7 @@ class Describe(Resource):
             print(f"Triggered pipeline ID: {pipeline.id}")
             deployment = Deployment_db(created=datetime.now(),
                                 execution_venue=settings.DEPLOY_PROCESS_EXECUTION_VENUE, 
-                                status="submitted", # TODO not consistent with gitlab status endpoints I think, but can update later 
+                                status="Accepted", 
                                 cwl_link=cwl_link,
                                 user=user.id,
                                 id=existing_process.id,
@@ -634,7 +640,7 @@ class ExecuteJob(Resource):
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
         
 
-@ns.route('/job/<string:job_id>/results')
+@ns.route('/jobs/<string:job_id>/results')
 class Result(Resource):
     
     @api.doc(security='ApiKeyAuth')
@@ -694,7 +700,7 @@ class Result(Resource):
                                                          "of DPS".format(job_id, ex)
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
         
-@ns.route('/job/<string:job_id>')
+@ns.route('/jobs/<string:job_id>')
 class Status(Resource):
     parser = api.parser()
     parser.add_argument('wait_for_completion', default=False, required=False, type=bool,
@@ -724,12 +730,16 @@ class Status(Resource):
         response_body["created"] = existing_job.submitted_time.isoformat()
         response_body["processID"] = existing_job.process_id
         response_body["id"] = existing_job.id
+        # graceal should this be hard coded in if the example options are process, wps, openeo?
+        response_body["type"] = "process"
         
         # Dont update if status is already finished
         # graceal is job-offline a finished status? I don't think so
         # Also if I could get more information from hysds about the job like time to complete, etc. 
         # that would be useful for the client, right now can copy the way that jobs list is doing it 
-        if existing_job.status in hysds_finished_statuses:
+        print("graceal1 existing status is")
+        print(existing_job.status)
+        if existing_job.status in wps_finished_statuses:
             response_body["status"] = existing_job.status
             # response_body["finished"] = existing_job.completed_time.isoformat()
             return response_body, status.HTTP_200_OK 
@@ -738,14 +748,10 @@ class Status(Resource):
                 # Request to HySDS to check the current status if last checked the job hadnt finished 
                 response = hysds.mozart_job_status(job_id=existing_job.id)
                 current_status = response.get("status")
-                # TODO graceal make status conform to OGC? 
+                print("graceal1 current status from querying mozart is ")
+                print(current_status)
+                current_status = ogc.hysds_to_wps_status(current_status)
                 response_body["status"] = current_status
-                # graceal try to get useful information 
-                # If status has now changed to completed, update some information about the job for easy access later
-                #if current_status in hysds_finished_statuses:
-                    # response_body["finished"] = completed_time.isoformat()
-                    # graceal comment these in when I have completed time right 
-                    # existing_job.completed_time = completed_time
                 existing_job.status = current_status
                 db.session.commit()
                 return response_body, status.HTTP_200_OK 
