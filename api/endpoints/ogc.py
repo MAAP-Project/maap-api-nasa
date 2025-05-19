@@ -376,12 +376,7 @@ class Describe(Resource):
         :return:
         """
         response_body = dict()
-        try:
-            user = get_authorized_user()
-        except:
-            response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
-            response_body["detail"] = "Failed authenticate user"
-            return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
+        user = get_authorized_user()
             
         # Get existing process 
         existing_process = db.session \
@@ -502,12 +497,7 @@ class Describe(Resource):
         :return:
         """
         response_body = dict()
-        try:
-            user = get_authorized_user()
-        except:
-            response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
-            response_body["detail"] = "Failed authenticate user"
-            return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
+        user = get_authorized_user()
             
         # Get existing process 
         existing_process = db.session \
@@ -864,16 +854,73 @@ class Jobs(Resource):
         :param status: Job status
         :param end_time: End time
         :param start_time: Start time
+        :param min_duration: Minimum duration in seconds
+        :param max_duration: Maximum duration in seconds
         :param priority: Job priority
         :param queue: Queue
         :param tag: User tag
-        :param job_type: Algorithm type
+        :param process_id: Process ID
         :param username: Username
+        :param limit: Limit of jobs to send back
         :return: List of jobs for a given user that matches query params provided
         """
 
         user = get_authorized_user()
-        response_body, status = hysds.get_mozart_jobs_from_query_params(request.args, user)
+        params = request.args
+        # change process id to job_type and send that so HySDS understands 
+        if request.args.get("process_id"):
+            existing_process = db.session \
+                .query(Process_db) \
+                .filter_by(process_id=request.args.get("process_id")) \
+                .first()
+            if existing_process is not None:
+                params["job_type"]="job-"+existing_process.id+":"+existing_process.version
+        response_body, status = hysds.get_mozart_jobs_from_query_params(params, user)
+        
+        jobs_list = response_body["jobs"]
+        if (request.args.get("min_duration") or request.args.get("max_duration")):
+            jobs_in_duration_range = []
+            for job in jobs_list:
+                try:
+                    print("graceal trying to get start and end times")
+                    time_start = job[next(iter(job))]["job"]["job_info"]["metrics"]["time_start"]
+                    time_end = job[next(iter(job))]["job"]["job_info"]["metrics"]["time_end"]
+                    print("start and end times are")
+                    print(time_start)
+                    print(time_end)
+                    if time_start and time_end:
+                        fmt = "%Y-%m-%dT%H:%M:%S.%f"
+                        # Remove the Z and format 
+                        start_dt = datetime.strptime(time_start[:-1], fmt)
+                        end_dt = datetime.strptime(time_end[:-1], fmt)
+
+                        duration = (end_dt - start_dt).total_seconds()
+                        print("duration is ")
+                        print(duration)   
+                        min_duration = request.args.get("min_duration") 
+                        max_duration = request.args.get("max_duration")       
+
+                        if ((min_duration is None or duration >= min_duration) and
+                            (max_duration is None or duration <= max_duration)):
+                            jobs_in_duration_range.append(job)
+                except:
+                    print("Unable to determine if job falls in min/max duration range because not in correct format")
+                print("graceal resetting the jobs returned to the jobs in duration range ")
+                response_body["jobs"] = jobs_in_duration_range
+                
+        
+        # Apply the limit if it was passed as a param
+        print("graceal1 limit is")
+        print(request.args.get("limit"))
+        print(type(request.args.get("limit")))
+        if response_body["jobs"] and request.args.get("limit"):
+            limit = request.args.get("limit")
+            if limit.isdigit():
+                limit = int(limit)
+                print("graceal1 applying limit")
+                print(response_body["jobs"])
+                print(response_body["jobs"][:limit])
+                response_body["jobs"] = response_body["jobs"][:limit]
         """
                     <?xml version="1.0" encoding="UTF-8"?>
                     <Jobs>

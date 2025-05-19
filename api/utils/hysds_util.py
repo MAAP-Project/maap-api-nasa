@@ -635,6 +635,8 @@ def get_mozart_jobs_from_query_params(query_params, user):
     # If status is provided, make sure it is HySDS-compliant
     if params['status'] is not None:
         params['status'] = ogc.get_hysds_status_from_wps(params['status'])
+        print("graceal1 changed params to")
+        print(params["status"])
 
     # Filter out the non-query params for the Mozart request
     exclude_list = ["username", "get_job_details"]
