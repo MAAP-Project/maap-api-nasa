@@ -918,11 +918,6 @@ class Jobs(Resource):
             for job in jobs_list:
                 try:
                     print("graceal trying to get start and end times")
-                    print(job[next(iter(job))])
-                    print(job[next(iter(job))]["job"])
-                    print(job[next(iter(job))]["job"]["job_info"])
-                    print(job[next(iter(job))]["job"]["job_info"]["time_start"])
-                    print(job[next(iter(job))]["job"]["job_info"]["time_end"])
 
                     time_start = job[next(iter(job))]["job"]["job_info"]["time_start"]
                     #time_start = "2025-05-14T16:58:54.790068Z"
@@ -935,6 +930,7 @@ class Jobs(Resource):
                     logging.info(time_start)
                     logging.info(time_end)
                     if time_start and time_end:
+                        print("graceal in the if statement that start and end time are present")
                         fmt = "%Y-%m-%dT%H:%M:%S.%f"
                         # Remove the Z and format 
                         start_dt = datetime.strptime(time_start[:-1], fmt)
@@ -946,6 +942,7 @@ class Jobs(Resource):
                         
                         if ((min_duration is None or duration >= min_duration) and
                             (max_duration is None or duration <= max_duration)):
+                            print("graceal appending job")
                             jobs_in_duration_range.append(job)
                 except Exception as ex:
                     print(ex)
