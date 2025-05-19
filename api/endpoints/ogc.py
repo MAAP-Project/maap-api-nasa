@@ -935,6 +935,7 @@ class Jobs(Resource):
                     logging.info("start and end times are")
                     logging.info(time_start)
                     logging.info(time_end)
+                    print("about to call if statement")
                     if time_start and time_end:
                         print("graceal in the if statement that start and end time are present")
                         fmt = "%Y-%m-%dT%H:%M:%S.%f"
@@ -950,6 +951,8 @@ class Jobs(Resource):
                             (max_duration is None or duration <= max_duration)):
                             print("graceal appending job")
                             jobs_in_duration_range.append(job)
+                    else:
+                       print("did not enter if statement") 
                 except Exception as ex:
                     print(ex)
                     print("Unable to determine if job falls in min/max duration range because not in correct format")
