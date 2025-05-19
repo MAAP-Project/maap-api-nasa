@@ -227,12 +227,15 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
         # Update the current pipeline status 
         print("graceal1 updated status for get/post deploymentJobs is ")
         print(updated_status)
-        wps_status = ogc.hysds_to_wps_status(updated_status)
-        deployment.status = wps_status
+        ogc_status = ogc.get_ogc_status_from_gitlab(updated_status)
+        updated_status = ogc_status if ogc_status else updated_status
+        deployment.status = updated_status
         db.session.commit()
 
+        print("graceal this might be the weird part, checking wps_status againest Succeeded")
+        print(updated_status)
         # if the status has changed to success, then add to the Process table 
-        if wps_status == "Succeeded":
+        if updated_status == "Succeeded":
             existing_process = db.session \
                 .query(Process_db) \
                 .filter_by(id=deployment.id, version=deployment.version) \

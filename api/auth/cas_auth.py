@@ -129,9 +129,6 @@ def validate_bearer(token):
 
 # graceal should this be more complex and do any decrypting? 
 def validate_third_party(secret_token):
-    print("graceal1 in validate third party comparing")
-    print(secret_token)
-    print(settings.THIRD_PARTY_SECRET_TOKEN)
     return secret_token == settings.THIRD_PARTY_SECRET_TOKEN
 
 def validate_cas_request(cas_url):

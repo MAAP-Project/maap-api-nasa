@@ -23,6 +23,14 @@ WPS_TO_HYSDS_JOB_STATUS_MAP = {
  "Deleted": None, 
  "Offline": "job-offline"}
 
+GITLAB_PIPELINE_EVENT_STATUS_MAP = {
+ "running": "running",
+ "success": "successful"
+}
+
+def get_ogc_status_from_gitlab(gitlab_status):
+    return GITLAB_PIPELINE_EVENT_STATUS_MAP.get(gitlab_status)
+
 def hysds_to_wps_status(hysds_status):
     for status in WPS_TO_HYSDS_JOB_STATUS_MAP:
         if WPS_TO_HYSDS_JOB_STATUS_MAP.get(status) == hysds_status:
