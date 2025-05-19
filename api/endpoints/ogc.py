@@ -879,7 +879,11 @@ class Jobs(Resource):
         response_body, status = hysds.get_mozart_jobs_from_query_params(params, user)
         
         jobs_list = response_body["jobs"]
+        print("graceal request.args")
+        print(request.args)
+        print(jobs_list)
         if (request.args.get("min_duration") or request.args.get("max_duration")):
+            print("one of request args was duration")
             jobs_in_duration_range = []
             for job in jobs_list:
                 try:
