@@ -30,6 +30,7 @@ import requests
 import gitlab
 from cwl_utils.parser import load_document_by_uri, cwl_v1_2
 import urllib.parse
+import copy
 
 from api.utils import job_queue
 
@@ -866,7 +867,7 @@ class Jobs(Resource):
         """
 
         user = get_authorized_user()
-        params = request.args
+        params = copy.deepcopy(request.args)
         # change process id to job_type and send that so HySDS understands 
         if request.args.get("process_id"):
             existing_process = db.session \
