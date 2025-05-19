@@ -906,8 +906,10 @@ class Jobs(Resource):
             for job in jobs_list:
                 try:
                     print("graceal trying to get start and end times")
-                    time_start = job[next(iter(job))]["job"]["job_info"]["metrics"]["time_start"]
-                    time_end = job[next(iter(job))]["job"]["job_info"]["metrics"]["time_end"]
+                    # time_start = job[next(iter(job))]["job"]["job_info"]["metrics"]["time_start"]
+                    time_start = "2025-05-14T16:58:54.790068Z"
+                    # time_end = job[next(iter(job))]["job"]["job_info"]["metrics"]["time_end"]
+                    time_end = "2025-05-15T16:58:54.790336Z"
                     print("start and end times are")
                     print(time_start)
                     print(time_end)
