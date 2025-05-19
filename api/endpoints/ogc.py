@@ -904,13 +904,30 @@ class Jobs(Resource):
             print("one of request args was duration")
             logging.info("one of the request args was duration")
             jobs_in_duration_range = []
+            try:
+                min_duration = float(request.args.get("min_duration")) if request.args.get("min_duration") else None
+                max_duration = float(request.args.get("max_duration")) if request.args.get("max_duration") else None  
+            except:
+                response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
+                response_body["detail"] = "Min/ max duration must be able to be converted to integers or floats"
+                return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
+            print("graceal1 min and max duration are ")
+            print(min_duration)
+            print(max_duration)
+
             for job in jobs_list:
                 try:
                     print("graceal trying to get start and end times")
-                    # time_start = job[next(iter(job))]["job"]["job_info"]["metrics"]["time_start"]
-                    time_start = "2025-05-14T16:58:54.790068Z"
-                    # time_end = job[next(iter(job))]["job"]["job_info"]["metrics"]["time_end"]
-                    time_end = "2025-05-15T16:58:54.790336Z"
+                    print(job[next(iter(job))])
+                    print(job[next(iter(job))]["job"])
+                    print(job[next(iter(job))]["job"]["job_info"])
+                    print(job[next(iter(job))]["job"]["job_info"]["time_start"])
+                    print(job[next(iter(job))]["job"]["job_info"]["time_end"])
+
+                    time_start = job[next(iter(job))]["job"]["job_info"]["time_start"]
+                    #time_start = "2025-05-14T16:58:54.790068Z"
+                    time_end = job[next(iter(job))]["job"]["job_info"]["time_end"]
+                    #time_end = "2025-05-15T16:58:54.790336Z"
                     print("start and end times are")
                     print(time_start)
                     print(time_end)
@@ -926,17 +943,15 @@ class Jobs(Resource):
                         duration = (end_dt - start_dt).total_seconds()
                         print("duration is ")
                         print(duration)
-                        min_duration = int(request.args.get("min_duration")) if request.args.get("min_duration") else None
-                        max_duration = int(request.args.get("max_duration")) if request.args.get("max_duration") else None  
-
+                        
                         if ((min_duration is None or duration >= min_duration) and
                             (max_duration is None or duration <= max_duration)):
                             jobs_in_duration_range.append(job)
                 except Exception as ex:
                     print(ex)
                     print("Unable to determine if job falls in min/max duration range because not in correct format")
-                print("graceal resetting the jobs returned to the jobs in duration range ")
-                response_body["jobs"] = jobs_in_duration_range
+            print("graceal resetting the jobs returned to the jobs in duration range ")
+            response_body["jobs"] = jobs_in_duration_range
                 
         
         # Apply the limit if it was passed as a param
