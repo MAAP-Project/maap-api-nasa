@@ -25,7 +25,8 @@ WPS_TO_HYSDS_JOB_STATUS_MAP = {
 
 GITLAB_PIPELINE_EVENT_STATUS_MAP = {
  "running": "running",
- "success": "successful"
+ "success": "successful",
+ "pending": "accepted"
 }
 
 def get_ogc_status_from_gitlab(gitlab_status):

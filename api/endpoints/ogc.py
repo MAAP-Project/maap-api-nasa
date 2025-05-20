@@ -235,7 +235,7 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
         print("graceal this might be the weird part, checking wps_status againest Succeeded")
         print(updated_status)
         # if the status has changed to success, then add to the Process table 
-        if updated_status == "Succeeded":
+        if updated_status == "successful":
             existing_process = db.session \
                 .query(Process_db) \
                 .filter_by(id=deployment.id, version=deployment.version) \
@@ -904,9 +904,6 @@ class Jobs(Resource):
         print(request.args.get("max_duration"))
         logging.info(request.args.get("min_duration"))
         logging.info(request.args.get("max_duration"))
-        print("graceal printing jobs")
-        for job in jobs_list:
-            print(job)
 
         # Filter based on start and end times if min/ max duration was passed as a parameter 
         if (request.args.get("min_duration") or request.args.get("max_duration")):
@@ -927,7 +924,6 @@ class Jobs(Resource):
             for job in jobs_list:
                 try:
                     print("graceal trying to get start and end times")
-
                     time_start = job[next(iter(job))]["job"]["job_info"]["time_start"]
                     #time_start = "2025-05-14T16:58:54.790068Z"
                     time_end = job[next(iter(job))]["job"]["job_info"]["time_end"]
@@ -943,11 +939,10 @@ class Jobs(Resource):
                         print("graceal in the if statement that start and end time are present")
                         fmt = "%Y-%m-%dT%H:%M:%S.%f"
                         # Remove the Z and format 
-                        # start_dt = datetime.strptime(time_start[:-1], fmt)
-                        # end_dt = datetime.strptime(time_end[:-1], fmt)
+                        start_dt = datetime.strptime(time_start[:-1], fmt)
+                        end_dt = datetime.strptime(time_end[:-1], fmt)
 
-                        # duration = (end_dt - start_dt).total_seconds()
-                        duration =0
+                        duration = (end_dt - start_dt).total_seconds()
                         print("duration is ")
                         print(duration)
                         
@@ -983,8 +978,10 @@ class Jobs(Resource):
         for job in response_body["jobs"]:
             try:
                 job_with_required_fields = job
-                print("graceal trying to get start and end times")
+                print("graceal trying to get job type")
                 job_type = job[next(iter(job))]["job"]["type"].replace("job-", "")
+                print("graceal job type is ")
+                print(job_type)
                 id = job_type.split(":")
                 existing_process = db.session \
                     .query(Process_db) \
