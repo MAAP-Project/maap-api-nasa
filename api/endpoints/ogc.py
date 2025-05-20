@@ -44,7 +44,7 @@ pending_status_options = ["created", "waiting_for_resource", "preparing", "pendi
 # graceal- can this be hard coded in? Want to avoid making to get the pipeline to then get its web_url and 
 # want to avoid storing it in the database, so storing it as a template makes the most sense 
 pipeline_url_template = settings.GITLAB_URL_POST_PROCESS+"/root/deploy-ogc-hysds/-/pipelines/{pipeline_id}"
-INITIAL_JOB_STATUS="Accepted"
+INITIAL_JOB_STATUS="accepted"
 
 # Processes section for OGC Compliance 
 @ns.route('/processes')
@@ -677,12 +677,13 @@ class Result(Resource):
             if job_info is not None:
                 for product in job_info:
                     prod = dict()
-                    prod["urls"] = product.get("urls")
+                    prod["links"] = []
                     clickable_url = "https://s3.console.aws.amazon.com/s3/buckets/"
-                    for url in prod["urls"]:
+                    for url in product.get("urls"):
+                        prod["links"].append({"href": url})
                         if url.startswith("s3://"):
                             clickable_url += url.split(":80/")[1] + "/?region=us-east-1&tab=overview"
-                    prod["urls"].append(clickable_url)
+                    prod["links"].append({"href": clickable_url})
                     prod["id"] = product.get("id")
                     prod_list.append(prod)
                     if traceback is not None:
@@ -809,6 +810,9 @@ class Status(Resource):
 
             print("graceal1 printing response to see where date is in it")
             print(response)
+            response_body["id"] = job_id
+            response_body["type"] = "process"
+            response_body["status"] = "dismissed"
             if not wait_for_completion:
                 response_body["status"] = status.HTTP_202_ACCEPTED
                 response_body["detail"] = response.decode("utf-8")
