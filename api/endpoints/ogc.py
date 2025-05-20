@@ -41,8 +41,6 @@ ns = api.namespace('ogc', description='OGC compliant endpoints')
 hysds_finished_statuses = ["job-revoked", "job-failed", "job-completed"]
 wps_finished_statuses = ["Succeeded", "Failed", "Dismissed", "Deduped"]
 pending_status_options = ["created", "waiting_for_resource", "preparing", "pending", "running", "scheduled"]
-# graceal- can this be hard coded in? Want to avoid making to get the pipeline to then get its web_url and 
-# want to avoid storing it in the database, so storing it as a template makes the most sense 
 pipeline_url_template = settings.GITLAB_URL_POST_PROCESS+"/root/deploy-ogc-hysds/-/pipelines/{pipeline_id}"
 INITIAL_JOB_STATUS="accepted"
 
@@ -119,8 +117,6 @@ class Processes(Resource):
         if not match or not cwl_id:
             response_body["status"] = status.HTTP_400_BAD_REQUEST
             response_body["detail"] = "Need to provide version at s:version or id"
-            print(match)
-            print(cwl_id)
             return response_body, status.HTTP_400_BAD_REQUEST
         
         fragment = urllib.parse.urlparse(cwl_id).fragment
@@ -225,8 +221,6 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
                 return response_body, status.HTTP_400_BAD_REQUEST
         
         # Update the current pipeline status 
-        print("graceal1 updated status for get/post deploymentJobs is ")
-        print(updated_status)
         ogc_status = ogc.get_ogc_status_from_gitlab(updated_status)
         updated_status = ogc_status if ogc_status else updated_status
         deployment.status = updated_status
@@ -292,7 +286,6 @@ class Deployment(Resource):
         """
         Query the current status of an algorithm being deployed 
         """
-        print("graceal1 in get deploymentJobs")
         deployment = db.session.query(Deployment_db).filter_by(job_id=deployment_id).first()
         response_body, status_code = update_status_post_process_if_applicable(deployment, req_data=None, query_pipeline=True)
         
@@ -308,7 +301,6 @@ class Deployment(Resource):
         Called by authenticated 3rd parties to update the status of a deploying process via webhooks
         :return:
         """
-        print("graceal1 in post deploymentJobs")
         response_body = dict()
         try:
             req_data_string = request.data.decode("utf-8")
@@ -347,13 +339,9 @@ class Describe(Resource):
         job_type = "job-{}:{}".format(existing_process.id, existing_process.version)
         # maybe change to get_hysds_io
         response = hysds.get_job_spec(job_type)
-        print("graceal1 response from hysds get job spec")
-        print(response)
 
         hysdsio_type = "hysds-io-{}:{}".format(existing_process.id, existing_process.version)
         response = hysds.get_hysds_io(hysdsio_type)
-        print("graceal1 response from hysds was ")
-        print(response)
         if response is None or not response.get("success"):
             response_body["status"] = status.HTTP_404_NOT_FOUND
             response_body["detail"] = "No process with that process ID found on HySDS"
@@ -670,8 +658,6 @@ class Result(Resource):
                 return response_body, status.HTTP_404_NOT_FOUND 
 
             response = hysds.get_mozart_job(existing_job.id)
-            print("graceal1 response from mozart with results is ")
-            print(response)
             job_info = response.get("job").get("job_info").get("metrics").get("products_staged")
             traceback = response.get("traceback")
             if job_info is not None:
@@ -738,11 +724,8 @@ class Status(Resource):
         response_body["type"] = "process"
         
         # Dont update if status is already finished
-        # graceal is job-offline a finished status? I don't think so
         # Also if I could get more information from hysds about the job like time to complete, etc. 
         # that would be useful for the client, right now can copy the way that jobs list is doing it 
-        print("graceal1 existing status is")
-        print(existing_job.status)
         if existing_job.status in wps_finished_statuses:
             response_body["status"] = existing_job.status
             # response_body["finished"] = existing_job.completed_time.isoformat()
@@ -752,8 +735,6 @@ class Status(Resource):
                 # Request to HySDS to check the current status if last checked the job hadnt finished 
                 response = hysds.mozart_job_status(job_id=existing_job.id)
                 current_status = response.get("status")
-                print("graceal1 current status from querying mozart is ")
-                print(current_status)
                 current_status = ogc.hysds_to_wps_status(current_status)
                 response_body["status"] = current_status
                 existing_job.status = current_status
@@ -808,8 +789,6 @@ class Status(Resource):
                 response_body["detail"] = "Not allowed to cancel job with status {}".format(current_status)
                 return response_body, status.HTTP_400_BAD_REQUEST 
 
-            print("graceal1 printing response to see where date is in it")
-            print(response)
             response_body["id"] = job_id
             response_body["type"] = "process"
             response_body["status"] = "dismissed"
@@ -818,14 +797,8 @@ class Status(Resource):
                 response_body["detail"] = response.decode("utf-8")
                 return response_body, status.HTTP_202_ACCEPTED 
             else:
-                print("graceal1 in the else because wait for completed was true")
-                print(res)
                 cancel_job_status = res.get("status")
-                print(cancel_job_status)
-                print(hysds.STATUS_JOB_COMPLETED)
                 response = ogc.status_response(job_id=job_id, job_status=res.get("status"))
-                print("graceal1 response is ")
-                print(response.decode("utf-8"))
                 if not cancel_job_status == hysds.STATUS_JOB_COMPLETED:
                     response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
                     response_body["detail"] = response.decode("utf-8")
@@ -883,12 +856,7 @@ class Jobs(Resource):
         params = dict(request.args)
         response_body = dict()
         # change process id to job_type and send that so HySDS understands 
-        print("graceal1 printing process id from dict")
-        logging.info("graceal printing process id from dict")
-        print(request.args.get("process_id"))
-        logging.info(request.args.get("process_id"))
         if request.args.get("process_id"):
-            print("graceal in if statement because process ID")
             existing_process = db.session \
                 .query(Process_db) \
                 .filter_by(process_id=request.args.get("process_id")) \
@@ -902,17 +870,8 @@ class Jobs(Resource):
         response_body, status = hysds.get_mozart_jobs_from_query_params(params, user)
         
         jobs_list = response_body["jobs"]
-        print("graceal request.args")
-        print(request.args)
-        print(request.args.get("min_duration"))
-        print(request.args.get("max_duration"))
-        logging.info(request.args.get("min_duration"))
-        logging.info(request.args.get("max_duration"))
-
         # Filter based on start and end times if min/ max duration was passed as a parameter 
         if (request.args.get("min_duration") or request.args.get("max_duration")):
-            print("one of request args was duration")
-            logging.info("one of the request args was duration")
             jobs_in_duration_range = []
             try:
                 min_duration = float(request.args.get("min_duration")) if request.args.get("min_duration") else None
@@ -921,59 +880,33 @@ class Jobs(Resource):
                 response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
                 response_body["detail"] = "Min/ max duration must be able to be converted to integers or floats"
                 return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
-            print("graceal1 min and max duration are ")
-            print(min_duration)
-            print(max_duration)
 
             for job in jobs_list:
                 try:
-                    print("graceal trying to get start and end times")
                     time_start = job[next(iter(job))]["job"]["job_info"]["time_start"]
-                    #time_start = "2025-05-14T16:58:54.790068Z"
                     time_end = job[next(iter(job))]["job"]["job_info"]["time_end"]
-                    #time_end = "2025-05-15T16:58:54.790336Z"
-                    print("start and end times are")
-                    print(time_start)
-                    print(time_end)
-                    logging.info("start and end times are")
-                    logging.info(time_start)
-                    logging.info(time_end)
-                    print("about to call if statement")
                     if time_start and time_end:
-                        print("graceal in the if statement that start and end time are present")
                         fmt = "%Y-%m-%dT%H:%M:%S.%f"
                         # Remove the Z and format 
                         start_dt = datetime.strptime(time_start[:-1], fmt)
                         end_dt = datetime.strptime(time_end[:-1], fmt)
 
                         duration = (end_dt - start_dt).total_seconds()
-                        print("duration is ")
-                        print(duration)
                         
                         if ((min_duration is None or duration >= min_duration) and
                             (max_duration is None or duration <= max_duration)):
-                            print("graceal appending job")
                             jobs_in_duration_range.append(job)
-                    else:
-                       print("did not enter if statement") 
                 except Exception as ex:
                     print(ex)
                     print("Unable to determine if job falls in min/max duration range because not in correct format")
-            print("graceal resetting the jobs returned to the jobs in duration range ")
             response_body["jobs"] = jobs_in_duration_range
                 
         
         # Apply the limit if it was passed as a param
-        print("graceal1 limit is")
-        print(request.args.get("limit"))
-        print(type(request.args.get("limit")))
         if response_body["jobs"] and request.args.get("limit"):
             limit = request.args.get("limit")
             if limit.isdigit():
                 limit = int(limit)
-                print("graceal1 applying limit")
-                print(response_body["jobs"])
-                print(response_body["jobs"][:limit])
                 response_body["jobs"] = response_body["jobs"][:limit]
 
         links = []
@@ -982,10 +915,7 @@ class Jobs(Resource):
         for job in response_body["jobs"]:
             try:
                 job_with_required_fields = job
-                print("graceal trying to get job type")
                 job_type = job[next(iter(job))]["job"]["type"].replace("job-", "")
-                print("graceal job type is ")
-                print(job_type)
                 id = job_type.split(":")
                 existing_process = db.session \
                     .query(Process_db) \

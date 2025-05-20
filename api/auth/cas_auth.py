@@ -127,7 +127,6 @@ def validate_bearer(token):
     current_app.logger.debug("invalid bearer token")
     return None
 
-# graceal should this be more complex and do any decrypting? 
 def validate_third_party(secret_token):
     return secret_token == settings.THIRD_PARTY_SECRET_TOKEN
 
