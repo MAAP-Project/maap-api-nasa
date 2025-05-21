@@ -150,7 +150,7 @@ class Processes(Resource):
             
             deployment = Deployment_db(created=datetime.now(),
                                     execution_venue=settings.DEPLOY_PROCESS_EXECUTION_VENUE, 
-                                    status="submitted", # TODO not consistent with gitlab status endpoints I think, but can update later 
+                                    status="accepted", # TODO not consistent with gitlab status endpoints I think, but can update later 
                                     cwl_link=cwl_link,
                                     user=user.id,
                                     id=cwl_id,
@@ -438,14 +438,18 @@ class Describe(Resource):
 
         # Post the process to the deployment venue 
         try:
+            print("here in try statement")
             gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token=settings.GITLAB_POST_PROCESS_TOKEN)
+            print("here1")
             project = gl.projects.get(settings.GITLAB_PROJECT_ID_POST_PROCESS)
+            print("here2")
             pipeline = project.pipelines.create({
                 'ref': settings.VERSION,
                 'variables': [
                     {'key': 'CWL_URL', 'value': cwl_link}
                 ]
             })
+            print("here3")
             print(f"Triggered pipeline ID: {pipeline.id}")
             deployment = Deployment_db(created=datetime.now(),
                                 execution_venue=settings.DEPLOY_PROCESS_EXECUTION_VENUE, 
@@ -454,14 +458,18 @@ class Describe(Resource):
                                 user=user.id,
                                 id=existing_process.id,
                                 version=existing_process.version)
+            print("here4")
             db.session.add(deployment)
+            print("here5")
             db.session.commit()
+            print("here6")
 
             # Get the deployment you just committed to access its now assigned job id 
             deployment = db.session \
                     .query(Deployment_db) \
                     .filter_by(id=existing_process.id,version=existing_process.version,status="submitted") \
                     .first()
+            print("here7")
 
             deployment_job_id = deployment.job_id
         except: 
