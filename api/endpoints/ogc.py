@@ -65,6 +65,15 @@ class Processes(Resource):
                                        'id': process.id, 
                                        'version': process.version})
             existing_links_return.append({'href': process.cwl_link})
+        print("graceal printting request uri")
+        full_uri = request.url         # Full URI including query parameters
+        path_only = request.path       # Just the path (e.g., "/example")
+        base_uri = request.base_url    # Base URI without query parameters
+        query_string = request.query_string.decode()  # Raw query string
+        print(full_uri)
+        print(path_only)
+        print(base_uri)
+        print(query_string)
         
         response_body["processes"] = existing_processes_return
         response_body["links"] = existing_links_return
