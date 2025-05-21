@@ -150,7 +150,7 @@ class Processes(Resource):
             
             deployment = Deployment_db(created=datetime.now(),
                                     execution_venue=settings.DEPLOY_PROCESS_EXECUTION_VENUE, 
-                                    status="accepted", # TODO not consistent with gitlab status endpoints I think, but can update later 
+                                    status=INITIAL_JOB_STATUS, # TODO not consistent with gitlab status endpoints I think, but can update later 
                                     cwl_link=cwl_link,
                                     user=user.id,
                                     id=cwl_id,
@@ -160,7 +160,7 @@ class Processes(Resource):
 
             deployment = db.session \
                     .query(Deployment_db) \
-                    .filter_by(id=cwl_id,version=process_version,status="submitted") \
+                    .filter_by(id=cwl_id,version=process_version,status=INITIAL_JOB_STATUS) \
                     .first()
 
             deployment_job_id = deployment.job_id
@@ -457,7 +457,7 @@ class Describe(Resource):
             print(f"Triggered pipeline ID: {pipeline.id}")
             deployment = Deployment_db(created=datetime.now(),
                                 execution_venue=settings.DEPLOY_PROCESS_EXECUTION_VENUE, 
-                                status="Accepted", 
+                                status=INITIAL_JOB_STATUS, 
                                 cwl_link=cwl_link,
                                 user=user.id,
                                 id=existing_process.id,
@@ -474,7 +474,7 @@ class Describe(Resource):
             # Get the deployment you just committed to access its now assigned job id 
             deployment = db.session \
                     .query(Deployment_db) \
-                    .filter_by(id=existing_process.id,version=existing_process.version,status="submitted") \
+                    .filter_by(id=existing_process.id,version=existing_process.version,status=INITIAL_JOB_STATUS) \
                     .first()
             print("here7")
             logging.info("here7")
