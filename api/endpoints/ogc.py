@@ -480,7 +480,12 @@ class Describe(Resource):
             logging.info("here7")
 
             deployment_job_id = deployment.job_id
-        except: 
+            print("here8")
+            logging.info("here8")
+        except Exception as ex: 
+            print(ex)
+            logging.info(ex)
+            print("graceal in the except statement return error")
             response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
             response_body["detail"] = "Failed to start CI/CD to deploy process. "+settings.DEPLOY_PROCESS_EXECUTION_VENUE+" is likely down"
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
