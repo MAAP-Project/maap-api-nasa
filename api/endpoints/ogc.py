@@ -38,11 +38,12 @@ log = logging.getLogger(__name__)
 
 ns = api.namespace('ogc', description='OGC compliant endpoints')
 
-hysds_finished_statuses = ["job-revoked", "job-failed", "job-completed"]
-ogc_finished_statuses = ["successful", "failed", "dismisssed", "deduped"]
-pending_status_options = ["created", "waiting_for_resource", "preparing", "pending", "running", "scheduled"]
-pipeline_url_template = settings.GITLAB_URL_POST_PROCESS+"/root/deploy-ogc-hysds/-/pipelines/{pipeline_id}"
+OGC_FINISHED_STATUSES = ["successful", "failed", "dismisssed", "deduped"]
+OGC_SUCCESS = "successful"
+PIPELINE_URL_TEMPLATE = settings.GITLAB_URL_POST_PROCESS+"/root/deploy-ogc-hysds/-/pipelines/{pipeline_id}"
 INITIAL_JOB_STATUS="accepted"
+
+# TODO run through chatgpt to refactor 
 
 # Processes section for OGC Compliance 
 @ns.route('/processes')
@@ -61,25 +62,14 @@ class Processes(Resource):
         existing_processes = db.session \
             .query(Process_db).all()
 
-        prefix_url = "temp"
+        prefix_url = request.url
         for process in existing_processes:
             existing_processes_return.append({'processID': process.process_id,
                                        'id': process.id, 
-                                       'version': process.version})
-            existing_links_return.append({'href': prefix_url+"/ogc/processes/"+str(process.process_id)})
+                                       'version': process.version,
+                                       'cwl_link': process.cwl_link})
+            existing_links_return.append({'href': prefix_url+"/api/ogc/processes/"+str(process.process_id)})
         print("graceal printting request uri")
-        full_uri = request.url         # Full URI including query parameters
-        path_only = request.path       # Just the path (e.g., "/example")
-        base_uri = request.base_url    # Base URI without query parameters
-        query_string = request.query_string.decode()  # Raw query string
-        print(full_uri)
-        logging.info(full_uri)
-        print(path_only)
-        logging.info(path_only)
-        print(base_uri)
-        logging.info(base_uri)
-        print(query_string)
-        logging.info(query_string)
         
         response_body["processes"] = existing_processes_return
         response_body["links"] = existing_links_return
@@ -206,13 +196,12 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
     response_body = dict()
 
     if deployment is None:
-        response_body["status"] = status.HTTP_404_NOT_FOUND
         response_body["detail"] = "No deployment with that deployment ID found"
         return response_body, status.HTTP_404_NOT_FOUND
 
     current_status = None
     # Only query pipeline link if status is not finished 
-    if deployment.status not in ogc_finished_statuses:
+    if deployment.status not in OGC_FINISHED_STATUSES:
         # Get the updated status for a logged in user from querying the pipeline
         if query_pipeline:
             gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token=settings.GITLAB_POST_PROCESS_TOKEN)
@@ -224,7 +213,6 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
             try:
                 updated_status = req_data["object_attributes"]["status"]
             except:
-                response_body["status"] = status.HTTP_400_BAD_REQUEST
                 response_body["detail"] = 'Payload from 3rd party should have status at ["object_attributes"]["status"]]'
                 return response_body, status.HTTP_400_BAD_REQUEST
         
@@ -233,15 +221,15 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
         current_status = ogc_status if ogc_status else updated_status
 
         # Only update the deployment status in the database if status is now finished
-        if updated_status in ogc_finished_statuses:
+        if current_status in OGC_FINISHED_STATUSES:
             print("graceal status was in finished so updating for deployment")
-            deployment.status = updated_status
+            deployment.status = current_status
             db.session.commit()
 
         print("graceal this might be the weird part, checking updated status (should be in OGC) againest successful")
-        print(updated_status)
+        print(current_status)
         # if the status has changed to success, then add to the Process table 
-        if updated_status == "successful":
+        if current_status == OGC_SUCCESS:
             existing_process = db.session \
                 .query(Process_db) \
                 .filter_by(id=deployment.id, version=deployment.version) \
@@ -274,7 +262,7 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
             db.session.commit()
     else:
         current_status = deployment.status
-    pipeline_url = pipeline_url_template.replace("{pipeline_id}", str(deployment.pipeline_id))
+    pipeline_url = PIPELINE_URL_TEMPLATE.replace("{pipeline_id}", str(deployment.pipeline_id))
     
     response_body = {
         "created": deployment.created,
@@ -350,10 +338,6 @@ class Describe(Resource):
             response_body["status"] = status.HTTP_404_NOT_FOUND
             response_body["detail"] = "No process with that process ID found"
             return response_body, status.HTTP_404_NOT_FOUND 
-        
-        job_type = "job-{}:{}".format(existing_process.id, existing_process.version)
-        # maybe change to get_hysds_io
-        response = hysds.get_job_spec(job_type)
 
         hysdsio_type = "hysds-io-{}:{}".format(existing_process.id, existing_process.version)
         response = hysds.get_hysds_io(hysdsio_type)
@@ -522,7 +506,7 @@ class Describe(Resource):
         try:
             job_type = "job-{}:{}".format(existing_process.id, existing_process.version)
             hysds.delete_mozart_job_type(job_type)
-            # Delete from database
+            # Delete from database after successfully deleted from HySDS 
             db.session.delete(existing_process)
             db.session.commit()
             response_body["status"] = status.HTTP_200_OK 
@@ -724,7 +708,7 @@ class Status(Resource):
         # Dont update if status is already finished
         # Also if I could get more information from hysds about the job like time to complete, etc. 
         # that would be useful for the client, right now can copy the way that jobs list is doing it 
-        if existing_job.status in ogc_finished_statuses:
+        if existing_job.status in OGC_FINISHED_STATUSES:
             response_body["status"] = existing_job.status
             # response_body["finished"] = existing_job.completed_time.isoformat()
             return response_body, status.HTTP_200_OK 
@@ -736,7 +720,7 @@ class Status(Resource):
                 current_status = ogc.hysds_to_ogc_status(current_status)
                 response_body["status"] = current_status
                 # Only update the current status in the database if it is complete 
-                if current_status in ogc_finished_statuses:
+                if current_status in OGC_FINISHED_STATUSES:
                     existing_job.status = current_status
                     db.session.commit()
                 return response_body, status.HTTP_200_OK 
@@ -771,9 +755,13 @@ class Status(Resource):
             logging.info("current job status: {}".format(current_status))
 
             if current_status is None:
-                response_body["status"] = status.HTTP_404_NOT_FOUND
                 response_body["detail"] = "Job with id {} not found".format(job_id)
                 return response_body, status.HTTP_404_NOT_FOUND 
+            
+            # This is for the case when user did not wait for a previous dismissal of a job but it was successful
+            elif current_status == hysds.STATUS_JOB_REVOKED and existing_job.status != "dismissed":
+                existing_job.status = "dismissed"
+                db.session.commit()
 
             # Revoke if job started
             elif current_status == hysds.STATUS_JOB_STARTED:
@@ -790,32 +778,28 @@ class Status(Resource):
                 response = ogc.status_response(job_id=job_id, job_status=hysds.STATUS_JOB_QUEUED)
             # For all other statuses, we cannot cancel
             else:
-                response_body["status"] = status.HTTP_400_BAD_REQUEST
                 response_body["detail"] = "Not allowed to cancel job with status {}".format(current_status)
                 return response_body, status.HTTP_400_BAD_REQUEST 
 
             response_body["id"] = job_id
             response_body["type"] = "process"
-            response_body["status"] = "dismissed"
-            existing_job.status = "dismissed"
-            db.session.commit()
             if not wait_for_completion:
-                response_body["status"] = status.HTTP_202_ACCEPTED
                 response_body["detail"] = response.decode("utf-8")
+                response_body["status"] = "dismissed"
                 return response_body, status.HTTP_202_ACCEPTED 
             else:
                 cancel_job_status = res.get("status")
                 response = ogc.status_response(job_id=job_id, job_status=res.get("status"))
                 if not cancel_job_status == hysds.STATUS_JOB_COMPLETED:
-                    response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
                     response_body["detail"] = response.decode("utf-8")
                     return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
                 else:
-                    response_body["status"] = status.HTTP_202_ACCEPTED
+                    response_body["status"] = "dismissed"
                     response_body["detail"] = response.decode("utf-8")
+                    existing_job.status = "dismissed"
+                    db.session.commit()
                     return response_body, status.HTTP_202_ACCEPTED 
         except Exception as ex:
-            response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
             response_body["detail"] = "Failed to dismiss job {}. Please try again or contact DPS administrator. {}".format(job_id, ex)
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
 
@@ -922,27 +906,18 @@ class Jobs(Resource):
 
         links = []
         jobs_with_required_fields = []
+        prefix_url = request.url
         # Need to get the CWLs to return as links with the jobs 
         for job in response_body["jobs"]:
             try:
                 job_with_required_fields = job
-                job_type = job[next(iter(job))]["job"]["type"].replace("job-", "")
-                id = job_type.split(":")
-                existing_process = db.session \
-                    .query(Process_db) \
-                    .filter_by(id=id[0], version=id[1]) \
-                    .first()
                 job_with_required_fields["id"] = next(iter(job))
                 # TODO graceal should this be hard coded in if the example options are process, wps, openeo?
                 job_with_required_fields["type"] = "process"
                 hysds_status = job[next(iter(job))]["status"]
                 ogc_status = ogc.hysds_to_ogc_status(hysds_status)
                 job_with_required_fields["status"] = ogc_status
-                if existing_process:
-                    links.append({"href": existing_process.cwl_link})
-                    job_with_required_fields["processID"] = existing_process.process_id
-                else:
-                    links.append({"href": ""})
+                links.append({"href": prefix_url+"/api/ogc/job/"+job_with_required_fields["id"]})
                 jobs_with_required_fields.append(job_with_required_fields)
             except: 
                 print("Error getting job type to get CWLs")
