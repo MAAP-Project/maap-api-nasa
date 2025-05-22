@@ -68,7 +68,7 @@ class Processes(Resource):
                                        'id': process.id, 
                                        'version': process.version,
                                        'cwl_link': process.cwl_link})
-            existing_links_return.append({'href': prefix_url+str(process.process_id)})
+            existing_links_return.append({'href': prefix_url+"/"+str(process.process_id)})
         print("graceal printting request uri")
         
         response_body["processes"] = existing_processes_return
@@ -721,8 +721,11 @@ class Status(Resource):
                 response_body["status"] = current_status
                 # Only update the current status in the database if it is complete 
                 if current_status in OGC_FINISHED_STATUSES:
+                    print("graceal updating status in the table")
                     existing_job.status = current_status
                     db.session.commit()
+                else:
+                    print("graceal1 did not update status in the table")
                 return response_body, status.HTTP_200_OK 
             except: 
                 response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
