@@ -22,10 +22,8 @@ from api.restplus import api
 from api.maap_database import db
 from api.models import initialize_sql
 from flask_cors import CORS
-from werkzeug.middleware.proxy_fix import ProxyFix
 
 app = Flask(__name__)
-app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 CORS(app)
 app.secret_key = settings.CAS_SECRET_KEY
 logging_conf_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '../logging.conf'))
