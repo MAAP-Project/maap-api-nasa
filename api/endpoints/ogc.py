@@ -755,6 +755,7 @@ class Status(Resource):
             logging.info("current job status: {}".format(current_status))
 
             if current_status is None:
+                response_body["status"] = status.HTTP_404_NOT_FOUND 
                 response_body["detail"] = "Job with id {} not found".format(job_id)
                 return response_body, status.HTTP_404_NOT_FOUND 
             
@@ -778,6 +779,7 @@ class Status(Resource):
                 response = ogc.status_response(job_id=job_id, job_status=hysds.STATUS_JOB_QUEUED)
             # For all other statuses, we cannot cancel
             else:
+                response_body["status"] = status.HTTP_400_BAD_REQUEST 
                 response_body["detail"] = "Not allowed to cancel job with status {}".format(current_status)
                 return response_body, status.HTTP_400_BAD_REQUEST 
 
@@ -791,6 +793,7 @@ class Status(Resource):
                 cancel_job_status = res.get("status")
                 response = ogc.status_response(job_id=job_id, job_status=res.get("status"))
                 if not cancel_job_status == hysds.STATUS_JOB_COMPLETED:
+                    response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR 
                     response_body["detail"] = response.decode("utf-8")
                     return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
                 else:
@@ -800,6 +803,7 @@ class Status(Resource):
                     db.session.commit()
                     return response_body, status.HTTP_202_ACCEPTED 
         except Exception as ex:
+            response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR 
             response_body["detail"] = "Failed to dismiss job {}. Please try again or contact DPS administrator. {}".format(job_id, ex)
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
 
