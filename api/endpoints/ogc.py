@@ -62,13 +62,12 @@ class Processes(Resource):
         existing_processes = db.session \
             .query(Process_db).all()
 
-        prefix_url = request.url
         for process in existing_processes:
             existing_processes_return.append({'processID': process.process_id,
                                        'id': process.id, 
                                        'version': process.version,
                                        'cwl_link': process.cwl_link})
-            existing_links_return.append({'href': prefix_url+"/"+str(process.process_id)})
+            existing_links_return.append({'href': ns.name+"/processes/"+str(process.process_id)})
         print("graceal printting request uri")
         
         response_body["processes"] = existing_processes_return
@@ -912,7 +911,6 @@ class Jobs(Resource):
 
         links = []
         jobs_with_required_fields = []
-        prefix_url = request.url
         # Need to get the CWLs to return as links with the jobs 
         for job in response_body["jobs"]:
             try:
@@ -923,7 +921,7 @@ class Jobs(Resource):
                 hysds_status = job[next(iter(job))]["status"]
                 ogc_status = ogc.hysds_to_ogc_status(hysds_status)
                 job_with_required_fields["status"] = ogc_status
-                links.append({"href": prefix_url+"/api/ogc/job/"+job_with_required_fields["id"]})
+                links.append({"href": ns.name+"/job/"+job_with_required_fields["id"]})
                 jobs_with_required_fields.append(job_with_required_fields)
             except: 
                 print("Error getting job type to get CWLs")
