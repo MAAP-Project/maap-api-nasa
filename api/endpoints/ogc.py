@@ -53,6 +53,7 @@ class Processes(Resource):
         Search all processes 
         :return:
         """
+        print("graceal in get of processes")
         response_body = dict()
         existing_processes_return = []
         existing_links_return =[]
@@ -72,9 +73,13 @@ class Processes(Resource):
         base_uri = request.base_url    # Base URI without query parameters
         query_string = request.query_string.decode()  # Raw query string
         print(full_uri)
+        logging.info(full_uri)
         print(path_only)
+        logging.info(path_only)
         print(base_uri)
+        logging.info(base_uri)
         print(query_string)
+        logging.info(query_string)
         
         response_body["processes"] = existing_processes_return
         response_body["links"] = existing_links_return
