@@ -68,7 +68,7 @@ class Processes(Resource):
                                        'id': process.id, 
                                        'version': process.version,
                                        'cwl_link': process.cwl_link})
-            existing_links_return.append({'href': prefix_url+"/api/ogc/processes/"+str(process.process_id)})
+            existing_links_return.append({'href': prefix_url+str(process.process_id)})
         print("graceal printting request uri")
         
         response_body["processes"] = existing_processes_return
@@ -863,7 +863,7 @@ class Jobs(Resource):
                 return response_body, status.HTTP_200_OK
             
         # If status is provided, make sure it is HySDS-compliant
-        if params['status'] is not None:
+        if params.get('status') is not None:
             params['status'] = ogc.get_hysds_status_from_ogc(params['status'])
         response_body, status = hysds.get_mozart_jobs_from_query_params(params, user)
         

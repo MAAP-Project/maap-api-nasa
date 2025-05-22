@@ -500,7 +500,7 @@ class Jobs(Resource):
         user = get_authorized_user()
         params = dict(request.args)
         # If status is provided, make sure it is HySDS-compliant
-        if params['status'] is not None:
+        if params.get('status') is not None:
             params['status'] = ogc.get_hysds_status_from_wps(params['status'])
 
         response_body, status = hysds.get_mozart_jobs_from_query_params(params, user)

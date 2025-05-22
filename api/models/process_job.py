@@ -11,7 +11,7 @@ class ProcessJob(Base):
     submitted_time = db.Column(db.DateTime())
     completed_time = db.Column(db.DateTime())
     status = db.Column(db.String())
-    results = db.Column(db.String())
-    traceback = db.Column(db.String())
+    results = db.Column(db.String(), nullable=True)
+    traceback = db.Column(db.String(), nullable=True)
     # Process id of the process this job was submitted for 
     process_id = db.Column(db.Integer, db.ForeignKey('process.process_id'), nullable=False)
