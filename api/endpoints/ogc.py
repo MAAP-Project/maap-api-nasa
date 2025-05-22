@@ -39,7 +39,7 @@ log = logging.getLogger(__name__)
 ns = api.namespace('ogc', description='OGC compliant endpoints')
 
 hysds_finished_statuses = ["job-revoked", "job-failed", "job-completed"]
-wps_finished_statuses = ["Succeeded", "Failed", "Dismissed", "Deduped"]
+ogc_finished_statuses = ["successful", "failed", "dismisssed", "deduped"]
 pending_status_options = ["created", "waiting_for_resource", "preparing", "pending", "running", "scheduled"]
 pipeline_url_template = settings.GITLAB_URL_POST_PROCESS+"/root/deploy-ogc-hysds/-/pipelines/{pipeline_id}"
 INITIAL_JOB_STATUS="accepted"
@@ -60,11 +60,12 @@ class Processes(Resource):
         existing_processes = db.session \
             .query(Process_db).all()
 
+        prefix_url = "temp"
         for process in existing_processes:
             existing_processes_return.append({'processID': process.process_id,
                                        'id': process.id, 
                                        'version': process.version})
-            existing_links_return.append({'href': process.cwl_link})
+            existing_links_return.append({'href': prefix_url+"/ogc/processes/"+str(process.process_id)})
         print("graceal printting request uri")
         full_uri = request.url         # Full URI including query parameters
         path_only = request.path       # Just the path (e.g., "/example")
@@ -157,43 +158,34 @@ class Processes(Resource):
             })
             print(f"Triggered pipeline ID: {pipeline.id}")
             
+            # Create the deployment which tracks the status of a deploying process 
             deployment = Deployment_db(created=datetime.now(),
                                     execution_venue=settings.DEPLOY_PROCESS_EXECUTION_VENUE, 
-                                    status=INITIAL_JOB_STATUS, # TODO not consistent with gitlab status endpoints I think, but can update later 
+                                    status=INITIAL_JOB_STATUS,
                                     cwl_link=cwl_link,
                                     user=user.id,
+                                    pipeline_id=pipeline.id,
                                     id=cwl_id,
                                     version=process_version)
             db.session.add(deployment)
             db.session.commit()
 
+            # Query the deployment that you just created to get its job_id for your response 
             deployment = db.session \
                     .query(Deployment_db) \
                     .filter_by(id=cwl_id,version=process_version,status=INITIAL_JOB_STATUS) \
                     .first()
-
             deployment_job_id = deployment.job_id
         except: 
             response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
             response_body["detail"] = "Failed to start CI/CD to deploy process. "+settings.DEPLOY_PROCESS_EXECUTION_VENUE+" is likely down"
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
 
-        # Update the deployment you just created with the pipeline id and status from gitlab
-        existing_deployment = db.session \
-            .query(Deployment_db) \
-            .filter_by(job_id=deployment_job_id) \
-            .first()
-        existing_deployment.pipeline_id = pipeline.id
-
         response_body["id"] = cwl_id
         response_body["version"] = process_version
         response_body["deploymentJobsEndpoint"] = "/deploymentJobs/" + str(deployment_job_id)
-
         response_body["processPipelineLink"] = {"href": pipeline.web_url}
-
-        existing_deployment.status = "created" 
         
-        db.session.commit()
         return response_body, status.HTTP_202_ACCEPTED
     
 """
@@ -201,6 +193,7 @@ Updates the status of the deployment if the deployment was previously in a pendi
 If the pipeline was successful, add the process to the table  
 In the case where a logged in user is querying check the updated status by querying the pipeline
 In the case where a authenticated 3rd party is making the call, get the updated status from the payload
+Only commit the updated status to the relational database if it is in the finished state
 """
 def update_status_post_process_if_applicable(deployment, req_data=None, query_pipeline=False):
     status_code = status.HTTP_200_OK
@@ -212,9 +205,10 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
         response_body["detail"] = "No deployment with that deployment ID found"
         return response_body, status.HTTP_404_NOT_FOUND
 
+    current_status = None
     # Only query pipeline link if status is not finished 
-    if deployment.status not in wps_finished_statuses:
-        # Get the updated status from a logged in user from querying the pipeline
+    if deployment.status not in ogc_finished_statuses:
+        # Get the updated status for a logged in user from querying the pipeline
         if query_pipeline:
             gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token=settings.GITLAB_POST_PROCESS_TOKEN)
             project = gl.projects.get(settings.GITLAB_PROJECT_ID_POST_PROCESS)
@@ -231,11 +225,15 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
         
         # Update the current pipeline status 
         ogc_status = ogc.get_ogc_status_from_gitlab(updated_status)
-        updated_status = ogc_status if ogc_status else updated_status
-        deployment.status = updated_status
-        db.session.commit()
+        current_status = ogc_status if ogc_status else updated_status
 
-        print("graceal this might be the weird part, checking wps_status againest Succeeded")
+        # Only update the deployment status in the database if status is now finished
+        if updated_status in ogc_finished_statuses:
+            print("graceal status was in finished so updating for deployment")
+            deployment.status = updated_status
+            db.session.commit()
+
+        print("graceal this might be the weird part, checking updated status (should be in OGC) againest successful")
         print(updated_status)
         # if the status has changed to success, then add to the Process table 
         if updated_status == "successful":
@@ -245,6 +243,7 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
                 .first()
             # if process with same id and version already exist, you just need to overwrite with the same process id 
             # This is for the case when multiple deployments start before any of them can successfully finish
+            # The process would have been overwritten in HySDS anyway
             # Now, if someone try to post a process with the same id/version, they would get a 409 duplicate error
             if existing_process:
                 existing_process.cwl_link = deployment.cwl_link
@@ -268,11 +267,13 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
             
             deployment.process_location = "/processes/"+str(process_id)
             db.session.commit()
+    else:
+        current_status = deployment.status
     pipeline_url = pipeline_url_template.replace("{pipeline_id}", str(deployment.pipeline_id))
     
     response_body = {
         "created": deployment.created,
-        "status": deployment.status,
+        "status": current_status,
         "pipeline": {
             "executionVenue": deployment.execution_venue,
             "pipelineId": deployment.pipeline_id,
@@ -447,74 +448,42 @@ class Describe(Resource):
 
         # Post the process to the deployment venue 
         try:
-            print("here in try statement")
-            logging.info("here in try statement")
             gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token=settings.GITLAB_POST_PROCESS_TOKEN)
-            print("here1")
-            logging.info("here1")
             project = gl.projects.get(settings.GITLAB_PROJECT_ID_POST_PROCESS)
-            print("here2")
-            logging.info("here2")
             pipeline = project.pipelines.create({
                 'ref': settings.VERSION,
                 'variables': [
                     {'key': 'CWL_URL', 'value': cwl_link}
                 ]
             })
-            print("here3")
-            logging.info("here3")
             print(f"Triggered pipeline ID: {pipeline.id}")
             deployment = Deployment_db(created=datetime.now(),
                                 execution_venue=settings.DEPLOY_PROCESS_EXECUTION_VENUE, 
                                 status=INITIAL_JOB_STATUS, 
                                 cwl_link=cwl_link,
                                 user=user.id,
+                                pipeline_id=pipeline.id,
                                 id=existing_process.id,
                                 version=existing_process.version)
-            print("here4")
-            logging.info("here4")
             db.session.add(deployment)
-            print("here5")
-            logging.info("here5")
             db.session.commit()
-            print("here6")
-            logging.info("here6")
 
             # Get the deployment you just committed to access its now assigned job id 
             deployment = db.session \
                     .query(Deployment_db) \
                     .filter_by(id=existing_process.id,version=existing_process.version,status=INITIAL_JOB_STATUS) \
                     .first()
-            print("here7")
-            logging.info("here7")
 
             deployment_job_id = deployment.job_id
-            print("here8")
-            logging.info("here8")
         except Exception as ex: 
-            print(ex)
-            logging.info(ex)
-            print("graceal in the except statement return error")
             response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
             response_body["detail"] = "Failed to start CI/CD to deploy process. "+settings.DEPLOY_PROCESS_EXECUTION_VENUE+" is likely down"
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
 
-        # Update the deployment you just created with the pipeline id and status from gitlab
-        existing_deployment = db.session \
-            .query(Deployment_db) \
-            .filter_by(job_id=deployment_job_id) \
-            .first()
-        existing_deployment.pipeline_id = pipeline.id
-
         response_body["id"] = existing_process.id
         response_body["version"] = existing_process.version
         response_body["deploymentJobsEndpoint"] = "/deploymentJobs/" + str(deployment_job_id)
-
         response_body["processPipelineLink"] = {"href": pipeline.web_url}
-
-        existing_deployment.status = "created" 
-        
-        db.session.commit()
         return response_body, status.HTTP_202_ACCEPTED
     
     @api.doc(security='ApiKeyAuth')
@@ -628,12 +597,6 @@ class ExecuteJob(Resource):
                 logging.info("Submitted Job with HySDS ID: {}".format(job_id))
                 # the status is hard coded because we query too fast before the record even shows up in ES
                 # we wouldn't have a Job ID unless it was a valid payload and got accepted by the system
-                # TODO right now I am just hardcoding accepted for the status because that is what OGC wants, 
-                # one of: accepted, running, failed, successful, dismissed
-                # if response.get("orig_job_status") is not None:
-                #     job_status = response.get("orig_job_status")
-                # else:
-                #     job_status = "job-queued"
                 submitted_time = datetime.now()
                 process_job = ProcessJob_db(user=user.id,
                     id=job_id, 
@@ -750,13 +713,13 @@ class Status(Resource):
         response_body["created"] = existing_job.submitted_time.isoformat()
         response_body["processID"] = existing_job.process_id
         response_body["id"] = existing_job.id
-        # graceal should this be hard coded in if the example options are process, wps, openeo?
+        # TODO graceal should this be hard coded in if the example options are process, wps, openeo?
         response_body["type"] = "process"
         
         # Dont update if status is already finished
         # Also if I could get more information from hysds about the job like time to complete, etc. 
         # that would be useful for the client, right now can copy the way that jobs list is doing it 
-        if existing_job.status in wps_finished_statuses:
+        if existing_job.status in ogc_finished_statuses:
             response_body["status"] = existing_job.status
             # response_body["finished"] = existing_job.completed_time.isoformat()
             return response_body, status.HTTP_200_OK 
@@ -765,10 +728,12 @@ class Status(Resource):
                 # Request to HySDS to check the current status if last checked the job hadnt finished 
                 response = hysds.mozart_job_status(job_id=existing_job.id)
                 current_status = response.get("status")
-                current_status = ogc.hysds_to_wps_status(current_status)
+                current_status = ogc.hysds_to_ogc_status(current_status)
                 response_body["status"] = current_status
-                existing_job.status = current_status
-                db.session.commit()
+                # Only update the current status in the database if it is complete 
+                if current_status in ogc_finished_statuses:
+                    existing_job.status = current_status
+                    db.session.commit()
                 return response_body, status.HTTP_200_OK 
             except: 
                 response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -790,6 +755,11 @@ class Status(Resource):
         # TODO: add optional parameter wait_for_completion to wait for cancel job to complete.
         # Since this can take a long time, we don't wait by default.
         wait_for_completion = request.args.get("wait_for_completion", False)
+
+        existing_job = db.session \
+            .query(ProcessJob_db) \
+            .filter_by(id=job_id) \
+            .first()
         try:
             # check if job is non-running
             current_status = hysds.mozart_job_status(job_id).get("status")
@@ -822,6 +792,8 @@ class Status(Resource):
             response_body["id"] = job_id
             response_body["type"] = "process"
             response_body["status"] = "dismissed"
+            existing_job.status = "dismissed"
+            db.session.commit()
             if not wait_for_completion:
                 response_body["status"] = status.HTTP_202_ACCEPTED
                 response_body["detail"] = response.decode("utf-8")
@@ -897,6 +869,10 @@ class Jobs(Resource):
                 response_body["status"] = status.HTTP_200_OK
                 response_body["jobs"] = []
                 return response_body, status.HTTP_200_OK
+            
+        # If status is provided, make sure it is HySDS-compliant
+        if params['status'] is not None:
+            params['status'] = ogc.get_hysds_status_from_ogc(params['status'])
         response_body, status = hysds.get_mozart_jobs_from_query_params(params, user)
         
         jobs_list = response_body["jobs"]
@@ -952,11 +928,11 @@ class Jobs(Resource):
                     .filter_by(id=id[0], version=id[1]) \
                     .first()
                 job_with_required_fields["id"] = next(iter(job))
-                # graceal should this be hard coded in if the example options are process, wps, openeo?
+                # TODO graceal should this be hard coded in if the example options are process, wps, openeo?
                 job_with_required_fields["type"] = "process"
                 hysds_status = job[next(iter(job))]["status"]
-                wps_status = ogc.hysds_to_wps_status(hysds_status)
-                job_with_required_fields["status"] = wps_status
+                ogc_status = ogc.hysds_to_ogc_status(hysds_status)
+                job_with_required_fields["status"] = ogc_status
                 if existing_process:
                     links.append({"href": existing_process.cwl_link})
                     job_with_required_fields["processID"] = existing_process.process_id

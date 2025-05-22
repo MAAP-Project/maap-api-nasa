@@ -23,6 +23,16 @@ WPS_TO_HYSDS_JOB_STATUS_MAP = {
  "Deleted": None, 
  "Offline": "job-offline"}
 
+OGC_TO_HYSDS_JOB_STATUS_MAP = {
+ "accepted": "job-queued",
+ "running": "job-started",
+ "successful": "job-completed",
+ "failed": "job-failed",
+ "dismissed": "job-revoked",
+ "deduped": "job-deduped",
+ "deleted": None, 
+ "offline": "job-offline"}
+
 GITLAB_PIPELINE_EVENT_STATUS_MAP = {
  "running": "running",
  "success": "successful",
@@ -31,6 +41,27 @@ GITLAB_PIPELINE_EVENT_STATUS_MAP = {
 
 def get_ogc_status_from_gitlab(gitlab_status):
     return GITLAB_PIPELINE_EVENT_STATUS_MAP.get(gitlab_status)
+
+def hysds_to_ogc_status(hysds_status):
+    for status in OGC_TO_HYSDS_JOB_STATUS_MAP:
+        if OGC_TO_HYSDS_JOB_STATUS_MAP.get(status) == hysds_status:
+            return status
+    return None 
+
+def get_hysds_status_from_ogc(ogc_status):
+    """
+    Translate WPS job status to HySDS job status
+
+    NOTE: HySDS does not support job status 'Deleted' and this status is not one of the base WPS job statuses.
+    Treating this status as a pass-through until there is consensus on HySDS-WPS mapping.
+
+    :param status: (str) WPS job status
+    :return status: (str) HySDS job status
+    """
+    if ogc_status not in OGC_TO_HYSDS_JOB_STATUS_MAP:
+        statuses = ", ".join(str(status) for status in list(OGC_TO_HYSDS_JOB_STATUS_MAP.keys()))
+        raise ValueError("Invalid WPS status: {}. Valid values are: {}".format(ogc_status, statuses))
+    return WPS_TO_HYSDS_JOB_STATUS_MAP.get(ogc_status)
 
 def hysds_to_wps_status(hysds_status):
     for status in WPS_TO_HYSDS_JOB_STATUS_MAP:

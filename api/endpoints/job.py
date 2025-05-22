@@ -498,7 +498,12 @@ class Jobs(Resource):
         """
 
         user = get_authorized_user()
-        response_body, status = hysds.get_mozart_jobs_from_query_params(request.args, user)
+        params = dict(request.args)
+        # If status is provided, make sure it is HySDS-compliant
+        if params['status'] is not None:
+            params['status'] = ogc.get_hysds_status_from_wps(params['status'])
+
+        response_body, status = hysds.get_mozart_jobs_from_query_params(params, user)
         """
                     <?xml version="1.0" encoding="UTF-8"?>
                     <Jobs>
