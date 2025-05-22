@@ -196,6 +196,7 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
     response_body = dict()
 
     if deployment is None:
+        response_body["status"] = status.HTTP_404_NOT_FOUND
         response_body["detail"] = "No deployment with that deployment ID found"
         return response_body, status.HTTP_404_NOT_FOUND
 
@@ -213,6 +214,7 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
             try:
                 updated_status = req_data["object_attributes"]["status"]
             except:
+                response_body["status"] = status.HTTP_400_BAD_REQUEST
                 response_body["detail"] = 'Payload from 3rd party should have status at ["object_attributes"]["status"]]'
                 return response_body, status.HTTP_400_BAD_REQUEST
         
@@ -509,7 +511,6 @@ class Describe(Resource):
             # Delete from database after successfully deleted from HySDS 
             db.session.delete(existing_process)
             db.session.commit()
-            response_body["status"] = status.HTTP_200_OK 
             response_body["detail"] = "Deleted process"
             return response_body, status.HTTP_200_OK 
         except: 
@@ -656,7 +657,6 @@ class Result(Resource):
                     prod_list.append(prod)
                     if traceback is not None:
                         # TODO graceal pass prod_list even if failed??
-                        response_body["status"] = status.HTTP_200_OK
                         response_body["detail"] = "Job failed and traceback is " + str(traceback)
                         return response_body, status.HTTP_200_OK 
                 count = 1
@@ -855,7 +855,6 @@ class Jobs(Resource):
             if existing_process is not None:
                 params["job_type"]="job-"+existing_process.id+":"+existing_process.version
             else:
-                response_body["status"] = status.HTTP_200_OK
                 response_body["jobs"] = []
                 return response_body, status.HTTP_200_OK
             
