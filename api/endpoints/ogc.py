@@ -67,7 +67,18 @@ class Processes(Resource):
                                        'id': process.id, 
                                        'version': process.version,
                                        'cwl_link': process.cwl_link})
-            existing_links_return.append({'href': ns.name+"/processes/"+str(process.process_id)})
+            existing_links_return.append({'href': "/"+ns.name+"/processes/"+str(process.process_id)})
+            print("getting info from hysds for ")
+            print(process.cwl_link)
+            job_type = "job-{}:{}".format(process.id, process.version)
+            response = hysds.get_job_spec(job_type)
+            print("hysds spec")
+            print(response)
+            
+            hysdsio_type = "hysds-io-{}:{}".format(process.id, process.version)
+            response = hysds.get_hysds_io(hysdsio_type)
+            print("hysds io")
+            print(response)
         print("graceal printting request uri")
         
         response_body["processes"] = existing_processes_return
@@ -921,7 +932,7 @@ class Jobs(Resource):
                 hysds_status = job[next(iter(job))]["status"]
                 ogc_status = ogc.hysds_to_ogc_status(hysds_status)
                 job_with_required_fields["status"] = ogc_status
-                links.append({"href": ns.name+"/job/"+job_with_required_fields["id"]})
+                links.append({"href": "/"+ns.name+"/job/"+job_with_required_fields["id"]})
                 jobs_with_required_fields.append(job_with_required_fields)
             except: 
                 print("Error getting job type to get CWLs")
