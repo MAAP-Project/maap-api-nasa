@@ -696,6 +696,8 @@ class Status(Resource):
         :return:
         """
         response_body = dict()
+        print("graceal in get job")
+        logging.info("graceal in get job")
 
         existing_job = db.session \
             .query(ProcessJob_db) \
@@ -721,6 +723,7 @@ class Status(Resource):
         if existing_job.status in OGC_FINISHED_STATUSES:
             print("graceal in if statement that existing job status with in finished statuses")
             print(existing_job.status)
+            logging.info(existing_job.status)
             response_body["status"] = existing_job.status
             # response_body["finished"] = existing_job.completed_time.isoformat()
             return response_body, status.HTTP_200_OK 
@@ -730,20 +733,25 @@ class Status(Resource):
                 response = hysds.mozart_job_status(job_id=job_id)
                 print("graceal status from hysds mozart is ")
                 print(response)
+                logging.info(response)
                 current_status = response.get("status")
                 print("graceal current status is ")
                 print(current_status)
+                logging.info(current_status)
                 current_status = ogc.hysds_to_ogc_status(current_status)
                 print("graceal current status after converting to ogc is ")
                 print(current_status)
+                logging.info(current_status)
                 response_body["status"] = current_status
                 # Only update the current status in the database if it is complete 
                 if current_status in OGC_FINISHED_STATUSES:
                     print("graceal updating status in the table")
+                    logging.info("graceal updating status in the table")
                     existing_job.status = current_status
                     db.session.commit()
                 else:
                     print("graceal1 did not update status in the table")
+                    logging.info("graceal1 did not update status in the table")
                 return response_body, status.HTTP_200_OK 
             except: 
                 response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
