@@ -711,7 +711,7 @@ class Status(Resource):
         
         response_body["created"] = existing_job.submitted_time.isoformat()
         response_body["processID"] = existing_job.process_id
-        response_body["id"] = existing_job.id
+        response_body["id"] = job_id
         # TODO graceal should this be hard coded in if the example options are process, wps, openeo?
         response_body["type"] = "process"
         
@@ -719,15 +719,23 @@ class Status(Resource):
         # Also if I could get more information from hysds about the job like time to complete, etc. 
         # that would be useful for the client, right now can copy the way that jobs list is doing it 
         if existing_job.status in OGC_FINISHED_STATUSES:
+            print("graceal in if statement that existing job status with in finished statuses")
+            print(existing_job.status)
             response_body["status"] = existing_job.status
             # response_body["finished"] = existing_job.completed_time.isoformat()
             return response_body, status.HTTP_200_OK 
         else:
             try:
                 # Request to HySDS to check the current status if last checked the job hadnt finished 
-                response = hysds.mozart_job_status(job_id=existing_job.id)
+                response = hysds.mozart_job_status(job_id=job_id)
+                print("graceal status from hysds mozart is ")
+                print(response)
                 current_status = response.get("status")
+                print("graceal current status is ")
+                print(current_status)
                 current_status = ogc.hysds_to_ogc_status(current_status)
+                print("graceal current status after converting to ogc is ")
+                print(current_status)
                 response_body["status"] = current_status
                 # Only update the current status in the database if it is complete 
                 if current_status in OGC_FINISHED_STATUSES:
