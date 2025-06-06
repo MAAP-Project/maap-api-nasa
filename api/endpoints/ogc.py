@@ -696,8 +696,6 @@ class Status(Resource):
         :return:
         """
         response_body = dict()
-        print("graceal in get job")
-        logging.info("graceal in get job")
 
         existing_job = db.session \
             .query(ProcessJob_db) \
@@ -721,9 +719,6 @@ class Status(Resource):
         # Also if I could get more information from hysds about the job like time to complete, etc. 
         # that would be useful for the client, right now can copy the way that jobs list is doing it 
         if existing_job.status in OGC_FINISHED_STATUSES:
-            print("graceal in if statement that existing job status with in finished statuses")
-            print(existing_job.status)
-            logging.info(existing_job.status)
             response_body["status"] = existing_job.status
             # response_body["finished"] = existing_job.completed_time.isoformat()
             return response_body, status.HTTP_200_OK 
@@ -731,37 +726,18 @@ class Status(Resource):
             try:
                 # Request to HySDS to check the current status if last checked the job hadnt finished 
                 response = hysds.mozart_job_status(job_id=job_id)
-                print("graceal status from hysds mozart is ")
-                print(response)
-                logging.info(response)
                 current_status = response.get("status")
                 # If the current job status is still the INITIAL_JOB_STATUS and the mozart status is None
                 # but the job was submitted less than 10 seconds ago, then 
                 # status probably just hasn't updated in mozart yet 
-                print("graceal evaluating if statement")
-                print(existing_job.status)
-                print(existing_job.submitted_time)
-                print(datetime.now())
-                print(datetime.now() < existing_job.submitted_time + timedelta(seconds=10))
                 if existing_job.status == INITIAL_JOB_STATUS and current_status is None and datetime.now() < existing_job.submitted_time + timedelta(seconds=10): 
                     current_status = "job-queued"
-                print("graceal current status is ")
-                print(current_status)
-                logging.info(current_status)
                 current_status = ogc.hysds_to_ogc_status(current_status)
-                print("graceal current status after converting to ogc is ")
-                print(current_status)
-                logging.info(current_status)
                 response_body["status"] = current_status
                 # Only update the current status in the database if it is complete 
                 if current_status in OGC_FINISHED_STATUSES:
-                    print("graceal updating status in the table")
-                    logging.info("graceal updating status in the table")
                     existing_job.status = current_status
                     db.session.commit()
-                else:
-                    print("graceal1 did not update status in the table")
-                    logging.info("graceal1 did not update status in the table")
                 return response_body, status.HTTP_200_OK 
             except: 
                 response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -980,117 +956,63 @@ class Jobs(Resource):
         """
         return response_body, status
     
-# @ns.route('/jobs/<string:job_id>/metrics')
-# class Status(Resource):
+@ns.route('/jobs/<string:job_id>/metrics')
+class Status(Resource):
 
-#     @api.doc(security='ApiKeyAuth')
-#     @login_required()
-#     def get(self, job_id):
-#         response_body = dict()
-#         print("graceal in metrics")
-#         logging.info("graceal in metrics")
+    @api.doc(security='ApiKeyAuth')
+    @login_required()
+    def get(self, job_id):
+        response_body = dict()
 
-#         try:
-#             logging.info("Finding result of job with id {}".format(job_id))
-#             logging.info("Retrieved Mozart job id: {}".format(job_id))
-#             try:
-#                 mozart_response = hysds.get_mozart_job(job_id)
-#             except Exception as ex:
-#                 response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR 
-#                 response_body["detail"] = "Failed to get job information found for {}. Reason: {}".format(job_id, ex)
-#                 return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
+        try:
+            logging.info("Finding result of job with id {}".format(job_id))
+            logging.info("Retrieved Mozart job id: {}".format(job_id))
+            try:
+                mozart_response = hysds.get_mozart_job(job_id)
+            except Exception as ex:
+                response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR 
+                response_body["detail"] = "Failed to get job information found for {}. Reason: {}".format(job_id, ex)
+                return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
 
-#             # get all the relevant metrics information
-#             job_info = mozart_response.get("job").get("job_info")
-#             dir_size = job_info.get("metrics").get("job_dir_size")
-#             job_facts = job_info.get("facts")
-#             architecture = job_facts.get("architecture")
-#             os = job_facts.get("operatingsystem")
-#             memorysize = job_facts.get("memorysize")
-#             instance_typ = job_facts.get("ec2_instance_type")
-#             time_start = job_info.get("cmd_start")
-#             time_end = job_info.get("cmd_end")
-#             time_duration = job_info.get("cmd_duration")
+            # get all the relevant metrics information
+            job_info = mozart_response.get("job").get("job_info")
+            response_body["directory_size"] = job_info.get("metrics").get("job_dir_size")
+            job_facts = job_info.get("facts")
+            response_body["architecture"] = job_facts.get("architecture")
+            response_body["operating_system"] = job_facts.get("operatingsystem")
+            response_body["machine_memory_size"] = job_facts.get("memorysize")
+            response_body["machine_type"] = job_facts.get("ec2_instance_type")
+            response_body["job_start_time"] = job_info.get("cmd_start")
+            response_body["job_end_time"] = job_info.get("cmd_end")
+            response_body["job_duration_seconds"] = job_info.get("cmd_duration")
 
-#             docker_metrics = job_info.get("metrics").get("usage_stats")[0].get("cgroups")
-#             if docker_metrics is not None:
-#                 cpu_stats = docker_metrics.get("cpu_stats").get("cpu_usage").get("total_usage")
-#                 memory_stats = docker_metrics.get("memory_stats")
-#                 cache_stat = memory_stats.get("cache")
-#                 mem_usage = memory_stats.get("usage").get("usage")
-#                 max_mem_usage = memory_stats.get("usage").get("max_usage")
-#                 swap_usage = memory_stats.get("stats").get("swap")
+            docker_metrics = job_info.get("metrics").get("usage_stats")[0].get("cgroups")
+            if docker_metrics is not None:
+                response_body["cpu_usage"] = docker_metrics.get("cpu_stats").get("cpu_usage").get("total_usage")
+                memory_stats = docker_metrics.get("memory_stats")
+                response_body["cache_usage"] = memory_stats.get("cache")
+                response_body["mem_usage"] = memory_stats.get("usage").get("usage")
+                response_body["max_mem_usage"] = memory_stats.get("usage").get("max_usage")
+                response_body["swap_usage"] = memory_stats.get("stats").get("swap")
 
-#                 # total bytes transferred during all the I/O operations performed by the container
-#                 io_stats = docker_metrics.get("blkio_stats").get("io_service_bytes_recursive")
-#                 for io in io_stats:
-#                     op = io.get("op")
-#                     if op == "Read":
-#                         read_io_stats = io.get("value", 0)
-#                     elif op == "Write":
-#                         write_io_stats = io.get("value", 0)
-#                     elif op == "Sync":
-#                         sync_io_stats = io.get("value", 0)
-#                     elif op == "Async":
-#                         async_io_stats = io.get("value", 0)
-#                     elif op == "Total":
-#                         total_io_stats = io.get("value", 0)
+                # total bytes transferred during all the I/O operations performed by the container
+                io_stats = docker_metrics.get("blkio_stats").get("io_service_bytes_recursive")
+                for io in io_stats:
+                    op = io.get("op")
+                    if op == "Read":
+                        response_body["read_io_stats"] = io.get("value", 0)
+                    elif op == "Write":
+                        response_body["write_io_stats"] = io.get("value", 0)
+                    elif op == "Sync":
+                        response_body["sync_io_stats"] = io.get("value", 0)
+                    elif op == "Async":
+                        response_body["async_io_stats"] = io.get("value", 0)
+                    elif op == "Total":
+                        response_body["total_io_stats"] = io.get("value", 0)
 
-
-#             # build the metrics JSON
-#             """
-#             <?xml version="1.0" encoding="UTF-8"?>
-#             <Metrics>
-#             <machine_type></machine_type>
-#             <architecture></architecture>
-#             <machine_memory_size></machine_memory_size>
-#             <>
-#             <job_start_time></job_start_time>
-#             <job_end_time></job_end_time>
-#             <job_duration_seconds></job_duration_seconds>
-#             <Metrics>
-#             """
-#             xml_response = Element("metrics")
-#             machine_type = SubElement(xml_response, "machine_type")
-#             machine_type.text = instance_typ
-#             arch = SubElement(xml_response, "architecture")
-#             arch.text = architecture
-#             machine_memory_size = SubElement(xml_response, "machine_memory_size")
-#             machine_memory_size.text = str(memorysize)
-#             directory_size = SubElement(xml_response, "directory_size")
-#             directory_size.text = str(dir_size)
-#             operating_system = SubElement(xml_response, "operating_system")
-#             operating_system.text = os
-#             job_start_time = SubElement(xml_response, "job_start_time")
-#             job_start_time.text = time_start
-#             job_end_time = SubElement(xml_response, "job_end_time")
-#             job_end_time.text = time_end
-#             job_duration_seconds = SubElement(xml_response, "job_duration_seconds")
-#             job_duration_seconds.text = str(time_duration)
-#             if docker_metrics is not None:
-#                 cpu_usage = SubElement(xml_response, "cpu_usage")
-#                 cpu_usage.text = str(cpu_stats)
-#                 cache_usage = SubElement(xml_response, "cache_usage")
-#                 cache_usage.text = str(cache_stat)
-#                 mem_usage = SubElement(xml_response, "mem_usage")
-#                 mem_usage.text = str(mem_usage)
-#                 max_mem_usage = SubElement(xml_response, "max_mem_usage")
-#                 max_mem_usage.text = str(max_mem_usage)
-#                 swap_usage = SubElement(xml_response, "swap_usage")
-#                 swap_usage.text = str(swap_usage)
-#                 read_io_stats = SubElement(xml_response, "read_io_stats")
-#                 read_io_stats.text = str(read_io_stats)
-#                 write_io_stats = SubElement(xml_response, "write_io_stats")
-#                 write_io_stats.text = str(write_io_stats)
-#                 sync_io_stats = SubElement(xml_response, "sync_io_stats")
-#                 sync_io_stats.text = str(sync_io_stats)
-#                 async_io_stats = SubElement(xml_response, "async_io_stats")
-#                 async_io_stats.text = str(async_io_stats)
-#                 total_io_stats = SubElement(xml_response, "total_io_stats")
-#                 total_io_stats.text = str(total_io_stats)
-#             return Response(tostring(xml_response), mimetype="text/xml", status=status.HTTP_200_OK)
-#         except Exception as ex:
-#             print("Metrics Exception: {}".format(ex))
-#             response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR 
-#             response_body["detail"] = "Failed to get job metrics. {}. Please contact administrator of DPS for clarification if needed".format(ex)
-#             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
+            return response_body, status.HTTP_200_OK
+        except Exception as ex:
+            print("Metrics Exception: {}".format(ex))
+            response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR 
+            response_body["detail"] = "Failed to get job metrics. {}. Please contact administrator of DPS for clarification if needed".format(ex)
+            return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
