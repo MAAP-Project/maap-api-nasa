@@ -976,43 +976,67 @@ class Status(Resource):
 
             # get all the relevant metrics information
             job_info = mozart_response.get("job").get("job_info")
-            response_body["directory_size"] = job_info.get("metrics").get("job_dir_size")
+            dir_size = job_info.get("metrics").get("job_dir_size")
             job_facts = job_info.get("facts")
-            response_body["architecture"] = job_facts.get("architecture")
-            response_body["operating_system"] = job_facts.get("operatingsystem")
-            response_body["machine_memory_size"] = job_facts.get("memorysize")
-            response_body["machine_type"] = job_facts.get("ec2_instance_type")
-            response_body["job_start_time"] = job_info.get("cmd_start")
-            response_body["job_end_time"] = job_info.get("cmd_end")
-            response_body["job_duration_seconds"] = job_info.get("cmd_duration")
+            architecture = job_facts.get("architecture")
+            os = job_facts.get("operatingsystem")
+            memorysize = job_facts.get("memorysize")
+            instance_typ = job_facts.get("ec2_instance_type")
+            time_start = job_info.get("cmd_start")
+            time_end = job_info.get("cmd_end")
+            time_duration = job_info.get("cmd_duration")
 
-            docker_metrics = job_info.get("metrics").get("usage_stats")[0].get("cgroups")
-            if docker_metrics is not None:
-                response_body["cpu_usage"] = docker_metrics.get("cpu_stats").get("cpu_usage").get("total_usage")
-                memory_stats = docker_metrics.get("memory_stats")
-                response_body["cache_usage"] = memory_stats.get("cache")
-                response_body["mem_usage"] = memory_stats.get("usage").get("usage")
-                response_body["max_mem_usage"] = memory_stats.get("usage").get("max_usage")
-                response_body["swap_usage"] = memory_stats.get("stats").get("swap")
+            if job_info.get("metrics").get("usage_stats"):
+                docker_metrics = job_info.get("metrics").get("usage_stats")[0].get("cgroups")
+                if docker_metrics is not None:
+                    cpu_stats = docker_metrics.get("cpu_stats").get("cpu_usage").get("total_usage")
+                    memory_stats = docker_metrics.get("memory_stats")
+                    cache_stat = memory_stats.get("cache")
+                    mem_usage = memory_stats.get("usage").get("usage")
+                    max_mem_usage = memory_stats.get("usage").get("max_usage")
+                    swap_usage = memory_stats.get("stats").get("swap")
 
-                # total bytes transferred during all the I/O operations performed by the container
-                io_stats = docker_metrics.get("blkio_stats").get("io_service_bytes_recursive")
-                for io in io_stats:
-                    op = io.get("op")
-                    if op == "Read":
-                        response_body["read_io_stats"] = io.get("value", 0)
-                    elif op == "Write":
-                        response_body["write_io_stats"] = io.get("value", 0)
-                    elif op == "Sync":
-                        response_body["sync_io_stats"] = io.get("value", 0)
-                    elif op == "Async":
-                        response_body["async_io_stats"] = io.get("value", 0)
-                    elif op == "Total":
-                        response_body["total_io_stats"] = io.get("value", 0)
+                    # total bytes transferred during all the I/O operations performed by the container
+                    io_stats = docker_metrics.get("blkio_stats").get("io_service_bytes_recursive")
+                    for io in io_stats:
+                        op = io.get("op")
+                        if op == "Read":
+                            read_io_stats = io.get("value", 0)
+                        elif op == "Write":
+                            write_io_stats = io.get("value", 0)
+                        elif op == "Sync":
+                            sync_io_stats = io.get("value", 0)
+                        elif op == "Async":
+                            async_io_stats = io.get("value", 0)
+                        elif op == "Total":
+                            total_io_stats = io.get("value", 0)
+
+            # Create the JSON
+            response_body["machine_type"] = instance_typ
+            response_body["architecture"] = architecture
+            response_body["machine_memory_size"] = memorysize
+            response_body["directory_size"] = dir_size
+            response_body["operating_system"] = os
+            response_body["job_start_time"] = time_start
+            response_body["job_end_time"] = time_end
+            response_body["job_duration_seconds"] = time_duration
+
+            if docker_metrics:
+                response_body["cpu_usage"] = cpu_stats
+                response_body["cache_usage"] = cache_stat
+                response_body["mem_usage"] = mem_usage
+                response_body["max_mem_usage"] = max_mem_usage
+                response_body["swap_usage"] = swap_usage
+                response_body["read_io_stats"] = read_io_stats
+                response_body["write_io_stats"] = write_io_stats
+                response_body["sync_io_stats"] = sync_io_stats
+                response_body["async_io_stats"] = async_io_stats
+                response_body["total_io_stats"] = total_io_stats
 
             return response_body, status.HTTP_200_OK
         except Exception as ex:
             print("Metrics Exception: {}".format(ex))
+            print(ex)
             response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR 
             response_body["detail"] = "Failed to get job metrics. {}. Please contact administrator of DPS for clarification if needed".format(ex)
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
