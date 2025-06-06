@@ -624,6 +624,32 @@ class ExecuteJob(Resource):
             response_body["detail"] = "FailedJobSubmit: " + str(ex)
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
         
+@ns.route('/processes/<string:process_id>/package')
+class Package(Resource):
+
+    @api.doc(security='ApiKeyAuth')
+    @login_required()
+    def get(self, process_id):
+        """
+        Access the formal description that can be used to deploy a process on an OGC API - Processes Server Instance
+        :return:
+        """
+        response_body = dict()
+            
+        # Get existing process 
+        existing_process = db.session \
+                    .query(Process_db) \
+                    .filter_by(process_id=process_id) \
+                    .first()
+        
+        if existing_process is None:
+            response_body["status"] = status.HTTP_404_NOT_FOUND
+            response_body["detail"] = "No process with that process ID found"
+            return response_body, status.HTTP_404_NOT_FOUND 
+        
+        response_body["executionUnit"] = {"href": existing_process.cwl_link}
+        response_body, status.HTTP_200_OK 
+        
 
 @ns.route('/jobs/<string:job_id>/results')
 class Result(Resource):
