@@ -963,6 +963,7 @@ class Status(Resource):
     @login_required()
     def get(self, job_id):
         response_body = dict()
+        docker_metrics = None
 
         try:
             logging.info("Finding result of job with id {}".format(job_id))
