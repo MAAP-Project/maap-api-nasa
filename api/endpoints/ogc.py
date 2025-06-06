@@ -646,7 +646,7 @@ class Package(Resource):
             return response_body, status.HTTP_404_NOT_FOUND 
         
         response_body["executionUnit"] = {"href": existing_process.cwl_link}
-        response_body, status.HTTP_200_OK 
+        return response_body, status.HTTP_200_OK 
         
 
 @ns.route('/jobs/<string:job_id>/results')
