@@ -627,8 +627,6 @@ class ExecuteJob(Resource):
 @ns.route('/processes/<string:process_id>/package')
 class Package(Resource):
 
-    @api.doc(security='ApiKeyAuth')
-    @login_required()
     def get(self, process_id):
         """
         Access the formal description that can be used to deploy a process on an OGC API - Processes Server Instance
