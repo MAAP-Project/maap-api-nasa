@@ -365,6 +365,7 @@ class Describe(Resource):
         # is this close enough to the same thing? 
         response_body["title"] = response.get("label")
         response_body["processID"] = process_id
+        response_body["cwlLink"] = existing_process.cwl_link
         # need to refine this to be what OGC is expecting, etc.
         count = 1
         response_body["inputs"] = {}
@@ -372,7 +373,7 @@ class Describe(Resource):
             response_body["inputs"]["additionalProp"+str(count)] = {"title": param.get("name"), "description": param.get("description"), "type": param.get("type"), "placeholder": param.get("placeholder"), "default": param.get("default")}
             count+=1
         # important things missing: outputs, 
-        response_body["links"] = [{"href": existing_process.cwl_link}]
+        response_body["links"] = [{'href': "/"+ns.name+"/processes/"+str(process_id)}]
         
         return response_body, status.HTTP_200_OK
     
