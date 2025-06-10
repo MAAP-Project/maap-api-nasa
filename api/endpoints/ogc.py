@@ -42,6 +42,7 @@ OGC_FINISHED_STATUSES = ["successful", "failed", "dismisssed", "deduped"]
 OGC_SUCCESS = "successful"
 PIPELINE_URL_TEMPLATE = settings.GITLAB_URL_POST_PROCESS+"/root/deploy-ogc-hysds/-/pipelines/{pipeline_id}"
 INITIAL_JOB_STATUS="accepted"
+DEPLOYED_PROCESS_STATUS="deployed"
 
 # TODO run through chatgpt to refactor 
 
@@ -60,7 +61,7 @@ class Processes(Resource):
         existing_links_return =[]
 
         existing_processes = db.session \
-            .query(Process_db).all()
+            .query(Process_db).filter_by(status=DEPLOYED_PROCESS_STATUS).all()
 
         for process in existing_processes:
             existing_processes_return.append({'processID': process.process_id,
@@ -140,7 +141,7 @@ class Processes(Resource):
         
         existing_process = db.session \
             .query(Process_db) \
-            .filter_by(id=cwl_id, version=process_version) \
+            .filter_by(id=cwl_id, version=process_version, status=DEPLOYED_PROCESS_STATUS) \
             .first()
         
         # If process with same ID and version is already present, tell the user they need to use PUT instead to modify
@@ -244,7 +245,7 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
         if current_status == OGC_SUCCESS:
             existing_process = db.session \
                 .query(Process_db) \
-                .filter_by(id=deployment.id, version=deployment.version) \
+                .filter_by(id=deployment.id, version=deployment.version, status=DEPLOYED_PROCESS_STATUS) \
                 .first()
             # if process with same id and version already exist, you just need to overwrite with the same process id 
             # This is for the case when multiple deployments start before any of them can successfully finish
@@ -258,13 +259,14 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
                 process = Process_db(id=deployment.id,
                                 version=deployment.version,
                                 cwl_link=deployment.cwl_link,
-                                user=deployment.user)
+                                user=deployment.user, 
+                                status=DEPLOYED_PROCESS_STATUS)
                 db.session.add(process)
                 db.session.commit()
 
                 process = db.session \
                     .query(Process_db) \
-                    .filter_by(id=deployment.id, version=deployment.version) \
+                    .filter_by(id=deployment.id, version=deployment.version, status=DEPLOYED_PROCESS_STATUS) \
                     .first()
                 process_id = process.process_id
 
@@ -344,7 +346,7 @@ class Describe(Resource):
 
         existing_process = db.session \
                     .query(Process_db) \
-                    .filter_by(process_id=process_id) \
+                    .filter_by(process_id=process_id, status=DEPLOYED_PROCESS_STATUS) \
                     .first()
         if existing_process is None:
             response_body["status"] = status.HTTP_404_NOT_FOUND
@@ -391,7 +393,7 @@ class Describe(Resource):
         # Get existing process 
         existing_process = db.session \
                     .query(Process_db) \
-                    .filter_by(process_id=process_id) \
+                    .filter_by(process_id=process_id, status=DEPLOYED_PROCESS_STATUS) \
                     .first()
         
         if existing_process is None:
@@ -493,6 +495,7 @@ class Describe(Resource):
     def delete(self, process_id):
         """
         Delete an existing process if you created it 
+        This just sets the status of the process to undeployed and keeps it in the database 
         :return:
         """
         response_body = dict()
@@ -501,7 +504,7 @@ class Describe(Resource):
         # Get existing process 
         existing_process = db.session \
                     .query(Process_db) \
-                    .filter_by(process_id=process_id) \
+                    .filter_by(process_id=process_id, status=DEPLOYED_PROCESS_STATUS) \
                     .first()
         
         if existing_process is None:
@@ -517,16 +520,18 @@ class Describe(Resource):
         
         # delete the process from HySDS 
         try:
-            job_type = "job-{}:{}".format(existing_process.id, existing_process.version)
-            hysds.delete_mozart_job_type(job_type)
+            # Currently not deleting the process from HySDS, that might change later 
+            # job_type = "job-{}:{}".format(existing_process.id, existing_process.version)
+            # hysds.delete_mozart_job_type(job_type)
             # Delete from database after successfully deleted from HySDS 
-            db.session.delete(existing_process)
+            existing_process.status = "undeployed"
+            # db.session.delete(existing_process)
             db.session.commit()
             response_body["detail"] = "Deleted process"
             return response_body, status.HTTP_200_OK 
         except: 
             response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
-            response_body["detail"] = "Failed to process request to delete {}".format(job_type)
+            response_body["detail"] = "Failed to process request to delete {}".format(process_id)
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
         
 
@@ -550,7 +555,7 @@ class ExecuteJob(Resource):
 
         existing_process = db.session \
                     .query(Process_db) \
-                    .filter_by(process_id=process_id) \
+                    .filter_by(process_id=process_id, status=DEPLOYED_PROCESS_STATUS) \
                     .first()
         if existing_process is None:
             response_body["status"] = status.HTTP_404_NOT_FOUND
@@ -637,7 +642,7 @@ class Package(Resource):
         # Get existing process 
         existing_process = db.session \
                     .query(Process_db) \
-                    .filter_by(process_id=process_id) \
+                    .filter_by(process_id=process_id, status=DEPLOYED_PROCESS_STATUS) \
                     .first()
         
         if existing_process is None:
@@ -894,7 +899,7 @@ class Jobs(Resource):
         if request.args.get("process_id"):
             existing_process = db.session \
                 .query(Process_db) \
-                .filter_by(process_id=request.args.get("process_id")) \
+                .filter_by(process_id=request.args.get("process_id"), status=DEPLOYED_PROCESS_STATUS) \
                 .first()
             if existing_process is not None:
                 params["job_type"]="job-"+existing_process.id+":"+existing_process.version
