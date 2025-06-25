@@ -133,6 +133,8 @@ class Processes(Resource):
         # TODO make sure no errors when these are null 
         # We will need to extract all this information ourselves because HySDS doesnt have it yet
         keywords = re.search(r"s:keywords:\s*(\S+)", response, re.IGNORECASE)
+        if keywords: 
+            keywords = keywords.group(1)
         print("graceal1 keywords is ")
         print(keywords)
 
