@@ -14,3 +14,7 @@ class Deployment(Base):
     version = db.Column(db.String(), nullable=False)
     user = db.Column(db.Integer, db.ForeignKey('member.id'), nullable=False)
     process_location = db.Column(db.String(), nullable=True)
+    title = db.Column(db.String(), nullable=True)
+    description = db.Column(db.String(), nullable=True)
+    # comma separated list of keywords from CWL 
+    keywords = db.Column(db.String(), nullable=True)

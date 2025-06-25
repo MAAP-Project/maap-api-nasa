@@ -11,3 +11,7 @@ class Process(Base):
     user = db.Column(db.Integer, db.ForeignKey('member.id'), nullable=False)
     # Status is either deployed or undeployed 
     status = db.Column(db.String(), nullable=False)
+    title = db.Column(db.String(), nullable=True)
+    description = db.Column(db.String(), nullable=True)
+    # comma separated list of keywords from CWL 
+    keywords = db.Column(db.String(), nullable=True)

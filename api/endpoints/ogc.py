@@ -64,23 +64,23 @@ class Processes(Resource):
             .query(Process_db).filter_by(status=DEPLOYED_PROCESS_STATUS).all()
 
         for process in existing_processes:
-            existing_processes_return.append({'processID': process.process_id,
+            link_obj_process = {'href': '/'+ns.name+'/processes/'+str(process.process_id),
+                        'rel': 'self',
+                        'type': None,
+                        'hreflang': None,
+                        'title': 'OGC Process Description'
+                    }
+            existing_processes_return.append({'title': process.title,
+                                       'description': process.description,
+                                       'keywords': process.keywords.split(",") if process.keywords is not None else [], 
+                                       'metadata': [],
                                        'id': process.id, 
                                        'version': process.version,
-                                       'cwl_link': process.cwl_link})
-            existing_links_return.append({'href': "/"+ns.name+"/processes/"+str(process.process_id)})
-            print("getting info from hysds for ")
-            print(process.cwl_link)
-            job_type = "job-{}:{}".format(process.id, process.version)
-            response = hysds.get_job_spec(job_type)
-            print("hysds spec")
-            print(response)
-            
-            hysdsio_type = "hysds-io-{}:{}".format(process.id, process.version)
-            response = hysds.get_hysds_io(hysdsio_type)
-            print("hysds io")
-            print(response)
-        print("graceal printting request uri")
+                                       'jobControlOptions': [], # TODO Unsure what we want this to be yet
+                                       'cwl_link': process.cwl_link,
+                                       'links': [link_obj_process]
+                                    })
+            existing_links_return.append(link_obj_process)
         
         response_body["processes"] = existing_processes_return
         response_body["links"] = existing_links_return
@@ -130,6 +130,19 @@ class Processes(Resource):
         cwl_id = workflow.id
         match = re.search(r"s:version:\s*(\S+)", response, re.IGNORECASE)
 
+        # TODO make sure no errors when these are null 
+        # We will need to extract all this information ourselves because HySDS doesnt have it yet
+        keywords = re.search(r"s:keywords:\s*(\S+)", response, re.IGNORECASE)
+        print("graceal1 keywords is ")
+        print(keywords)
+
+        title = workflow.label
+        print("graceal1 title is ")
+        print(title)
+        description = workflow.doc
+        print("graceal1 description is ")
+        print(description)
+
         if not match or not cwl_id:
             response_body["status"] = status.HTTP_400_BAD_REQUEST
             response_body["detail"] = "Need to provide version at s:version or id"
@@ -169,6 +182,9 @@ class Processes(Resource):
                                     execution_venue=settings.DEPLOY_PROCESS_EXECUTION_VENUE, 
                                     status=INITIAL_JOB_STATUS,
                                     cwl_link=cwl_link,
+                                    title=title,
+                                    description=description,
+                                    keywords=keywords,
                                     user=user.id,
                                     pipeline_id=pipeline.id,
                                     id=cwl_id,
@@ -187,10 +203,27 @@ class Processes(Resource):
             response_body["detail"] = "Failed to start CI/CD to deploy process. "+settings.DEPLOY_PROCESS_EXECUTION_VENUE+" is likely down"
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
 
+        response_body["title"] = title
+        response_body["description"] = description
+        response_body["keywords"] =  keywords.split(",") if keywords is not None else []
+        response_body["metadata"] = []
         response_body["id"] = cwl_id
         response_body["version"] = process_version
-        response_body["deploymentJobsEndpoint"] = "/deploymentJobs/" + str(deployment_job_id)
-        response_body["processPipelineLink"] = {"href": pipeline.web_url}
+        response_body["jobControlOptions"] = []
+        response_body["links"] = [{
+            "href": "/"+ns.name+"/deploymentJobs/" + str(deployment_job_id),
+            "rel": "self",
+            "type": None,
+            "hreflang": None,
+            "title": "Deploying process status link"
+        }]
+        response_body["processPipelineLink"] = {
+            "href": pipeline.web_url,
+            "rel": "reference",
+            "type": None,
+            "hreflang": None,
+            "title": "Link to process pipeline"
+        }
         
         return response_body, status.HTTP_202_ACCEPTED
     
@@ -259,6 +292,9 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
                 process = Process_db(id=deployment.id,
                                 version=deployment.version,
                                 cwl_link=deployment.cwl_link,
+                                title=deployment.title,
+                                description=deployment.description,
+                                keywords=deployment.keywords,
                                 user=deployment.user, 
                                 status=DEPLOYED_PROCESS_STATUS)
                 db.session.add(process)
@@ -359,23 +395,43 @@ class Describe(Resource):
             response_body["status"] = status.HTTP_404_NOT_FOUND
             response_body["detail"] = "No process with that process ID found on HySDS"
             return response_body, status.HTTP_404_NOT_FOUND 
-
+        
         response = response.get("result")
-        response_body["description"] = response.get("description")
-        response_body["id"] = existing_process.id
-        response_body["version"] = response.get("job-version")
-        # is this close enough to the same thing? 
-        response_body["title"] = response.get("label")
-        response_body["processID"] = process_id
-        response_body["cwlLink"] = existing_process.cwl_link
+
+        response_body = {
+            "title": existing_process.title,
+            "description": existing_process.description,
+            "keywords": existing_process.keywords.split(",") if existing_process.keywords else [],
+            "metadata": [],
+            "id": existing_process.id,
+            "processID": process_id,
+            "version": existing_process.version,
+            "jobControlOptions": [],
+            "cwlLink": existing_process.cwl_link,
+            "links": [
+                {
+                    "href": f"/{ns.name}/processes/{process_id}",
+                    "rel": "self",
+                    "type": None,
+                    "hreflang": None,
+                    "title": "self"
+                },
+                {
+                    "href": f"/{ns.name}/processes/{process_id}/package",
+                    "rel": "self",
+                    "type": None,
+                    "hreflang": None,
+                    "title": "self"
+                }
+            ]
+        }
         # need to refine this to be what OGC is expecting, etc.
         count = 1
         response_body["inputs"] = {}
         for param in response.get("params"):
-            response_body["inputs"]["additionalProp"+str(count)] = {"title": param.get("name"), "description": param.get("description"), "type": param.get("type"), "placeholder": param.get("placeholder"), "default": param.get("default")}
+            response_body["inputs"][param.get("name")] = {"title": param.get("name"), "description": param.get("description"), "type": param.get("type"), "placeholder": param.get("placeholder"), "default": param.get("default")}
             count+=1
-        # important things missing: outputs, 
-        response_body["links"] = [{'href': "/"+ns.name+"/processes/"+str(process_id)}]
+        # TODO add outputs to response
         
         return response_body, status.HTTP_200_OK
     
@@ -611,7 +667,35 @@ class ExecuteJob(Resource):
                     status=INITIAL_JOB_STATUS)
                 db.session.add(process_job)
                 db.session.commit()
-                response_body = {"id": job_id, "processID": existing_process.process_id, "created": submitted_time.isoformat(), "status": INITIAL_JOB_STATUS}
+                response_body = {"title": existing_process.title,
+                                "description": existing_process.description,
+                                "keywords": existing_process.keywords.split(",") if existing_process.keywords is not None else [],
+                                "metadata": [],
+                                "id": job_id, 
+                                "processID": existing_process.process_id, 
+                                "type": None,
+                                "request": None,
+                                "status": INITIAL_JOB_STATUS,
+                                "message": None,
+                                "created": submitted_time.isoformat(), 
+                                "updated": None,
+                                "links": [
+                                    {
+                                        "href": "/"+ns.name+"/processes/"+str(existing_process.process_id)+"/execution",
+                                        "rel": "self",
+                                        "type": None,
+                                        "hreflang": None,
+                                        "title": "Process Execution"
+                                    },
+                                    {
+                                        "href": "/"+ns.name+"/jobs/"+str(job_id),
+                                        "rel": "job",
+                                        "type": None,
+                                        "hreflang": None,
+                                        "title": "Job"
+                                    }
+                                ]
+                            }
                 return response_body, status.HTTP_202_ACCEPTED
             else:
                 response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -650,7 +734,14 @@ class Package(Resource):
             response_body["detail"] = "No process with that process ID found"
             return response_body, status.HTTP_404_NOT_FOUND 
         
-        response_body["executionUnit"] = {"href": existing_process.cwl_link}
+        response_body["processDescription"] = existing_process.description
+        response_body["executionUnit"] = {
+                "href": existing_process.cwl_link,
+                "rel": "reference",
+                "type": None,
+                "hreflang": None,
+                "title": "Process Reference"
+            }
         return response_body, status.HTTP_200_OK 
         
 
@@ -701,7 +792,7 @@ class Result(Resource):
                         return response_body, status.HTTP_200_OK 
                 count = 1
                 for prod_item in prod_list:
-                    response_body["additionalProp"+str(count)] = prod_item
+                    response_body[prod_item["id"]] = prod_item
                     count += 1
                 return response_body, status.HTTP_200_OK 
         except Exception as ex:
@@ -736,14 +827,47 @@ class Status(Resource):
             response_body["detail"] = "No job with that job ID found"
             return response_body, status.HTTP_404_NOT_FOUND 
         
-        # print("graceal1 getting more detailed information from mozart")
-        # print(hysds.get_jobs_info(existing_job.id))
+        # For now, leave this so it can access all deployed and undeployed processes 
+        existing_process = db.session \
+            .query(Process_db) \
+            .filter_by(process_id=existing_job.process_id) \
+            .first()
         
-        response_body["created"] = existing_job.submitted_time.isoformat()
-        response_body["processID"] = existing_job.process_id
-        response_body["id"] = job_id
-        # TODO graceal should this be hard coded in if the example options are process, wps, openeo?
-        response_body["type"] = "process"
+        if not existing_process:
+            response_body = {
+                "title": None,
+                "description": None,
+                "keywords": [],
+            }
+        else:
+            response_body = {
+                "title": existing_process.title,
+                "description": existing_process.description,
+                "keywords": existing_process.keywords.split(",") if existing_process.keywords is not None else [], 
+            }
+        response_body.update({
+            "id": job_id,
+            "processID": existing_job.process_id,
+            # TODO graceal should this be hard coded in if the example options are process, wps, openeo?
+            "type": None,
+            "request": None,
+            "status": None,
+            "message": None,
+            "created": existing_job.submitted_time.isoformat(),
+            "started": None,
+            "finished": None,
+            "updated": None,
+            "progress": None,
+            "links": [
+                {
+                    "href": "/"+ns.name+"/jobs/"+str(job_id),
+                    "rel": "self",
+                    "type": None,
+                    "hreflang": None,
+                    "title": "Job Status"
+                }
+            ]
+        })
         
         # Dont update if status is already finished
         # Also if I could get more information from hysds about the job like time to complete, etc. 
