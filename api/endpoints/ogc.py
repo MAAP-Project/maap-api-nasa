@@ -322,9 +322,17 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
         "pipeline": {
             "executionVenue": deployment.execution_venue,
             "pipelineId": deployment.pipeline_id,
-            "processPipelineLink": {"href": pipeline_url}
+            "processPipelineLink": {"href": pipeline_url,
+                                    'rel': 'reference',
+                                    'type': None,
+                                    'hreflang': None,
+                                    'title': 'Deploying Process Pipeline'}
         },
-        "cwl": {"href": deployment.cwl_link}
+        "cwl": {"href": deployment.cwl_link,
+                'rel': 'reference',
+                'type': None,
+                'hreflang': None,
+                'title': 'Deployment Link'}
     }
 
     if deployment.process_location:
