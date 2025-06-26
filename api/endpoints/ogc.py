@@ -36,7 +36,7 @@ from api.utils import job_queue
 
 log = logging.getLogger(__name__)
 
-ns = api.namespace('ogc', description='OGC compliant endpoints')
+ns = api.namespace("ogc", description="OGC compliant endpoints")
 
 OGC_FINISHED_STATUSES = ["successful", "failed", "dismisssed", "deduped"]
 OGC_SUCCESS = "successful"
@@ -47,7 +47,7 @@ DEPLOYED_PROCESS_STATUS="deployed"
 # TODO run through chatgpt to refactor 
 
 # Processes section for OGC Compliance 
-@ns.route('/processes')
+@ns.route("/processes")
 class Processes(Resource):
 
     def get(self):
@@ -64,21 +64,21 @@ class Processes(Resource):
             .query(Process_db).filter_by(status=DEPLOYED_PROCESS_STATUS).all()
 
         for process in existing_processes:
-            link_obj_process = {'href': '/'+ns.name+'/processes/'+str(process.process_id),
-                        'rel': 'self',
-                        'type': None,
-                        'hreflang': None,
-                        'title': 'OGC Process Description'
+            link_obj_process = {"href": "/"+ns.name+"/processes/"+str(process.process_id),
+                        "rel": "self",
+                        "type": None,
+                        "hreflang": None,
+                        "title": "OGC Process Description"
                     }
-            existing_processes_return.append({'title': process.title,
-                                       'description': process.description,
-                                       'keywords': process.keywords.split(",") if process.keywords is not None else [], 
-                                       'metadata': [],
-                                       'id': process.id, 
-                                       'version': process.version,
-                                       'jobControlOptions': [], # TODO Unsure what we want this to be yet
-                                       'cwl_link': process.cwl_link,
-                                       'links': [link_obj_process]
+            existing_processes_return.append({"title": process.title,
+                                       "description": process.description,
+                                       "keywords": process.keywords.split(",") if process.keywords is not None else [], 
+                                       "metadata": [],
+                                       "id": process.id, 
+                                       "version": process.version,
+                                       "jobControlOptions": [], # TODO Unsure what we want this to be yet
+                                       "cwl_link": process.cwl_link,
+                                       "links": [link_obj_process]
                                     })
             existing_links_return.append(link_obj_process)
         
@@ -86,7 +86,7 @@ class Processes(Resource):
         response_body["links"] = existing_links_return
         return response_body, status.HTTP_200_OK
 
-    @api.doc(security='ApiKeyAuth')
+    @api.doc(security="ApiKeyAuth")
     @login_required()
     def post(self):
         """
@@ -172,9 +172,9 @@ class Processes(Resource):
             gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token=settings.GITLAB_POST_PROCESS_TOKEN)
             project = gl.projects.get(settings.GITLAB_PROJECT_ID_POST_PROCESS)
             pipeline = project.pipelines.create({
-                'ref': settings.VERSION,
-                'variables': [
-                    {'key': 'CWL_URL', 'value': cwl_link}
+                "ref": settings.VERSION,
+                "variables": [
+                    {"key": "CWL_URL", "value": cwl_link}
                 ]
             })
             print(f"Triggered pipeline ID: {pipeline.id}")
@@ -323,16 +323,16 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
             "executionVenue": deployment.execution_venue,
             "pipelineId": deployment.pipeline_id,
             "processPipelineLink": {"href": pipeline_url,
-                                    'rel': 'reference',
-                                    'type': None,
-                                    'hreflang': None,
-                                    'title': 'Deploying Process Pipeline'}
+                                    "rel": "reference",
+                                    "type": None,
+                                    "hreflang": None,
+                                    "title": "Deploying Process Pipeline"}
         },
         "cwl": {"href": deployment.cwl_link,
-                'rel': 'reference',
-                'type': None,
-                'hreflang': None,
-                'title': 'Deployment Link'}
+                "rel": "reference",
+                "type": None,
+                "hreflang": None,
+                "title": "Deployment Link"}
     }
 
     if deployment.process_location:
@@ -340,10 +340,10 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
 
     return response_body, status_code
 
-@ns.route('/deploymentJobs/<string:deployment_id>')
+@ns.route("/deploymentJobs/<string:deployment_id>")
 class Deployment(Resource):
 
-    @api.doc(security='ApiKeyAuth')
+    @api.doc(security="ApiKeyAuth")
     @login_required()
     def get(self, deployment_id):
         """
@@ -354,10 +354,10 @@ class Deployment(Resource):
         
         return response_body, status_code
     
-@ns.route('/deploymentJobs')
+@ns.route("/deploymentJobs")
 class Deployment(Resource):
 
-    @api.doc(security='ApiKeyAuth')
+    @api.doc(security="ApiKeyAuth")
     @authenticate_third_party()
     def post(self):
         """
@@ -381,7 +381,7 @@ class Deployment(Resource):
 
         return response_body, status_code
    
-@ns.route('/processes/<string:process_id>')
+@ns.route("/processes/<string:process_id>")
 class Describe(Resource):
 
     def get(self, process_id):
@@ -445,7 +445,7 @@ class Describe(Resource):
         
         return response_body, status.HTTP_200_OK
     
-    @api.doc(security='ApiKeyAuth')
+    @api.doc(security="ApiKeyAuth")
     @login_required()
     def put(self, process_id):
         """
@@ -521,9 +521,9 @@ class Describe(Resource):
             gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token=settings.GITLAB_POST_PROCESS_TOKEN)
             project = gl.projects.get(settings.GITLAB_PROJECT_ID_POST_PROCESS)
             pipeline = project.pipelines.create({
-                'ref': settings.VERSION,
-                'variables': [
-                    {'key': 'CWL_URL', 'value': cwl_link}
+                "ref": settings.VERSION,
+                "variables": [
+                    {"key": "CWL_URL", "value": cwl_link}
                 ]
             })
             print(f"Triggered pipeline ID: {pipeline.id}")
@@ -556,7 +556,7 @@ class Describe(Resource):
         response_body["processPipelineLink"] = {"href": pipeline.web_url}
         return response_body, status.HTTP_202_ACCEPTED
     
-    @api.doc(security='ApiKeyAuth')
+    @api.doc(security="ApiKeyAuth")
     @login_required()
     def delete(self, process_id):
         """
@@ -601,10 +601,10 @@ class Describe(Resource):
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
         
 
-@ns.route('/processes/<string:process_id>/execution')
+@ns.route("/processes/<string:process_id>/execution")
 class ExecuteJob(Resource):
 
-    @api.doc(security='ApiKeyAuth')
+    @api.doc(security="ApiKeyAuth")
     @login_required()
     def post(self, process_id):
         """
@@ -654,7 +654,7 @@ class ExecuteJob(Resource):
 
         try:
             # dedup will be optional for clientside. The point of dedup is to catch 
-            # If the user is submitting the same job with the same inputs so that it isn't run again 
+            # If the user is submitting the same job with the same inputs so that it isn"t run again 
             dedup = "false" if dedup is None else dedup
             queue = job_queue.validate_or_get_queue(queue, job_type, user.id)
             job_time_limit = hysds_io.get("result").get("soft_time_limit", 86400)
@@ -668,7 +668,7 @@ class ExecuteJob(Resource):
             if job_id is not None:
                 logging.info("Submitted Job with HySDS ID: {}".format(job_id))
                 # the status is hard coded because we query too fast before the record even shows up in ES
-                # we wouldn't have a Job ID unless it was a valid payload and got accepted by the system
+                # we wouldn"t have a Job ID unless it was a valid payload and got accepted by the system
                 submitted_time = datetime.now()
                 process_job = ProcessJob_db(user=user.id,
                     id=job_id, 
@@ -723,7 +723,7 @@ class ExecuteJob(Resource):
             response_body["detail"] = "FailedJobSubmit: " + str(ex)
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
         
-@ns.route('/processes/<string:process_id>/package')
+@ns.route("/processes/<string:process_id>/package")
 class Package(Resource):
 
     def get(self, process_id):
@@ -755,10 +755,10 @@ class Package(Resource):
         return response_body, status.HTTP_200_OK 
         
 
-@ns.route('/jobs/<string:job_id>/results')
+@ns.route("/jobs/<string:job_id>/results")
 class Result(Resource):
     
-    @api.doc(security='ApiKeyAuth')
+    @api.doc(security="ApiKeyAuth")
     @login_required()
     def get(self, job_id):
         """
@@ -813,13 +813,13 @@ class Result(Resource):
                                                          "of DPS".format(job_id, ex)
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
         
-@ns.route('/jobs/<string:job_id>')
+@ns.route("/jobs/<string:job_id>")
 class Status(Resource):
     parser = api.parser()
-    parser.add_argument('wait_for_completion', default=False, required=False, type=bool,
+    parser.add_argument("wait_for_completion", default=False, required=False, type=bool,
                         help="Wait for Cancel job to finish")
 
-    @api.doc(security='ApiKeyAuth')
+    @api.doc(security="ApiKeyAuth")
     @login_required()
     def get(self, job_id):
         """
@@ -893,7 +893,7 @@ class Status(Resource):
                 current_status = response.get("status")
                 # If the current job status is still the INITIAL_JOB_STATUS and the mozart status is None
                 # but the job was submitted less than 10 seconds ago, then 
-                # status probably just hasn't updated in mozart yet 
+                # status probably just hasn"t updated in mozart yet 
                 if existing_job.status == INITIAL_JOB_STATUS and current_status is None and datetime.now() < existing_job.submitted_time + timedelta(seconds=10): 
                     current_status = "job-queued"
                 current_status = ogc.hysds_to_ogc_status(current_status)
@@ -912,7 +912,7 @@ class Status(Resource):
                                               "of DPS".format(job_id)
                 return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
     
-    @api.doc(security='ApiKeyAuth')
+    @api.doc(security="ApiKeyAuth")
     @login_required() 
     def delete(self, job_id):
         """
@@ -921,7 +921,7 @@ class Status(Resource):
         """
         response_body = dict()
         # TODO: add optional parameter wait_for_completion to wait for cancel job to complete.
-        # Since this can take a long time, we don't wait by default.
+        # Since this can take a long time, we don"t wait by default.
         wait_for_completion = request.args.get("wait_for_completion", False)
 
         existing_job = db.session \
@@ -986,30 +986,30 @@ class Status(Resource):
             response_body["detail"] = "Failed to dismiss job {}. Please try again or contact DPS administrator. {}".format(job_id, ex)
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
 
-@ns.route('/jobs')
+@ns.route("/jobs")
 class Jobs(Resource):
     parser = api.parser()
-    parser.add_argument('page_size', required=False, type=str, help="Job Listing Pagination Size")
-    parser.add_argument('offset', required=False, type=str, help="Job Listing Pagination Offset")
-    parser.add_argument('job_type', type=str, help="Job type + version, e.g. topsapp:v1.0", required=False)
-    parser.add_argument('tag', type=str, help="User-defined job tag", required=False)
-    parser.add_argument('queue', type=str, help="Submitted job queue", required=False)
-    parser.add_argument('priority', type=int, help="Job priority, 0-9", required=False)
-    parser.add_argument('start_time', type=str, help="Start time of @timestamp field", required=False)
-    parser.add_argument('end_time', type=str, help="Start time of @timestamp field", required=False)
-    parser.add_argument('get_job_details', type=bool, help="Return full details if True. "
+    parser.add_argument("page_size", required=False, type=str, help="Job Listing Pagination Size")
+    parser.add_argument("offset", required=False, type=str, help="Job Listing Pagination Offset")
+    parser.add_argument("job_type", type=str, help="Job type + version, e.g. topsapp:v1.0", required=False)
+    parser.add_argument("tag", type=str, help="User-defined job tag", required=False)
+    parser.add_argument("queue", type=str, help="Submitted job queue", required=False)
+    parser.add_argument("priority", type=int, help="Job priority, 0-9", required=False)
+    parser.add_argument("start_time", type=str, help="Start time of @timestamp field", required=False)
+    parser.add_argument("end_time", type=str, help="Start time of @timestamp field", required=False)
+    parser.add_argument("get_job_details", type=bool, help="Return full details if True. "
                                                            "List of job id's if false. Default True.", required=False)
-    parser.add_argument('status', type=str, help="Job status, e.g. job-started, job-completed, job-failed, etc.",
+    parser.add_argument("status", type=str, help="Job status, e.g. job-started, job-completed, job-failed, etc.",
                         required=False)
-    parser.add_argument('username', required=False, type=str, help="Username of job submitter")
+    parser.add_argument("username", required=False, type=str, help="Username of job submitter")
 
-    @api.doc(security='ApiKeyAuth')
+    @api.doc(security="ApiKeyAuth")
     @login_required()
     def get(self):
         """
         Returns a list of jobs for a given user
 
-        :param get_job_details: Boolean that returns job details if set to True or just job ID's if set to False. Default is True.
+        :param get_job_details: Boolean that returns job details if set to True or just job ID"s if set to False. Default is True.
         :param page_size: Page size for pagination
         :param offset: Offset for pagination
         :param status: Job status
@@ -1042,8 +1042,8 @@ class Jobs(Resource):
                 return response_body, status.HTTP_200_OK
             
         # If status is provided, make sure it is HySDS-compliant
-        if params.get('status') is not None:
-            params['status'] = ogc.get_hysds_status_from_ogc(params['status'])
+        if params.get("status") is not None:
+            params["status"] = ogc.get_hysds_status_from_ogc(params["status"])
         response_body, status = hysds.get_mozart_jobs_from_query_params(params, user)
         
         jobs_list = response_body["jobs"]
@@ -1120,10 +1120,10 @@ class Jobs(Resource):
         """
         return response_body, status
     
-@ns.route('/jobs/<string:job_id>/metrics')
+@ns.route("/jobs/<string:job_id>/metrics")
 class Status(Resource):
 
-    @api.doc(security='ApiKeyAuth')
+    @api.doc(security="ApiKeyAuth")
     @login_required()
     def get(self, job_id):
         response_body = dict()
