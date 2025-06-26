@@ -311,7 +311,7 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
 
             status_code = status.HTTP_201_CREATED
             
-            deployment.process_location = "/processes/"+str(process_id)
+            deployment.process_id = process_id
             db.session.commit()
     else:
         current_status = deployment.status
@@ -343,9 +343,9 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
         }
     }
 
-    if deployment.process_location:
+    if deployment.process_id:
         response_body["processLocation"] = {
-            "href": "/"+ns.name+deployment.process_location,
+            "href": "/"+ns.name+"/processes/" + str(deployment.process_id),
             "rel": "self",
             "type": None,
             "hreflang": None,
