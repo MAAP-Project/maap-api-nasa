@@ -674,6 +674,8 @@ class ExecuteJob(Resource):
         response_body = dict()
 
         req_data_string = request.data.decode("utf-8")
+        print("graceal1 printign req string")
+        print(req_data_string)
         if not req_data_string:
             response_body["status"] = status.HTTP_400_BAD_REQUEST   
             response_body["detail"] = "Body expected in request"
