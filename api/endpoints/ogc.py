@@ -105,7 +105,7 @@ def _get_cwl_metadata(cwl_link):
     process_version = version_match.group(1)
 
     keywords_match = re.search(r"s:keywords:\s*(.*)", cwl_text, re.IGNORECASE)
-    keywords = keywords_match.group(1).strip() if keywords_match else None
+    keywords = keywords_match.group(1).replace(" ", "") if keywords_match else None
 
     return CWLMetadata(
         id=cwl_id,
@@ -152,11 +152,6 @@ def _create_and_commit_deployment(metadata, pipeline, user, existing_process=Non
     db.session.commit()
     return deployment
 
-
-# The refactoring has been applied by extracting redundant logic into the helper functions above
-# and using them in the endpoint classes below.
-
-# Processes section for OGC Compliance
 @ns.route("/processes")
 class Processes(Resource):
 
@@ -184,13 +179,10 @@ class Processes(Resource):
                 "title": process.title,
                 "description": process.description,
                 "keywords": process.keywords.split(",") if process.keywords is not None else [],
-                # TODO Unsure what we want this to be yet
-                # This field is retained as an empty list. Its content is dependent on business logic
-                # and OGC specification choices that are not defined.
-                "metadata": [],
+                "metadata": [], # TODO Unsure what we want this to be yet
                 "id": process.id,
                 "version": process.version,
-                "jobControlOptions": [],
+                "jobControlOptions": [], # TODO Unsure what we want this to be yet
                 "cwl_link": process.cwl_link,
                 "links": [link_obj_process]
             })
@@ -274,8 +266,6 @@ class Processes(Resource):
             }
         }
         return response_body, status.HTTP_202_ACCEPTED
-
-# ... The rest of the file continues ...
 
 """
 Updates the status of the deployment if the deployment was previously in a pending state
@@ -539,15 +529,6 @@ class Describe(Resource):
         }
 
         # TODO add outputs to response
-        # Approach: Assumed the hysds_io_result object contains an 'outputs' key similar to 'params'.
-        # Added a new dictionary for outputs, populated in the same way as inputs.
-        response_body["outputs"] = {
-            output.get("name"): {
-                "title": output.get("name"),
-                "description": output.get("description"),
-                "type": output.get("type")
-            } for output in hysds_io_result.get("outputs", [])
-        }
         
         return response_body, status.HTTP_200_OK
     
