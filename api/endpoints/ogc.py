@@ -96,6 +96,10 @@ class Processes(Resource):
         :return:
         """
         req_data_string = request.data.decode("utf-8")
+        if not req_data_string:
+            response_body["status"] = status.HTTP_400_BAD_REQUEST   
+            response_body["detail"] = "Body expected in request"
+            return response_body, status.HTTP_400_BAD_REQUEST 
         req_data = json.loads(req_data_string)
         response_body = dict()
 
@@ -132,7 +136,7 @@ class Processes(Resource):
 
         # TODO make sure no errors when these are null 
         # We will need to extract all this information ourselves because HySDS doesnt have it yet
-        keywords = re.search(r"s:keywords:\s*(\S+)", response, re.IGNORECASE)
+        keywords = re.search(r"s:keywords:\s*(.*)", response, re.IGNORECASE)
         if keywords: 
             keywords = keywords.group(1)
         print("graceal1 keywords is ")
@@ -214,7 +218,7 @@ class Processes(Resource):
         response_body["jobControlOptions"] = []
         response_body["links"] = [{
             "href": "/"+ns.name+"/deploymentJobs/" + str(deployment_job_id),
-            "rel": "self",
+            "rel": "reference",
             "type": None,
             "hreflang": None,
             "title": "Deploying process status link"
@@ -332,11 +336,24 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
                 "rel": "reference",
                 "type": None,
                 "hreflang": None,
-                "title": "Deployment Link"}
+                "title": "Process Reference"},
+        "links": {
+            "href": "/"+ns.name+"/deploymentJobs/" + str(deployment.id),
+            "rel": "self",
+            "type": None,
+            "hreflang": None,
+            "title": "Deployment Link"
+        }
     }
 
     if deployment.process_location:
-        response_body["processLocation"] = deployment.process_location
+        response_body["processLocation"] = {
+            "href": "/"+ns.name+deployment.process_location,
+            "rel": "self",
+            "type": None,
+            "hreflang": None,
+            "title": "Process Location"
+        }
 
     return response_body, status_code
 
@@ -367,6 +384,10 @@ class Deployment(Resource):
         response_body = dict()
         try:
             req_data_string = request.data.decode("utf-8")
+            if not req_data_string:
+                response_body["status"] = status.HTTP_400_BAD_REQUEST   
+                response_body["detail"] = "Body expected in request"
+                return response_body, status.HTTP_400_BAD_REQUEST 
             req_data = json.loads(req_data_string)
             pipeline_id = req_data["object_attributes"]["id"]
         except:
@@ -468,6 +489,10 @@ class Describe(Resource):
             return response_body, status.HTTP_404_NOT_FOUND 
         
         req_data_string = request.data.decode("utf-8")
+        if not req_data_string:
+            response_body["status"] = status.HTTP_400_BAD_REQUEST
+            response_body["detail"] = "Body expected in request"
+            return response_body, status.HTTP_400_BAD_REQUEST 
         req_data = json.loads(req_data_string)
 
         # Make sure same user who originally posted process 
@@ -552,8 +577,27 @@ class Describe(Resource):
 
         response_body["id"] = existing_process.id
         response_body["version"] = existing_process.version
-        response_body["deploymentJobsEndpoint"] = "/deploymentJobs/" + str(deployment_job_id)
-        response_body["processPipelineLink"] = {"href": pipeline.web_url}
+        response_body["links"] = [{
+            "href": "/"+ns.name+"/deploymentJobs/" + str(deployment_job_id),
+            "rel": "reference",
+            "type": None,
+            "hreflang": None,
+            "title": "Deploying process status link"
+        },
+        {
+            "href": "/"+ns.name+"/processes/" + str(process_id),
+            "rel": "self",
+            "type": None,
+            "hreflang": None,
+            "title": "Process"
+        }]
+        response_body["processPipelineLink"] = {
+            "href": pipeline.web_url,
+            "rel": "reference",
+            "type": None,
+            "hreflang": None,
+            "title": "Link to process pipeline"
+        }
         return response_body, status.HTTP_202_ACCEPTED
     
     @api.doc(security="ApiKeyAuth")
@@ -615,10 +659,15 @@ class ExecuteJob(Resource):
         - adding tag to the request body
         :return:
         """
-        req_data_string = request.data.decode("utf-8")
-        req_data = json.loads(req_data_string)
         response_body = dict()
 
+        req_data_string = request.data.decode("utf-8")
+        if not req_data_string:
+            response_body["status"] = status.HTTP_400_BAD_REQUEST   
+            response_body["detail"] = "Body expected in request"
+            return response_body, status.HTTP_400_BAD_REQUEST 
+        req_data = json.loads(req_data_string)
+        
         existing_process = db.session \
                     .query(Process_db) \
                     .filter_by(process_id=process_id, status=DEPLOYED_PROCESS_STATUS) \
@@ -630,6 +679,10 @@ class ExecuteJob(Resource):
         
         inputs = req_data.get("inputs")
         queue = req_data.get("queue")
+        if not queue:
+            response_body["status"] = status.HTTP_400_BAD_REQUEST   
+            response_body["detail"] = "Need to specify a queue to run this job on MAAP"
+            return response_body, status.HTTP_400_BAD_REQUEST 
         dedup = req_data.get("dedup")
         tag = req_data.get("tag")
         
@@ -654,7 +707,7 @@ class ExecuteJob(Resource):
 
         try:
             # dedup will be optional for clientside. The point of dedup is to catch 
-            # If the user is submitting the same job with the same inputs so that it isn"t run again 
+            # If the user is submitting the same job with the same inputs so that it isn't run again 
             dedup = "false" if dedup is None else dedup
             queue = job_queue.validate_or_get_queue(queue, job_type, user.id)
             job_time_limit = hysds_io.get("result").get("soft_time_limit", 86400)
@@ -668,7 +721,7 @@ class ExecuteJob(Resource):
             if job_id is not None:
                 logging.info("Submitted Job with HySDS ID: {}".format(job_id))
                 # the status is hard coded because we query too fast before the record even shows up in ES
-                # we wouldn"t have a Job ID unless it was a valid payload and got accepted by the system
+                # we wouldn't have a Job ID unless it was a valid payload and got accepted by the system
                 submitted_time = datetime.now()
                 process_job = ProcessJob_db(user=user.id,
                     id=job_id, 
@@ -802,7 +855,7 @@ class Result(Resource):
                         return response_body, status.HTTP_200_OK 
                 count = 1
                 for prod_item in prod_list:
-                    response_body[prod_item["id"]] = prod_item
+                    response_body["additionalProp"+str(count)] = prod_item
                     count += 1
                 return response_body, status.HTTP_200_OK 
         except Exception as ex:
@@ -893,7 +946,7 @@ class Status(Resource):
                 current_status = response.get("status")
                 # If the current job status is still the INITIAL_JOB_STATUS and the mozart status is None
                 # but the job was submitted less than 10 seconds ago, then 
-                # status probably just hasn"t updated in mozart yet 
+                # status probably just hasn't updated in mozart yet 
                 if existing_job.status == INITIAL_JOB_STATUS and current_status is None and datetime.now() < existing_job.submitted_time + timedelta(seconds=10): 
                     current_status = "job-queued"
                 current_status = ogc.hysds_to_ogc_status(current_status)
@@ -921,7 +974,7 @@ class Status(Resource):
         """
         response_body = dict()
         # TODO: add optional parameter wait_for_completion to wait for cancel job to complete.
-        # Since this can take a long time, we don"t wait by default.
+        # Since this can take a long time, we dont wait by default.
         wait_for_completion = request.args.get("wait_for_completion", False)
 
         existing_job = db.session \
@@ -1009,7 +1062,7 @@ class Jobs(Resource):
         """
         Returns a list of jobs for a given user
 
-        :param get_job_details: Boolean that returns job details if set to True or just job ID"s if set to False. Default is True.
+        :param get_job_details: Boolean that returns job details if set to True or just job ID's if set to False. Default is True.
         :param page_size: Page size for pagination
         :param offset: Offset for pagination
         :param status: Job status
