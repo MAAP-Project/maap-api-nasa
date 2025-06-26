@@ -131,23 +131,20 @@ class Processes(Resource):
         for i in range(len(cwl_obj)):
             if type(cwl_obj[i]) == cwl_v1_2.Workflow:
                 workflow = cwl_obj[i]
+        if not workflow:
+            response_body["status"] = status.HTTP_400_BAD_REQUEST
+            response_body["detail"] = "Need workflow in CWL"
+            return response_body, status.HTTP_400_BAD_REQUEST
         cwl_id = workflow.id
         match = re.search(r"s:version:\s*(\S+)", response, re.IGNORECASE)
 
-        # TODO make sure no errors when these are null 
         # We will need to extract all this information ourselves because HySDS doesnt have it yet
         keywords = re.search(r"s:keywords:\s*(.*)", response, re.IGNORECASE)
         if keywords: 
             keywords = keywords.group(1)
-        print("graceal1 keywords is ")
-        print(keywords)
-
+            keywords = keywords.replace(" ", "")
         title = workflow.label
-        print("graceal1 title is ")
-        print(title)
         description = workflow.doc
-        print("graceal1 description is ")
-        print(description)
 
         if not match or not cwl_id:
             response_body["status"] = status.HTTP_400_BAD_REQUEST
@@ -522,8 +519,20 @@ class Describe(Resource):
         for i in range(len(cwl_obj)):
             if type(cwl_obj[i]) == cwl_v1_2.Workflow:
                 workflow = cwl_obj[i]
+        if not workflow:
+            response_body["status"] = status.HTTP_400_BAD_REQUEST 
+            response_body["detail"] = "Need workflow in CWL"
+            return response_body, status.HTTP_400_BAD_REQUEST
         new_cwl_id = workflow.id
         match = re.search(r"s:version:\s*(\S+)", response, re.IGNORECASE)
+
+        # We will need to extract all this information ourselves because HySDS doesnt have it yet
+        keywords = re.search(r"s:keywords:\s*(.*)", response, re.IGNORECASE)
+        if keywords: 
+            keywords = keywords.group(1)
+            keywords = keywords.replace(" ", "")
+        title = workflow.label
+        description = workflow.doc
 
         if not match or not new_cwl_id:
             response_body["status"] = status.HTTP_400_BAD_REQUEST
@@ -556,6 +565,9 @@ class Describe(Resource):
                                 execution_venue=settings.DEPLOY_PROCESS_EXECUTION_VENUE, 
                                 status=INITIAL_JOB_STATUS, 
                                 cwl_link=cwl_link,
+                                title=title,
+                                description=description,
+                                keywords=keywords,
                                 user=user.id,
                                 pipeline_id=pipeline.id,
                                 id=existing_process.id,
