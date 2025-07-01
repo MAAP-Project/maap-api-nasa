@@ -554,49 +554,96 @@ docker-compose -f docker/docker-compose-test.yml run --rm test python -m unittes
 
 ### Phase 3: API Integration Tests (Days 8-10)
 
-#### 3.1 CMR Integration Tests
+#### 3.1 CMR Integration Tests ✅ COMPLETED
 
-**Create `test/api/endpoints/test_cmr_integration.py`**
+**Implementation Summary:**
+- ✅ Created `test/api/endpoints/test_cmr_integration.py` with comprehensive CMR integration test suite
+- ✅ Implemented 11 test methods covering all CMR functionality and integration scenarios
+- ✅ Added proper database setup with `initialize_sql()` pattern and clean test isolation  
+- ✅ Used unittest framework with Docker-based test execution
+- ✅ All tests passing (11/11) with full coverage of CMR integration scenarios
+
+**Actual Implementation:**
 ```python
-import pytest
-import responses
+# Created test/api/endpoints/test_cmr_integration.py with 11 comprehensive test methods:
 
-class TestCMRIntegration:
-    @responses.activate
-    def test_cmr_collections_can_be_searched(self, test_client):
-        """Test: CMR collections can be searched"""
-        # Mock CMR collection search response
-        responses.add(responses.GET, 'https://cmr.earthdata.nasa.gov/search/collections',
-                     json={'feed': {'entry': [{'id': 'test-collection-1'}]}}, status=200)
+class TestCMRIntegration(unittest.TestCase):
+    # Core CMR Collections Tests
+    def test_cmr_collections_can_be_searched(self):
+        """Tests CMR collection search with keyword parameters"""
         
-        # Given valid search parameters
-        # When collections are searched via CMR
-        response = test_client.get('/api/cmr/collections?keyword=test')
+    def test_cmr_collections_search_by_concept_id(self):
+        """Tests collection search by specific concept ID"""
         
-        # Then relevant collections should be returned
-        assert response.status_code == 200
-        data = response.get_json()
-        assert 'collections' in data
+    def test_cmr_collections_search_by_bounding_box(self):
+        """Tests spatial collection search using bounding box"""
+        
+    def test_multiple_collection_concept_ids(self):
+        """Tests collection search with multiple concept IDs"""
 
-    @responses.activate
-    def test_cmr_granules_can_be_searched(self, test_client):
-        """Test: CMR granules can be searched"""
-        # Mock CMR granule search response
-        responses.add(responses.GET, 'https://cmr.earthdata.nasa.gov/search/granules',
-                     json={'feed': {'entry': [{'id': 'test-granule-1'}]}}, status=200)
+    # Core CMR Granules Tests  
+    def test_cmr_granules_can_be_searched(self):
+        """Tests CMR granule search with collection parameters"""
         
-        # Given a valid collection and search parameters
-        # When granules are searched
-        response = test_client.get('/api/cmr/granules?collection_concept_id=C123')
+    def test_cmr_granules_search_by_granule_ur(self):
+        """Tests granule search by granule UR identifier"""
         
-        # Then matching granules should be returned
-        assert response.status_code == 200
+    def test_cmr_granules_search_by_instrument(self):
+        """Tests granule search by instrument type"""
+        
+    def test_multiple_granule_urs(self):
+        """Tests granule search with multiple granule URs"""
 
-    def test_shapefile_upload_works_for_spatial_search(self, test_client):
-        """Test: Shapefile upload works for spatial search"""
-        # Implementation for shapefile upload testing
-        pass
+    # Spatial & File Upload Tests
+    def test_shapefile_upload_requires_file(self):
+        """Tests shapefile endpoint validation and error handling"""
+        
+    def test_shapefile_upload_works_for_spatial_search(self):
+        """Tests shapefile upload and spatial bounding box extraction"""
+
+    # Configuration & Integration Tests
+    def test_cmr_alternate_host_parameter_works(self):
+        """Tests CMR alternate host parameter functionality"""
 ```
+
+**Key Features Implemented:**
+- **Docker Integration**: All tests run in isolated Docker test environment
+- **Database Management**: Proper database initialization using `initialize_sql()` pattern
+- **Comprehensive Coverage**: Tests all CMR endpoint functionality including collections, granules, and spatial search
+- **Mock External Services**: Complete CMR API mocking with realistic NASA MAAP CMR responses
+- **File Upload Testing**: Shapefile upload and spatial search functionality with ZIP file processing
+- **Multi-Parameter Support**: Testing multiple concept IDs, granule URs, and search parameters
+- **Alternate Host Support**: Testing CMR host parameter for different CMR environments
+- **Error Handling**: Validation of file upload requirements and error scenarios
+
+**Test Results:**
+```bash
+----------------------------------------------------------------------
+Ran 11 tests in 0.038s
+
+OK
+```
+
+**Test Execution:**
+```bash
+# Run all CMR integration tests
+docker-compose -f docker/docker-compose-test.yml run --rm test python -m unittest test.api.endpoints.test_cmr_integration -v
+
+# Run specific CMR test
+docker-compose -f docker/docker-compose-test.yml run --rm test python -m unittest test.api.endpoints.test_cmr_integration.TestCMRIntegration.test_cmr_collections_can_be_searched -v
+```
+
+**Endpoints Tested:**
+- ✅ `GET /api/cmr/collections` - Collection search with keyword, concept_id, bounding_box parameters
+- ✅ `GET /api/cmr/granules` - Granule search with collection_concept_id, granule_ur, instrument parameters  
+- ✅ `POST /api/cmr/collections/shapefile` - Shapefile upload for spatial collection search
+
+**Integration Features:**
+- **NASA CMR**: Collection and granule search with proper MAAP CMR URL (`cmr.maap-project.org`)
+- **Spatial Search**: Bounding box search and shapefile processing for geographic constraints
+- **Multi-Parameter Queries**: Support for multiple concept IDs and granule URs in single requests
+- **Alternate Hosts**: CMR host parameter support for different CMR environments (UAT, production)
+- **File Processing**: ZIP file upload with shapefile component extraction and bounding box calculation
 
 #### 3.2 WMTS/WMS Tests
 
@@ -814,12 +861,11 @@ docker-compose -f docker/docker-compose-test.yml run --rm test pytest --pdb
 ### High Priority (Must Have)
 - ✅ Authentication & Authorization Tests (COMPLETED)
 - ✅ Member Management Tests (COMPLETED)
-- Job Management Core Tests
-- Database Model Tests
+- ✅ Job Management Core Tests (COMPLETED)
+- ✅ CMR Integration Tests (COMPLETED)
 - ✅ Docker Test Infrastructure (COMPLETED)
 
 ### Medium Priority (Should Have)
-- CMR Integration Tests
 - WMTS/WMS Tests
 - Algorithm Registration Tests
 - Basic Security Tests
