@@ -194,58 +194,92 @@ def sample_member_data():
 
 ### Phase 2: Core Test Implementation (Days 3-7)
 
-#### 2.1 Authentication & Authorization Tests
+#### 2.1 Authentication & Authorization Tests ✅ COMPLETED
 
-**Create `test/api/auth/test_cas_auth.py`**
+**Implementation Summary:**
+- ✅ Created `test/api/auth/test_cas_auth.py` with comprehensive CAS authentication test suite
+- ✅ Implemented 14 test methods covering all CAS authentication functionality 
+- ✅ Added proper database setup with Role model dependencies
+- ✅ Used unittest framework with Docker-based test execution
+- ✅ All tests passing (14/14) with full coverage of authentication scenarios
+
+**Actual Implementation:**
 ```python
-import pytest
-import responses
-from api.auth.cas_auth import validate, validate_proxy
-from api.models.member import Member
-from api.models.member_session import MemberSession
+# Created test/api/auth/test_cas_auth.py with 14 comprehensive test methods:
 
-class TestCASAuthentication:
-    def test_user_can_authenticate_with_valid_cas_credentials(self, test_client, mock_cas_token):
-        """Test: User can authenticate with valid CAS credentials"""
-        # Given a user with valid CAS credentials
-        with responses.RequestsMock() as rsps:
-            rsps.add(responses.GET, 'https://cas.example.com/validate', 
-                    body='yes\ntestuser\n', status=200)
-            
-            # When they attempt to authenticate
-            result = validate("http://example.com", mock_cas_token)
-            
-            # Then they should receive a valid session token
-            assert result is not None
-            assert result.member.username == "testuser"
-
-    def test_user_authentication_fails_with_invalid_credentials(self, test_client):
-        """Test: User authentication fails with invalid credentials"""
-        # Given a user with invalid CAS credentials
-        with responses.RequestsMock() as rsps:
-            rsps.add(responses.GET, 'https://cas.example.com/validate', 
-                    body='no\n', status=200)
-            
-            # When they attempt to authenticate
-            result = validate("http://example.com", "invalid-token")
-            
-            # Then authentication should fail
-            assert result is None
-
-    def test_protected_endpoints_reject_unauthenticated_requests(self, test_client):
-        """Test: Protected endpoints reject unauthenticated requests"""
-        # Given an unauthenticated user
-        # When they attempt to access a protected endpoint
-        response = test_client.get('/api/members/self')
+class TestCASAuthentication(unittest.TestCase):
+    # Core Authentication Tests
+    def test_user_can_authenticate_with_valid_cas_credentials(self):
+        """Tests successful CAS authentication with XML response parsing"""
         
-        # Then they should receive a 401 Unauthorized response
-        assert response.status_code == 401
+    def test_user_authentication_fails_with_invalid_credentials(self):
+        """Tests authentication failure handling with invalid tickets"""
+        
+    def test_protected_endpoints_reject_unauthenticated_requests(self):
+        """Tests that protected endpoints require authentication"""
 
-    def test_proxy_ticket_decryption_works_correctly(self):
-        """Test: Proxy ticket decryption works correctly"""
-        # Implementation for proxy ticket decryption test
-        # Based on existing test_proxy_decryption in test_members.py
-        pass
+    # Session Management Tests  
+    def test_validate_proxy_with_valid_active_session(self):
+        """Tests active session validation and retrieval"""
+        
+    def test_validate_proxy_with_expired_session(self):
+        """Tests expired session handling (60-day timeout)"""
+        
+    def test_start_member_session_creates_new_member(self):
+        """Tests automatic member creation from CAS attributes"""
+        
+    def test_start_member_session_updates_existing_member(self):
+        """Tests URS token updates for existing members"""
+
+    # Bearer Token Authentication Tests
+    def test_validate_bearer_with_valid_token(self):
+        """Tests OAuth 2.0 bearer token validation"""
+        
+    def test_validate_bearer_with_invalid_token(self):
+        """Tests bearer token rejection handling"""
+
+    # Utility Function Tests
+    def test_get_cas_attribute_value_extracts_attributes(self):
+        """Tests CAS XML attribute extraction"""
+        
+    def test_get_cas_attribute_value_handles_empty_attributes(self):
+        """Tests error handling for missing attributes"""
+        
+    def test_decrypt_proxy_ticket_returns_plain_ticket(self):
+        """Tests plain PGT ticket passthrough"""
+        
+    def test_decrypt_proxy_ticket_decrypts_encrypted_ticket(self):
+        """Tests RSA decryption of encrypted proxy tickets"""
+        
+    def test_decrypt_proxy_ticket_handles_decryption_error(self):
+        """Tests graceful handling of decryption failures"""
+```
+
+**Key Features Implemented:**
+- **Docker Integration**: All tests run in isolated Docker test environment
+- **Database Setup**: Proper Role model creation for Member foreign key constraints
+- **Mock External Services**: Uses `responses` library to mock CAS server interactions
+- **XML Response Parsing**: Tests realistic CAS XML authentication responses
+- **Session Management**: Complete session lifecycle testing (creation, validation, expiration)
+- **Bearer Token Support**: OAuth 2.0 bearer token validation testing
+- **Error Handling**: Comprehensive error scenario coverage
+- **Crypto Testing**: RSA proxy ticket encryption/decryption testing
+
+**Test Results:**
+```bash
+----------------------------------------------------------------------
+Ran 14 tests in 0.072s
+
+OK
+```
+
+**Test Execution:**
+```bash
+# Run all authentication tests
+docker-compose -f docker/docker-compose-test.yml run --rm test python -m unittest test.api.auth.test_cas_auth -v
+
+# Run specific auth test
+docker-compose -f docker/docker-compose-test.yml run --rm test python -m unittest test.api.auth.test_cas_auth.TestCASAuthentication.test_user_can_authenticate_with_valid_cas_credentials -v
 ```
 
 #### 2.2 Member Management Tests
@@ -662,11 +696,11 @@ docker-compose -f docker/docker-compose-test.yml run --rm test pytest --pdb
 ## Implementation Priorities
 
 ### High Priority (Must Have)
-- Authentication & Authorization Tests
+- ✅ Authentication & Authorization Tests (COMPLETED)
 - Member Management Tests
 - Job Management Core Tests
 - Database Model Tests
-- Docker Test Infrastructure
+- ✅ Docker Test Infrastructure (COMPLETED)
 
 ### Medium Priority (Should Have)
 - CMR Integration Tests
