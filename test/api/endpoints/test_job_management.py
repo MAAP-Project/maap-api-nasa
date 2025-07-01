@@ -68,7 +68,8 @@ class TestJobManagement(unittest.TestCase):
             )
             db.session.add(member)
             db.session.commit()
-            return member
+            
+            return member.id
 
     def test_job_status_can_be_queried(self):
         """Test: Job status can be queried"""
@@ -245,11 +246,11 @@ class TestJobManagement(unittest.TestCase):
         """Test: MemberJob model functionality"""
         with app.app_context():
             # Given a member and job tracking
-            member = self._create_test_member()
+            member_id = self._create_test_member()
             
             # When a job is tracked for the member
             member_job = MemberJob(
-                member_id=member.id,
+                member_id=member_id,
                 job_id='test-job-789',
                 submitted_date=datetime.utcnow()
             )
@@ -259,7 +260,7 @@ class TestJobManagement(unittest.TestCase):
             # Then job should be linked to member
             saved_job = db.session.query(MemberJob).filter_by(job_id='test-job-789').first()
             self.assertIsNotNone(saved_job)
-            self.assertEqual(saved_job.member_id, member.id)
+            self.assertEqual(saved_job.member_id, member_id)
             self.assertEqual(saved_job.job_id, 'test-job-789')
             self.assertEqual(saved_job.member.username, 'testuser')
 
