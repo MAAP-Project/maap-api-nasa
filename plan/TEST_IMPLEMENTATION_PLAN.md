@@ -12,12 +12,20 @@ This document provides a comprehensive step-by-step plan to implement the tests 
 - **Current Tests**: Limited tests for members, email utilities, and WMTS endpoints
 - **Test Framework**: Python unittest (can be extended with pytest)
 
+### Legacy Test Files Analysis
+- **HySDS Utility Tests** (`test/api/utils/test_hysds_util.py`) - Tests job queue validation, Mozart integration, time limits
+- **Email System Tests** (`test/api/utils/test_email.py`) - Tests notification system and user status emails
+- **WMTS Legacy Tests** (`test/api/endpoints/test_wmts_get_tile.py`, `test_wmts_get_capabilities.py`) - Old Titiler implementation
+- **WMTS New Tests** (`test/api/endpoints/test_wmts_get_*_new_titiler.py`) - Updated Titiler implementation
+- **Basic Member Tests** (`test/api/endpoints/test_members.py`) - Basic member CRUD operations (superseded)
+
 ### Gaps Identified
-- No Docker-based test execution
-- Limited test coverage for core functionality
-- No mocking framework for external services
+- No Docker-based test execution for legacy tests
+- Fragmented test coverage across old and new implementations
+- No mocking framework for external services in legacy tests
 - No CI/CD integration for tests
-- Lack of integration test scenarios
+- Duplication between legacy and modern test approaches
+- Missing utility function test coverage in modern infrastructure
 
 ## Implementation Plan
 
@@ -552,6 +560,435 @@ docker-compose -f docker/docker-compose-test.yml run --rm test python -m unittes
 - **Database Tracking**: MemberJob relationship management and job history
 - **CMR Integration**: Product delivery status verification
 
+### Phase 2.4: Legacy Test Modernization ⏳ PLANNED
+
+**Modernize and integrate existing legacy test files into the Docker-based test infrastructure**
+
+#### 2.4.1 HySDS Utility Tests Modernization
+
+**Modernize `test/api/utils/test_hysds_util.py`**
+```python
+# Create test/api/utils/test_hysds_utilities.py (modernized version)
+
+import unittest
+import responses
+from unittest.mock import patch, MagicMock
+from api.models import initialize_sql
+from api.maap_database import db
+from api.utils import hysds_util, job_queue
+from api import settings
+
+class TestHySDSUtilities(unittest.TestCase):
+    """Modernized HySDS utility tests with Docker integration."""
+    
+    def setUp(self):
+        """Setup test database and environment."""
+        initialize_sql(db.engine)
+        db.create_all()
+    
+    def tearDown(self):
+        """Clean up test database."""
+        db.session.remove()
+        db.drop_all()
+    
+    @responses.activate
+    def test_get_mozart_job_info_retrieves_job_data(self):
+        """Tests Mozart job info retrieval with mocked responses."""
+        # Mock Mozart API response
+        responses.add(
+            responses.GET,
+            f"{settings.MOZART_URL}/job/info",
+            json={"result": {"status": "job-completed", "job_id": "test-job-123"}},
+            status=200
+        )
+        
+        # Test job info retrieval
+        result = hysds_util.get_mozart_job_info("test-job-123")
+        self.assertIsNotNone(result)
+        self.assertEqual(len(responses.calls), 1)
+        self.assertIn("id=test-job-123", responses.calls[0].request.url)
+    
+    def test_remove_double_tag_deduplicates_tags(self):
+        """Tests tag deduplication in Mozart responses."""
+        mozart_response = {"result": {"tags": ["duplicate", "duplicate", "unique"]}}
+        result = hysds_util.remove_double_tag(mozart_response)
+        expected = {"result": {"tags": ["duplicate", "unique"]}}
+        self.assertEqual(expected, result)
+        
+        # Test empty tags
+        mozart_response = {"result": {}}
+        result = hysds_util.remove_double_tag(mozart_response)
+        self.assertEqual({"result": {}}, result)
+    
+    @patch('api.utils.hysds_util.get_recommended_queue')
+    @patch('api.utils.hysds_util.get_mozart_queues')
+    def test_queue_validation_with_valid_queue(self, mock_get_mozart_queues, mock_get_recommended_queue):
+        """Tests job queue validation with valid queue names."""
+        mock_get_recommended_queue.return_value = "maap-dps-worker-8gb"
+        mock_get_mozart_queues.return_value = ["maap-dps-worker-8gb", "maap-dps-worker-16gb"]
+        
+        # Test valid queue
+        queue = "maap-dps-worker-16gb"
+        result = job_queue.validate_or_get_queue(queue, "test-job", 1)
+        self.assertEqual(queue, result.queue_name)
+        
+        # Test empty queue falls back to recommended
+        result = job_queue.validate_or_get_queue("", "test-job", 1)
+        self.assertEqual("maap-dps-worker-8gb", result.queue_name)
+        
+        # Test invalid queue raises error
+        with self.assertRaises(ValueError):
+            job_queue.validate_or_get_queue("invalid-queue", "test-job", 1)
+    
+    def test_dps_sandbox_time_limits_are_set(self):
+        """Tests time limit setting for DPS sandbox jobs."""
+        params = {"input": "test-input", "username": "testuser"}
+        expected_params = params.copy()
+        expected_params.update({"soft_time_limit": "6000", "time_limit": "6000"})
+        
+        hysds_util.set_timelimit_for_dps_sandbox(params)
+        self.assertEqual(expected_params, params)
+    
+    @patch('api.utils.hysds_util.add_product_path_to_job_params')
+    def test_product_path_addition_integration(self, mock_add_product_path):
+        """Tests product path addition to job parameters."""
+        mock_add_product_path.return_value = {"product_path": "/test/path"}
+        
+        params = {"job_id": "test-123"}
+        result = hysds_util.add_product_path_to_job_params(params)
+        
+        self.assertIn("product_path", result)
+        mock_add_product_path.assert_called_once_with(params)
+```
+
+**Test Execution:**
+```bash
+# Run modernized HySDS utility tests
+docker-compose -f docker/docker-compose-test.yml run --rm test python -m unittest test.api.utils.test_hysds_utilities -v
+```
+
+**Key Improvements:**
+- ✅ Docker-based test execution with proper database setup
+- ✅ External service mocking with `responses` library
+- ✅ Proper test isolation and cleanup
+- ✅ Comprehensive error scenario testing
+- ✅ Integration with modern test infrastructure
+
+#### 2.4.2 Email System Tests Modernization
+
+**Modernize `test/api/utils/test_email.py`**
+```python
+# Create test/api/utils/test_email_system.py (modernized version)
+
+import unittest
+from unittest.mock import patch, MagicMock
+from datetime import datetime
+from api.models import initialize_sql, Member, Role
+from api.maap_database import db
+from api.utils.email import Email, send_user_status_change_email, send_welcome_to_maap_active_user_email
+from api import settings
+
+class TestEmailSystem(unittest.TestCase):
+    """Modernized email system tests with Docker integration."""
+    
+    def setUp(self):
+        """Setup test database and test member."""
+        initialize_sql(db.engine)
+        db.create_all()
+        
+        # Create required Role for Member foreign key
+        if not db.session.query(Role).filter_by(name='user').first():
+            user_role = Role(name='user', description='Standard user role')
+            db.session.add(user_role)
+            db.session.commit()
+        
+        # Create test member
+        self.test_member = Member(
+            first_name="Test",
+            last_name="User", 
+            username="testuser_email",
+            email="test.email@maap-project.org",
+            organization="NASA",
+            public_ssh_key="ssh-rsa AAAAB3NzaC1yc2ETEST...",
+            public_ssh_key_modified_date=datetime.utcnow(),
+            public_ssh_key_name="test_key",
+            urs_token="EDL-Test123..."
+        )
+        db.session.add(self.test_member)
+        db.session.commit()
+    
+    def tearDown(self):
+        """Clean up test database."""
+        db.session.remove()
+        db.drop_all()
+    
+    @patch('api.utils.email.smtplib.SMTP')
+    def test_email_utility_sends_messages(self, mock_smtp):
+        """Tests basic email sending functionality."""
+        mock_server = MagicMock()
+        mock_smtp.return_value = mock_server
+        
+        subject = "MAAP Test Email"
+        html_content = "<html><body><p>Test email content</p></body></html>"
+        text_content = "Test email content"
+        
+        email = Email(
+            settings.EMAIL_NO_REPLY,
+            ["test@example.com"],
+            subject,
+            html_content,
+            text_content
+        )
+        email.send()
+        
+        # Verify SMTP interactions
+        mock_smtp.assert_called_once()
+        mock_server.starttls.assert_called_once()
+        mock_server.login.assert_called_once()
+        mock_server.send_message.assert_called_once()
+        mock_server.quit.assert_called_once()
+    
+    @patch('api.utils.email.send_user_status_change_email')
+    def test_new_active_user_email_is_sent(self, mock_send_email):
+        """Tests new active user email notification."""
+        send_user_status_change_email(self.test_member, True, True, "http://test.example.com")
+        
+        mock_send_email.assert_called_once_with(
+            self.test_member, True, True, "http://test.example.com"
+        )
+    
+    @patch('api.utils.email.send_user_status_change_email') 
+    def test_new_suspended_user_email_is_sent(self, mock_send_email):
+        """Tests new suspended user email notification."""
+        send_user_status_change_email(self.test_member, True, False, "http://test.example.com")
+        
+        mock_send_email.assert_called_once_with(
+            self.test_member, True, False, "http://test.example.com"
+        )
+    
+    @patch('api.utils.email.send_welcome_to_maap_active_user_email')
+    def test_welcome_email_for_active_users(self, mock_send_email):
+        """Tests welcome email for activated users."""
+        send_welcome_to_maap_active_user_email(self.test_member, "http://test.example.com")
+        
+        mock_send_email.assert_called_once_with(
+            self.test_member, "http://test.example.com"
+        )
+    
+    @patch('api.utils.email.Email.send')
+    def test_email_template_rendering(self, mock_send):
+        """Tests email template rendering with member data."""
+        mock_send.return_value = True
+        
+        # Test that email templates include member information
+        send_welcome_to_maap_active_user_email(self.test_member, "http://test.example.com")
+        
+        mock_send.assert_called_once()
+        
+        # Verify email was created with proper content
+        call_args = mock_send.call_args
+        self.assertIsNotNone(call_args)
+    
+    def test_email_configuration_validation(self):
+        """Tests email configuration and settings validation."""
+        # Verify required email settings exist
+        self.assertIsNotNone(settings.EMAIL_NO_REPLY)
+        self.assertIsNotNone(settings.EMAIL_JPL_ADMINS)
+        
+        # Test email address format validation
+        self.assertIn("@", self.test_member.email)
+        self.assertTrue(self.test_member.email.endswith(".org"))
+```
+
+**Test Execution:**
+```bash
+# Run modernized email system tests
+docker-compose -f docker/docker-compose-test.yml run --rm test python -m unittest test.api.utils.test_email_system -v
+```
+
+**Key Improvements:**
+- ✅ Docker-based test execution with proper database setup
+- ✅ SMTP mocking for email testing without actual email sending
+- ✅ Proper Member model setup with Role dependencies
+- ✅ Template rendering validation
+- ✅ Configuration validation testing
+
+#### 2.4.3 WMTS Tests Consolidation
+
+**Consolidate and modernize WMTS tests by replacing legacy versions**
+
+**Create unified `test/api/endpoints/test_wmts_services.py`**
+```python
+# Replaces: test_wmts_get_tile.py, test_wmts_get_capabilities.py, 
+# test_wmts_get_tile_new_titiler.py, test_wmts_get_capabilities_new_titiler.py
+
+import unittest
+import responses
+from unittest.mock import patch, MagicMock
+from api.models import initialize_sql
+from api.maap_database import db
+from api.maapapp import app
+
+class TestWMTSServices(unittest.TestCase):
+    """Unified WMTS service tests for both legacy and new Titiler."""
+    
+    def setUp(self):
+        """Setup test environment."""
+        app.config['TESTING'] = True
+        self.app = app.test_client()
+        initialize_sql(db.engine)
+        db.create_all()
+    
+    def tearDown(self):
+        """Clean up test database."""
+        db.session.remove()
+        db.drop_all()
+    
+    # Tile Generation Tests
+    @responses.activate
+    def test_wmts_tile_generation_with_granule_ur(self):
+        """Tests WMTS tile generation using granule UR."""
+        # Mock Titiler response
+        responses.add(
+            responses.GET,
+            "http://test-titiler.example.com/cog/tiles/1/1/1.png",
+            body=b"fake-tile-data",
+            status=200,
+            headers={'Content-Type': 'image/png'}
+        )
+        
+        # Mock COG URL retrieval
+        with patch('api.endpoints.wmts.get_cog_urls_string') as mock_cog:
+            mock_cog.return_value = "http://example.com/test.tif"
+            
+            response = self.app.get(
+                "/api/wmts/GetTile/1/1/1.png"
+                "?granule_urs=test_granule.vrt"
+                "&color_map=viridis"
+                "&rescale=0,100"
+            )
+            
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.headers['Content-Type'], 'image/png')
+            self.assertEqual(response.headers['Access-Control-Allow-Origin'], '*')
+    
+    @responses.activate  
+    def test_wmts_tile_generation_with_collection(self):
+        """Tests WMTS tile generation using collection parameters."""
+        responses.add(
+            responses.GET,
+            "http://test-titiler.example.com/mosaic/1/1/1.png",
+            body=b"fake-mosaic-tile",
+            status=200,
+            headers={'Content-Type': 'image/png'}
+        )
+        
+        with patch('api.endpoints.wmts.get_cog_urls_string') as mock_cog:
+            mock_cog.return_value = "mosaic.cog"
+            
+            response = self.app.get(
+                "/api/wmts/GetTile/1/1/1.png"
+                "?short_name=TEST_COLLECTION"
+                "&version=1.0"
+                "&color_map=plasma"
+                "&rescale=0,255"
+            )
+            
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.headers['Content-Type'], 'image/png')
+    
+    def test_wmts_tile_missing_identifier_error(self):
+        """Tests error handling when required identifiers are missing."""
+        response = self.app.get("/api/wmts/GetTile/1/1/1.png")
+        
+        self.assertEqual(response.status_code, 422)
+        data = response.get_json()
+        self.assertIn("Neither required param granule_urs nor collection", data['message'])
+    
+    def test_wmts_tile_no_browse_images_error(self):
+        """Tests error handling when no browse images are available."""
+        with patch('api.endpoints.wmts.get_cog_urls_string') as mock_cog:
+            mock_cog.return_value = ""
+            
+            response = self.app.get(
+                "/api/wmts/GetTile/1/1/1.png?granule_urs=no_browse.vrt"
+            )
+            
+            self.assertEqual(response.status_code, 500)
+            data = response.get_json()
+            self.assertEqual(data['error'], 'No browse images')
+    
+    # Capabilities Document Tests
+    def test_wmts_capabilities_document_generation(self):
+        """Tests WMTS capabilities document generation."""
+        response = self.app.get("/api/wmts/GetCapabilities")
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('xml', response.headers['Content-Type'])
+        
+        # Verify capabilities document structure
+        content = response.get_data(as_text=True)
+        self.assertIn('WMTSCapabilities', content)
+        self.assertIn('ServiceIdentification', content)
+        self.assertIn('Contents', content)
+    
+    # Multi-granule and Advanced Tests
+    @responses.activate
+    def test_wmts_multiple_granules_mosaic(self):
+        """Tests tile generation with multiple granules."""
+        responses.add(
+            responses.GET,
+            "http://test-titiler.example.com/mosaic/1/1/1.png",
+            body=b"fake-mosaic-tile",
+            status=200,
+            headers={'Content-Type': 'image/png'}
+        )
+        
+        with patch('api.endpoints.wmts.get_cog_urls_string') as mock_cog:
+            mock_cog.return_value = "granule1.tif,granule2.tif"
+            
+            response = self.app.get(
+                "/api/wmts/GetTile/1/1/1.png"
+                "?granule_urs=granule1.vrt,granule2.vrt"
+                "&color_map=viridis"
+                "&rescale=0,100"
+            )
+            
+            self.assertEqual(response.status_code, 200)
+    
+    # Titiler Integration Tests
+    @patch('api.endpoints.wmts.get_tiles')
+    def test_titiler_integration_error_handling(self, mock_get_tiles):
+        """Tests error handling for Titiler integration failures."""
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+        mock_response.content = b"Titiler error"
+        mock_get_tiles.return_value = mock_response
+        
+        with patch('api.endpoints.wmts.get_cog_urls_string') as mock_cog:
+            mock_cog.return_value = "test.tif"
+            
+            response = self.app.get(
+                "/api/wmts/GetTile/1/1/1.png?granule_urs=test.vrt"
+            )
+            
+            self.assertEqual(response.status_code, 500)
+```
+
+**Test Execution:**
+```bash
+# Run unified WMTS service tests
+docker-compose -f docker/docker-compose-test.yml run --rm test python -m unittest test.api.endpoints.test_wmts_services -v
+```
+
+**Key Improvements:**
+- ✅ Consolidates 4 separate legacy test files into 1 comprehensive test
+- ✅ Docker-based test execution with proper setup/teardown
+- ✅ Modern mocking with `responses` library for external services
+- ✅ Tests both legacy and new Titiler functionality
+- ✅ Comprehensive error scenario coverage
+- ✅ Proper HTTP response validation
+
 ### Phase 3: API Integration Tests (Days 8-10)
 
 #### 3.1 CMR Integration Tests ✅ COMPLETED
@@ -645,9 +1082,55 @@ docker-compose -f docker/docker-compose-test.yml run --rm test python -m unittes
 - **Alternate Hosts**: CMR host parameter support for different CMR environments (UAT, production)
 - **File Processing**: ZIP file upload with shapefile component extraction and bounding box calculation
 
-#### 3.2 WMTS/WMS Tests
+### Phase 2.5: Legacy Test Cleanup ⏳ PLANNED
 
-**Create `test/api/endpoints/test_wmts_integration.py`**
+**Remove duplicate and obsolete test files after modernization**
+
+#### 2.5.1 File Deprecation Plan
+
+**Files to Remove After Modernization:**
+```bash
+# Legacy test files to be removed (replaced by modernized versions)
+rm test/api/utils/test_hysds_util.py          # Replaced by test_hysds_utilities.py
+rm test/api/utils/test_email.py               # Replaced by test_email_system.py
+rm test/api/endpoints/test_members.py         # Superseded by test_member_management.py
+rm test/api/endpoints/test_wmts_get_tile.py   # Consolidated into test_wmts_services.py
+rm test/api/endpoints/test_wmts_get_capabilities.py        # Consolidated
+rm test/api/endpoints/test_wmts_get_tile_new_titiler.py    # Consolidated
+rm test/api/endpoints/test_wmts_get_capabilities_new_titiler.py  # Consolidated
+```
+
+#### 2.5.2 Migration Validation
+
+**Ensure No Functionality Loss:**
+```bash
+# Before removing legacy files, verify all test cases are covered
+docker-compose -f docker/docker-compose-test.yml run --rm test python -m unittest discover -v
+
+# Compare test coverage between legacy and modernized tests
+docker-compose -f docker/docker-compose-test.yml run --rm test pytest --cov=api --cov-report=term-missing
+
+# Document any missing test scenarios from legacy files
+```
+
+#### 2.5.3 Test Documentation Updates
+
+**Update test execution documentation:**
+```bash
+# Old commands (to be removed from documentation)
+python -m unittest test/api/utils/test_hysds_util.py
+python -m unittest test/api/utils/test_email.py
+
+# New commands (modernized versions)
+docker-compose -f docker/docker-compose-test.yml run --rm test python -m unittest test.api.utils.test_hysds_utilities -v
+docker-compose -f docker/docker-compose-test.yml run --rm test python -m unittest test.api.utils.test_email_system -v
+docker-compose -f docker/docker-compose-test.yml run --rm test python -m unittest test.api.endpoints.test_wmts_services -v
+```
+
+#### 3.2 WMTS/WMS Tests (SUPERSEDED by Phase 2.4.3)
+
+**~~Create `test/api/endpoints/test_wmts_integration.py`~~**
+**Note:** This section is now superseded by the unified WMTS tests in Phase 2.4.3.
 ```python
 import pytest
 import responses
@@ -976,20 +1459,42 @@ docker-compose -f docker/docker-compose-test.yml run --rm test pytest --pdb
 - ✅ Member Management Tests (COMPLETED)
 - ✅ Job Management Core Tests (COMPLETED)
 - ✅ CMR Integration Tests (COMPLETED)
+- ✅ Security Tests (COMPLETED)
 - ✅ Docker Test Infrastructure (COMPLETED)
 
 ### Medium Priority (Should Have)
-- WMTS/WMS Tests
-- Algorithm Registration Tests
-- Basic Security Tests
-- CI/CD Integration
+- ⏳ **Legacy Test Modernization (Phase 2.4)** - Modernize HySDS, Email, and WMTS tests
+- ⏳ **Legacy Test Cleanup (Phase 2.5)** - Remove duplicated and obsolete test files
+- ⏳ Algorithm Registration Tests
+- ⏳ CI/CD Integration
 
 ### Low Priority (Nice to Have)
 - Performance Tests
-- Advanced Security Tests
 - Complex Integration Scenarios
 - Load Testing
 - Monitoring Integration
+
+## Legacy Test Migration Status
+
+### Completed Modernizations
+- ✅ **CAS Authentication** - Modernized from `test_members.py` proxy decryption test
+- ✅ **Member Management** - Comprehensive replacement for `test_members.py` basic tests
+
+### Planned Modernizations
+- ⏳ **HySDS Utilities** - Modernize `test_hysds_util.py` → `test_hysds_utilities.py`
+- ⏳ **Email System** - Modernize `test_email.py` → `test_email_system.py`  
+- ⏳ **WMTS Services** - Consolidate 4 WMTS test files → `test_wmts_services.py`
+
+### Files for Removal (Post-Modernization)
+- 🗑️ `test/api/utils/test_hysds_util.py` (7 test methods → modernized)
+- 🗑️ `test/api/utils/test_email.py` (7 test methods → modernized)
+- 🗑️ `test/api/endpoints/test_members.py` (5 test methods → superseded)
+- 🗑️ `test/api/endpoints/test_wmts_get_tile.py` (5 test methods → consolidated)
+- 🗑️ `test/api/endpoints/test_wmts_get_capabilities.py` (1 test method → consolidated)
+- 🗑️ `test/api/endpoints/test_wmts_get_tile_new_titiler.py` (5 test methods → consolidated)
+- 🗑️ `test/api/endpoints/test_wmts_get_capabilities_new_titiler.py` (1 test method → consolidated)
+
+**Total Legacy Test Coverage**: 31 test methods being modernized and consolidated
 
 ## Success Metrics
 
@@ -1007,4 +1512,35 @@ docker-compose -f docker/docker-compose-test.yml run --rm test pytest --pdb
 4. **Performance Monitoring**: Monitor test execution times and optimize slow tests
 5. **Documentation**: Keep test documentation current with implementation changes
 
-This comprehensive plan provides a robust foundation for implementing test-driven development with Docker-based testing for the NASA MAAP API project.
+## Legacy Test Modernization Benefits
+
+### Before Modernization
+- **Fragmented Testing**: 7 separate legacy test files with inconsistent approaches
+- **No Docker Integration**: Tests run in local environment with manual setup
+- **Limited Mocking**: Minimal external service mocking, leading to test brittleness
+- **Inconsistent Patterns**: Mixed testing frameworks and setup/teardown approaches
+- **Duplicate Coverage**: Overlapping test scenarios across multiple files
+- **Manual Execution**: Individual test files requiring separate execution commands
+
+### After Modernization
+- **Unified Infrastructure**: All tests integrated into Docker-based test framework
+- **Consolidated Coverage**: 31 legacy test methods modernized into 3 comprehensive test suites
+- **Modern Mocking**: External services (Mozart, SMTP, Titiler) properly mocked with `responses` library
+- **Consistent Patterns**: Standardized `initialize_sql()` setup and proper teardown across all tests
+- **Comprehensive Integration**: All tests now part of single test execution pipeline
+- **Enhanced Reliability**: Isolated test environment with predictable database state
+
+### Test Suite Improvements
+1. **HySDS Utilities**: 7 legacy tests → Modernized with Mozart API mocking and proper error handling
+2. **Email System**: 7 legacy tests → Modernized with SMTP mocking and template validation  
+3. **WMTS Services**: 17 legacy tests → Consolidated into unified test suite supporting both legacy and new Titiler
+4. **Member Management**: 5 legacy tests → Superseded by comprehensive 12-test suite
+
+### Developer Experience
+- **Single Command Execution**: `./scripts/run-tests.sh` runs all tests including modernized legacy tests
+- **Consistent Environment**: Docker ensures identical test environment across all machines
+- **Faster Feedback**: Parallel test execution and proper mocking reduce test runtime
+- **Better Coverage Reports**: Unified coverage reporting across all test suites
+- **Simplified Debugging**: Standardized test patterns make debugging easier
+
+This comprehensive plan provides a robust foundation for implementing test-driven development with Docker-based testing for the NASA MAAP API project, while preserving and modernizing valuable test coverage from legacy implementations.
