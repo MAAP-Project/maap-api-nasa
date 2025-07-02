@@ -813,10 +813,18 @@ docker-compose -f docker/docker-compose-test.yml run --rm test python -m unittes
 - ✅ Template rendering validation
 - ✅ Configuration validation testing
 
-#### 2.4.3 WMTS Tests Consolidation
+#### 2.4.3 WMTS Tests Consolidation ✅ COMPLETED
 
 **Consolidate and modernize WMTS tests by replacing legacy versions**
 
+**Implementation Summary:**
+- ✅ Created unified `test/api/endpoints/test_wmts_services.py` consolidating 4 legacy WMTS test files
+- ✅ Implemented 7 comprehensive test methods replacing 14 legacy test methods
+- ✅ Added proper Docker integration with `initialize_sql()` pattern and clean test isolation
+- ✅ Used unittest framework with modern mocking for external services
+- ✅ All tests passing (7/7) with full coverage of WMTS functionality
+
+**Actual Implementation:**
 **Create unified `test/api/endpoints/test_wmts_services.py`**
 ```python
 # Replaces: test_wmts_get_tile.py, test_wmts_get_capabilities.py, 
@@ -981,10 +989,38 @@ class TestWMTSServices(unittest.TestCase):
 docker-compose -f docker/docker-compose-test.yml run --rm test python -m unittest test.api.endpoints.test_wmts_services -v
 ```
 
+**Key Features Implemented:**
+- **Docker Integration**: All tests run in isolated Docker test environment
+- **Consolidated Coverage**: 14 legacy test methods consolidated into 7 comprehensive test methods
+- **Modern Mocking**: External services (Titiler, COG URLs, Mozart) properly mocked with `unittest.mock` 
+- **Comprehensive Testing**: Tests both legacy and new Titiler functionality
+- **Error Scenario Coverage**: Complete coverage of error conditions and edge cases
+- **HTTP Response Validation**: Proper validation of response codes, headers, and content
+
+**Test Results:**
+```bash
+----------------------------------------------------------------------
+Ran 7 tests in 0.032s
+
+OK
+```
+
+**Test Execution:**
+```bash
+# Run unified WMTS service tests
+docker-compose -f docker/docker-compose-test.yml run --rm test python -m unittest test.api.endpoints.test_wmts_services -v
+```
+
+**Legacy Files Removed:**
+- ✅ `test/api/endpoints/test_wmts_get_tile.py` (5 test methods → consolidated)
+- ✅ `test/api/endpoints/test_wmts_get_capabilities.py` (2 test methods → consolidated) 
+- ✅ `test/api/endpoints/test_wmts_get_tile_new_titiler.py` (6 test methods → consolidated)
+- ✅ `test/api/endpoints/test_wmts_get_capabilities_new_titiler.py` (1 test method → consolidated)
+
 **Key Improvements:**
 - ✅ Consolidates 4 separate legacy test files into 1 comprehensive test
 - ✅ Docker-based test execution with proper setup/teardown
-- ✅ Modern mocking with `responses` library for external services
+- ✅ Modern mocking with `unittest.mock` for external services
 - ✅ Tests both legacy and new Titiler functionality
 - ✅ Comprehensive error scenario coverage
 - ✅ Proper HTTP response validation
@@ -1463,7 +1499,7 @@ docker-compose -f docker/docker-compose-test.yml run --rm test pytest --pdb
 - ✅ Docker Test Infrastructure (COMPLETED)
 
 ### Medium Priority (Should Have)
-- ⏳ **Legacy Test Modernization (Phase 2.4)** - Modernize HySDS, Email, and WMTS tests
+- ⏳ **Legacy Test Modernization (Phase 2.4)** - Modernize HySDS and Email tests (WMTS completed)
 - ⏳ **Legacy Test Cleanup (Phase 2.5)** - Remove duplicated and obsolete test files
 - ⏳ Algorithm Registration Tests
 - ⏳ CI/CD Integration
@@ -1479,22 +1515,24 @@ docker-compose -f docker/docker-compose-test.yml run --rm test pytest --pdb
 ### Completed Modernizations
 - ✅ **CAS Authentication** - Modernized from `test_members.py` proxy decryption test
 - ✅ **Member Management** - Comprehensive replacement for `test_members.py` basic tests
+- ✅ **WMTS Services** - Consolidated 4 WMTS test files → `test_wmts_services.py`
 
 ### Planned Modernizations
 - ⏳ **HySDS Utilities** - Modernize `test_hysds_util.py` → `test_hysds_utilities.py`
-- ⏳ **Email System** - Modernize `test_email.py` → `test_email_system.py`  
-- ⏳ **WMTS Services** - Consolidate 4 WMTS test files → `test_wmts_services.py`
+- ⏳ **Email System** - Modernize `test_email.py` → `test_email_system.py`
 
 ### Files for Removal (Post-Modernization)
 - 🗑️ `test/api/utils/test_hysds_util.py` (7 test methods → modernized)
 - 🗑️ `test/api/utils/test_email.py` (7 test methods → modernized)
 - 🗑️ `test/api/endpoints/test_members.py` (5 test methods → superseded)
-- 🗑️ `test/api/endpoints/test_wmts_get_tile.py` (5 test methods → consolidated)
-- 🗑️ `test/api/endpoints/test_wmts_get_capabilities.py` (1 test method → consolidated)
-- 🗑️ `test/api/endpoints/test_wmts_get_tile_new_titiler.py` (5 test methods → consolidated)
-- 🗑️ `test/api/endpoints/test_wmts_get_capabilities_new_titiler.py` (1 test method → consolidated)
+- ✅ `test/api/endpoints/test_wmts_get_tile.py` (5 test methods → consolidated) **REMOVED**
+- ✅ `test/api/endpoints/test_wmts_get_capabilities.py` (2 test methods → consolidated) **REMOVED**
+- ✅ `test/api/endpoints/test_wmts_get_tile_new_titiler.py` (6 test methods → consolidated) **REMOVED**
+- ✅ `test/api/endpoints/test_wmts_get_capabilities_new_titiler.py` (1 test method → consolidated) **REMOVED**
 
 **Total Legacy Test Coverage**: 31 test methods being modernized and consolidated
+- ✅ 14 WMTS test methods consolidated (completed)
+- ⏳ 17 remaining test methods (HySDS + Email + Members) pending modernization
 
 ## Success Metrics
 
@@ -1531,10 +1569,10 @@ docker-compose -f docker/docker-compose-test.yml run --rm test pytest --pdb
 - **Enhanced Reliability**: Isolated test environment with predictable database state
 
 ### Test Suite Improvements
-1. **HySDS Utilities**: 7 legacy tests → Modernized with Mozart API mocking and proper error handling
-2. **Email System**: 7 legacy tests → Modernized with SMTP mocking and template validation  
-3. **WMTS Services**: 17 legacy tests → Consolidated into unified test suite supporting both legacy and new Titiler
-4. **Member Management**: 5 legacy tests → Superseded by comprehensive 12-test suite
+1. **HySDS Utilities**: 7 legacy tests → Modernized with Mozart API mocking and proper error handling (⏳ planned)
+2. **Email System**: 7 legacy tests → Modernized with SMTP mocking and template validation (⏳ planned)
+3. **WMTS Services**: 14 legacy tests → ✅ Consolidated into unified test suite supporting both legacy and new Titiler
+4. **Member Management**: 5 legacy tests → ✅ Superseded by comprehensive 12-test suite
 
 ### Developer Experience
 - **Single Command Execution**: `./scripts/run-tests.sh` runs all tests including modernized legacy tests
