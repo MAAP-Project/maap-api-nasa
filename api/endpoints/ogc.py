@@ -107,9 +107,9 @@ def _get_cwl_metadata(cwl_link):
 
     # Get git information
     github_url = re.search(r"s:codeRepository:\s*(\S+)", cwl_text, re.IGNORECASE)
-    github_url = github_url.group(1)
+    github_url = github_url.group(1) if github_url else None
     git_commit_hash = re.search(r"s:commitHash:\s*(\S+)", cwl_text, re.IGNORECASE)
-    git_commit_hash = git_commit_hash.group(1)
+    git_commit_hash = git_commit_hash.group(1) if git_commit_hash else None
 
     keywords_match = re.search(r"s:keywords:\s*(.*)", cwl_text, re.IGNORECASE)
     keywords = keywords_match.group(1).replace(" ", "") if keywords_match else None
