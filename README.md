@@ -5,10 +5,17 @@ Development server: https://api.dit.maap-project.org/api
 
 ## I. Local development using docker
 
+Set your FERNET_KEY environment variable to be a key, doesn't necessarily need to be valid. 
+
+See instructions for generating a test key: https://cryptography.io/en/latest/fernet/
+
 ```bash
 cd docker
 docker-compose -f docker-compose-local.yml up
 ```
+Once you make code changes you might need to delete your maap-api-nasa docker image for these code changes to be reflected. If you are getting a network not found error, try running `docker-compose -f docker-compose-local.yml up --force-recreate`
+You may need to add these keys to your docker compose environment variables to get the api running correctly/ being able to submit jobs: FERNET_KEY, GITLAB_TOKEN, CAS_PROXY_DECRYPTION_TOKEN, CAS_SECRET_KEY, CAS_SERVER_NAME, REGISTER_JOB_REPO_ID, GITLAB_API_TOKEN, GIT_REPO_URL, GITLAB_POST_PROCESS_TOKEN, MOZART_URL, MOZART_V1_URL, THIRD_PARTY_SECRET_TOKEN, MAAP_TEMP_URS_TOKEN  
+If you make changes to the settings, rebuild with `docker-compose -f docker-compose-local.yml build --no-cache`
 
 ## II. Local development using poetry and virtualenv
 
