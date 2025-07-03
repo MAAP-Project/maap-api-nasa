@@ -46,7 +46,7 @@ PIPELINE_URL_TEMPLATE = settings.GITLAB_URL_POST_PROCESS + "/root/deploy-ogc-hys
 INITIAL_JOB_STATUS = "accepted"
 DEPLOYED_PROCESS_STATUS = "deployed"
 UNDEPLOYED_PROCESS_STATUS = "undeployed"
-CWLMetadata = namedtuple("CWLMetadata", ["id", "version", "title", "description", "keywords", "raw_text"])
+CWLMetadata = namedtuple("CWLMetadata", ["id", "version", "title", "description", "keywords", "raw_text", "cwl_link"])
 
 def _generate_error(detail, error_status):
     """Generates a standardized error response body and status code."""
@@ -114,7 +114,8 @@ def _get_cwl_metadata(cwl_link):
         title=workflow.label,
         description=workflow.doc,
         keywords=keywords,
-        raw_text=cwl_text
+        raw_text=cwl_text,
+        cwl_link=cwl_link
     )
 
 
@@ -140,7 +141,7 @@ def _create_and_commit_deployment(metadata, pipeline, user, existing_process=Non
         created=datetime.now(),
         execution_venue=settings.DEPLOY_PROCESS_EXECUTION_VENUE,
         status=INITIAL_JOB_STATUS,
-        cwl_link=pipeline.variables.get("CWL_URL", metadata.raw_text), # Fallback for safety
+        cwl_link=metadata.cwl_link, 
         title=metadata.title,
         description=metadata.description,
         keywords=metadata.keywords,
