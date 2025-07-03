@@ -217,6 +217,13 @@ class Processes(Resource):
         - for 409 error, adding additionalProperies which is a dictionary with the process id
         :return:
         """
+        print("graceal1 about to get user")
+        try:
+            user = get_authorized_user()
+        except Exception as e:
+            print("graceal1 error getting user")
+            print(e)
+        print("done getting the user ")
         req_data_string = request.data.decode("utf-8")
         if not req_data_string:
             return _generate_error("Body expected in request", status.HTTP_400_BAD_REQUEST)
