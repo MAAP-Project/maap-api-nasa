@@ -1,7 +1,7 @@
 import logging
 import sqlalchemy
 from flask_restx import Resource
-from flask import request
+from flask import request, current_app as app
 from flask_api import status
 from collections import namedtuple
 from sqlalchemy.exc import SQLAlchemyError
@@ -213,8 +213,13 @@ class OrganizationMembership(Resource):
                                                            org_maintainer=org_maintainer,
                                                            creation_date=datetime.utcnow())
 
-            db.session.add(new_org_membership)
-            db.session.commit()
+            try:
+                db.session.add(new_org_membership)
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"Failed to add organization membership for user {username} to org {org_id}: {e}")
+                raise
 
             org_schema = OrganizationMembershipSchema()
             return json.loads(org_schema.dumps(new_org_membership))
@@ -250,8 +255,13 @@ class OrganizationMembership(Resource):
             if membership_to_delete is None:
                 return err_response("Org id {} for user {} was not found.".format(org_id, member_to_delete.username))
 
-            db.session.query(OrganizationMembership_db).filter_by(member_id=member_to_delete.id, org_id=org_id).delete()
-            db.session.commit()
+            try:
+                db.session.query(OrganizationMembership_db).filter_by(member_id=member_to_delete.id, org_id=org_id).delete()
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"Failed to delete organization membership for user {username} from org {org_id}: {e}")
+                raise
 
             return {"code": status.HTTP_200_OK,
                     "message": "Successfully removed {} from org {}.".format(member_to_delete.username, org_id)}
@@ -325,8 +335,13 @@ class OrganizationJobQueueCls(Resource):
             new_org_queue = OrganizationJobQueue(org_id=org_id, job_queue_id=org_queue.id,
                                                  creation_date=datetime.utcnow())
 
-            db.session.add(new_org_queue)
-            db.session.commit()
+            try:
+                db.session.add(new_org_queue)
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"Failed to add job queue {queue_name} to org {org_id}: {e}")
+                raise
 
             org_schema = OrganizationJobQueueSchema()
             return json.loads(org_schema.dumps(new_org_queue))
@@ -362,8 +377,13 @@ class OrganizationJobQueueCls(Resource):
             if org_queue_to_delete is None:
                 return err_response("Org id {} for job queue {} was not found.".format(org_id, queue_name))
 
-            db.session.query(OrganizationJobQueue).filter_by(job_queue_id=queue_to_delete.id, org_id=org_id).delete()
-            db.session.commit()
+            try:
+                db.session.query(OrganizationJobQueue).filter_by(job_queue_id=queue_to_delete.id, org_id=org_id).delete()
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"Failed to delete job queue {queue_name} from org {org_id}: {e}")
+                raise
 
             return {"code": status.HTTP_200_OK,
                     "message": "Successfully removed {} from org {}.".format(queue_name, org_id)}
