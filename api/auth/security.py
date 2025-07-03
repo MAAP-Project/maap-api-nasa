@@ -19,6 +19,7 @@ MEMBER_STATUS_SUSPENDED = "suspended"
 
 
 def get_authorized_user():
+    print("graceal1 in get authorized user")
     try:
         auth = get_auth_header()
 
@@ -26,6 +27,7 @@ def get_authorized_user():
             member_session = validate_proxy(request.headers[auth])
 
             if member_session is not None:
+                print("graceal1 returning member")
                 return member_session.member
 
         if auth == HEADER_AUTHORIZATION:
