@@ -96,25 +96,24 @@ Some issues you may experience while running the above line:
   sudo /etc/init.d/postgresql start
   ```
 
-### Running tests
+## Running Tests
 
-When using docker-compose to start the app it is possible to run the tests locally if you first
-update the settings.py `DATABASE_URL` value to specify `localhost` as the servername instead of `db`
-(DO NOT check in this change).
+### Prerequisites
+- Local development environment set up (see CLAUDE.md)
+- Test database configured
+- Required environment variables set
 
+### Test Execution
 ```bash
-python -m unittest test/api/endpoints/test_wmts_get_tile.py
-```
+# Run all tests
+python -m unittest discover test/
 
-If you are running the latest version of Titiler, use the following local test scripts:
-while keeping the server in the previous step running (i.e., local maap-api-nasa). Open a new terminal
+# Run specific test modules
+python -m unittest test.api.endpoints.test_members
+python -m unittest test.api.utils.test_email
 
-```bash
-poetry env use $(poetry env info -e)
-
-#If you are running the latest version of Titiler, then use the following test scripts:
-python -m unittest -v test/api/endpoints/test_wmts_get_tile_new_titiler.py
-python -m unittest -v test/api/endpoints/test_wmts_get_capabilities_new_titiler.py
+# Run individual test methods
+python -m unittest test.api.endpoints.test_members.MembersCase.test_create_member
 ```
 
 ## III. User Accounts
