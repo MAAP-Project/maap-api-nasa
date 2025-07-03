@@ -41,9 +41,4 @@ RUN mkdir -p /maap-api-nasa/logs
 
 # Set test environment variables
 ENV FLASK_ENV=testing \
-    MOCK_RESPONSES=true \
-    DATABASE_URL=postgresql://testuser:testpass@test-db:5432/maap_test \
-    FERNET_KEY=ZmRhZjUzNTQxZmNiZTQxN2M1YjI1NTk0NzM2MzY1NDg= \
-    SECRET_KEY=test-secret-key-for-testing-only \
-    CMR_API_TOKEN=test-cmr-token \
-    GITLAB_TOKEN=test-gitlab-token
+    MOCK_RESPONSES=true
