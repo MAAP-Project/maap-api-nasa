@@ -15,3 +15,5 @@ local
 docker/logs/
 /logs/
 /dist/
+.claude
+.serena
