@@ -160,6 +160,7 @@ def _create_and_commit_deployment(metadata, pipeline, user, existing_process=Non
         id=metadata.id if not existing_process else existing_process.id,
         version=metadata.version if not existing_process else existing_process.version
     )
+    print("graceal1 done creating deployment")
     db.session.add(deployment)
     db.session.commit()
     return deployment
@@ -245,8 +246,11 @@ class Processes(Resource):
                 return response_body, status.HTTP_409_CONFLICT
 
             user = get_authorized_user()
+            print("graceal1 before trigger gitlab")
             pipeline = _trigger_gitlab_pipeline(cwl_link)
+            print("graceal1 after trigginer gitlab")
             deployment = _create_and_commit_deployment(metadata, pipeline, user)
+            print("graceal1 after creating dpeloyment")
             
             # Re-query to get the auto-incremented job_id
             deployment = db.session.query(Deployment_db).filter_by(id=metadata.id, version=metadata.version, status=INITIAL_JOB_STATUS).first()
