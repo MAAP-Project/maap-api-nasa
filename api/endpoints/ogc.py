@@ -236,6 +236,7 @@ class Processes(Resource):
             existing_process = db.session.query(Process_db).filter_by(
                 id=metadata.id, version=metadata.version, status=DEPLOYED_PROCESS_STATUS
             ).first()
+            print("graceal1 after getting existing process")
         
             if existing_process:
                 response_body = {
