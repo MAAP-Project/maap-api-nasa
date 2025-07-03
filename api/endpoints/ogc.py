@@ -202,46 +202,48 @@ class Processes(Resource):
         - for 409 error, adding additionalProperies which is a dictionary with the process id
         :return:
         """
+        user = get_authorized_user()
         req_data_string = request.data.decode("utf-8")
         if not req_data_string:
             return _generate_error("Body expected in request", status.HTTP_400_BAD_REQUEST)
         
         req_data = json.loads(req_data_string)
         
-        try:
-            cwl_link = req_data.get("executionUnit", {}).get("href")
-            if not cwl_link:
-                return _generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
+        #try:
+        cwl_link = req_data.get("executionUnit", {}).get("href")
+        if not cwl_link:
+            return _generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
 
-            metadata = _get_cwl_metadata(cwl_link)
+        metadata = _get_cwl_metadata(cwl_link)
 
-            existing_process = db.session.query(Process_db).filter_by(
-                id=metadata.id, version=metadata.version, status=DEPLOYED_PROCESS_STATUS
-            ).first()
+        existing_process = db.session.query(Process_db).filter_by(
+            id=metadata.id, version=metadata.version, status=DEPLOYED_PROCESS_STATUS
+        ).first()
+    
+        if existing_process:
+            response_body = {
+                "status": status.HTTP_409_CONFLICT,
+                "detail": "Duplicate process. Use PUT to modify existing process if you originally published it.",
+                "additionalProperties": {"processID": existing_process.process_id}
+            }
+            return response_body, status.HTTP_409_CONFLICT
+
+        #user = get_authorized_user()
+        print("graceal1 about to trigger the pipeline")
+        pipeline = _trigger_gitlab_pipeline(cwl_link)
+        deployment = _create_and_commit_deployment(metadata, pipeline, user)
         
-            if existing_process:
-                response_body = {
-                    "status": status.HTTP_409_CONFLICT,
-                    "detail": "Duplicate process. Use PUT to modify existing process if you originally published it.",
-                    "additionalProperties": {"processID": existing_process.process_id}
-                }
-                return response_body, status.HTTP_409_CONFLICT
+        # Re-query to get the auto-incremented job_id
+        deployment = db.session.query(Deployment_db).filter_by(id=metadata.id, version=metadata.version, status=INITIAL_JOB_STATUS).first()
+        deployment_job_id = deployment.job_id
 
-            user = get_authorized_user()
-            pipeline = _trigger_gitlab_pipeline(cwl_link)
-            deployment = _create_and_commit_deployment(metadata, pipeline, user)
-            
-            # Re-query to get the auto-incremented job_id
-            deployment = db.session.query(Deployment_db).filter_by(id=metadata.id, version=metadata.version, status=INITIAL_JOB_STATUS).first()
-            deployment_job_id = deployment.job_id
-
-        except ValueError as e:
-            return _generate_error(str(e), status.HTTP_400_BAD_REQUEST)
-        except RuntimeError as e:
-            return _generate_error(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
-        except Exception as e:
-            log.error(f"Unexpected error during process POST: {traceback.format_exc()}")
-            return _generate_error("An unexpected error occurred.", status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # except ValueError as e:
+        #     return _generate_error(str(e), status.HTTP_400_BAD_REQUEST)
+        # except RuntimeError as e:
+        #     return _generate_error(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # except Exception as e:
+        #     log.error(f"Unexpected error during process POST: {traceback.format_exc()}")
+        #     return _generate_error("An unexpected error occurred.", status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         response_body = {
             "title": metadata.title,
