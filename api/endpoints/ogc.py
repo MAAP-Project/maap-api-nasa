@@ -106,6 +106,7 @@ def _get_cwl_metadata(cwl_link):
     process_version = version_match.group(1)
 
     # Get git information
+    print("graceal1 before getting git info")
     github_url = re.search(r"s:codeRepository:\s*(\S+)", cwl_text, re.IGNORECASE)
     github_url = github_url.group(1) if github_url else None
     git_commit_hash = re.search(r"s:commitHash:\s*(\S+)", cwl_text, re.IGNORECASE)
@@ -222,10 +223,12 @@ class Processes(Resource):
         req_data = json.loads(req_data_string)
         
         try:
+            print("graceal1 at the bginning of try")
             cwl_link = req_data.get("executionUnit", {}).get("href")
             if not cwl_link:
                 return _generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
 
+            print("graceal1 before getting metadata")
             metadata = _get_cwl_metadata(cwl_link)
             print("graceal1 after getting metadata")
 
