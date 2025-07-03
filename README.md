@@ -103,6 +103,35 @@ Some issues you may experience while running the above line:
 - Test database configured
 - Required environment variables set
 
+## Test Execution Commands
+
+### Local Development
+```bash
+# Build and run all tests
+./scripts/run-tests.sh
+
+# Run specific test categories
+docker-compose -f docker/docker-compose-test.yml run --rm test pytest test/api/endpoints/
+
+# Run tests with coverage
+docker-compose -f docker/docker-compose-test.yml run --rm test pytest --cov=api --cov-report=html
+
+# Run tests in watch mode
+docker-compose -f docker/docker-compose-test.yml run --rm test pytest -f
+```
+
+### Debugging Tests
+```bash
+# Run tests with detailed output
+docker-compose -f docker/docker-compose-test.yml run --rm test pytest -vvv -s
+
+# Run specific test
+docker-compose -f docker/docker-compose-test.yml run --rm test pytest test/api/endpoints/test_members.py::TestMemberManagement::test_new_member_can_be_created_successfully
+
+# Run with debugger
+docker-compose -f docker/docker-compose-test.yml run --rm test pytest --pdb
+```
+
 ### Test Execution
 ```bash
 # Run all tests
