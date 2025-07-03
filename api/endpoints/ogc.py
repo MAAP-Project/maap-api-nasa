@@ -227,6 +227,7 @@ class Processes(Resource):
                 return _generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
 
             metadata = _get_cwl_metadata(cwl_link)
+            print("graceal1 after getting metadata")
 
             existing_process = db.session.query(Process_db).filter_by(
                 id=metadata.id, version=metadata.version, status=DEPLOYED_PROCESS_STATUS
@@ -253,7 +254,7 @@ class Processes(Resource):
         except RuntimeError as e:
             return _generate_error(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception as e:
-            log.error(f"Unexpected error during process POST: {traceback.format_exc()}")
+            print(f"Unexpected error during process POST: {traceback.format_exc()}")
             return _generate_error("An unexpected error occurred.", status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         response_body = {
