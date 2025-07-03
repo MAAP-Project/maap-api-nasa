@@ -106,7 +106,6 @@ def _get_cwl_metadata(cwl_link):
     process_version = version_match.group(1)
 
     # Get git information
-    print("graceal1 before getting git info")
     github_url = re.search(r"s:codeRepository:\s*(\S+)", cwl_text, re.IGNORECASE)
     github_url = github_url.group(1) if github_url else None
     git_commit_hash = re.search(r"s:commitHash:\s*(\S+)", cwl_text, re.IGNORECASE)
@@ -173,7 +172,6 @@ class Processes(Resource):
         Search all processes
         :return:
         """
-        print("graceal in get of processes")
         response_body = dict()
         existing_processes_return = []
         existing_links_return = []
@@ -197,8 +195,8 @@ class Processes(Resource):
                 "id": process.id,
                 "version": process.version,
                 "jobControlOptions": [], # TODO Unsure what we want this to be yet
-                "author": author,
-                "lastModifiedTime": process.last_modified_time,
+                "author": author.username,
+                "lastModifiedTime": process.last_modified_time.isoformat(),
                 "cwlLink": process.cwl_link,
                 "links": [link_obj_process]
             })
@@ -224,14 +222,11 @@ class Processes(Resource):
         req_data = json.loads(req_data_string)
         
         try:
-            print("graceal1 at the bginning of try")
             cwl_link = req_data.get("executionUnit", {}).get("href")
             if not cwl_link:
                 return _generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
 
-            print("graceal1 before getting metadata")
             metadata = _get_cwl_metadata(cwl_link)
-            print("graceal1 after getting metadata")
 
             existing_process = db.session.query(Process_db).filter_by(
                 id=metadata.id, version=metadata.version, status=DEPLOYED_PROCESS_STATUS
@@ -468,7 +463,7 @@ class Describe(Resource):
             "processID": process_id,
             "version": existing_process.version,
             "jobControlOptions": [],
-            "author": author,
+            "author": author.username,
             "githubUrl": existing_process.github_url,
             "gitCommitHash": existing_process.git_commit_hash,
             "cwlLink": existing_process.cwl_link,
