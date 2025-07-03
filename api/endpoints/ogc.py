@@ -246,6 +246,7 @@ class Processes(Resource):
                 }
                 return response_body, status.HTTP_409_CONFLICT
 
+            print("graceal1 about to get user")
             user = get_authorized_user()
             print("graceal1 before trigger gitlab")
             pipeline = _trigger_gitlab_pipeline(cwl_link)
@@ -262,6 +263,7 @@ class Processes(Resource):
         except RuntimeError as e:
             return _generate_error(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception as e:
+            print(str(e))
             print(f"Unexpected error during process POST: {traceback.format_exc()}")
             return _generate_error("An unexpected error occurred.", status.HTTP_500_INTERNAL_SERVER_ERROR)
 
