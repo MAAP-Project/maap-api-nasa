@@ -19,21 +19,25 @@ MEMBER_STATUS_SUSPENDED = "suspended"
 
 
 def get_authorized_user():
-    auth = get_auth_header()
+    try:
+        auth = get_auth_header()
 
-    if auth == HEADER_PROXY_TICKET or auth == HEADER_CP_TICKET:
-        member_session = validate_proxy(request.headers[auth])
+        if auth == HEADER_PROXY_TICKET or auth == HEADER_CP_TICKET:
+            member_session = validate_proxy(request.headers[auth])
 
-        if member_session is not None:
-            return member_session.member
+            if member_session is not None:
+                return member_session.member
 
-    if auth == HEADER_AUTHORIZATION:
-        bearer = request.headers.get(auth)
-        token = bearer.split()[1]
-        authorized = validate_bearer(token)
+        if auth == HEADER_AUTHORIZATION:
+            bearer = request.headers.get(auth)
+            token = bearer.split()[1]
+            authorized = validate_bearer(token)
 
-        if authorized is not None:
-            return authorized
+            if authorized is not None:
+                return authorized
+    except Exception as e:
+        print("graceal1 exception getting user which is ")
+        print(e)
 
     return None
 
