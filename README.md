@@ -5,7 +5,10 @@ Development server: https://api.dit.maap-project.org/api
 
 ## I. Local development using docker
 
-Set your FERNET_KEY environment variable to be a key, doesn't necessarily need to be valid 
+Set your FERNET_KEY environment variable to be a key, doesn't necessarily need to be valid. 
+
+See instructions for generating a test key: https://cryptography.io/en/latest/fernet/
+
 ```bash
 cd docker
 docker-compose -f docker-compose-local.yml up
