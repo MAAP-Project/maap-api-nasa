@@ -1,4 +1,3 @@
-
 import logging
 import os
 from collections import namedtuple
@@ -24,6 +23,7 @@ from api.maap_database import db
 from api.models.process import Process as Process_db
 from api.models.deployment import Deployment as Deployment_db
 from api.models.process_job import ProcessJob as ProcessJob_db
+from api.models.member import Member as Member_db
 from api.models.member_algorithm import MemberAlgorithm
 from sqlalchemy import or_, and_
 from datetime import datetime, timedelta
@@ -46,7 +46,7 @@ PIPELINE_URL_TEMPLATE = settings.GITLAB_URL_POST_PROCESS + "/root/deploy-ogc-hys
 INITIAL_JOB_STATUS = "accepted"
 DEPLOYED_PROCESS_STATUS = "deployed"
 UNDEPLOYED_PROCESS_STATUS = "undeployed"
-CWLMetadata = namedtuple("CWLMetadata", ["id", "version", "title", "description", "keywords", "raw_text", "cwl_link"])
+CWLMetadata = namedtuple("CWLMetadata", ["id", "version", "title", "description", "keywords", "raw_text", "github_url", "git_commit_hash", "cwl_link"])
 
 def _generate_error(detail, error_status):
     """Generates a standardized error response body and status code."""
@@ -105,6 +105,13 @@ def _get_cwl_metadata(cwl_link):
     cwl_id = os.path.basename(fragment)
     process_version = version_match.group(1)
 
+    # Get git information
+    print("graceal1 before getting git info")
+    github_url = re.search(r"s:codeRepository:\s*(\S+)", cwl_text, re.IGNORECASE)
+    github_url = github_url.group(1) if github_url else None
+    git_commit_hash = re.search(r"s:commitHash:\s*(\S+)", cwl_text, re.IGNORECASE)
+    git_commit_hash = git_commit_hash.group(1) if git_commit_hash else None
+
     keywords_match = re.search(r"s:keywords:\s*(.*)", cwl_text, re.IGNORECASE)
     keywords = keywords_match.group(1).replace(" ", "") if keywords_match else None
 
@@ -115,6 +122,8 @@ def _get_cwl_metadata(cwl_link):
         description=workflow.doc,
         keywords=keywords,
         raw_text=cwl_text,
+        github_url=github_url,
+        git_commit_hash=git_commit_hash,
         cwl_link=cwl_link
     )
 
@@ -147,6 +156,8 @@ def _create_and_commit_deployment(metadata, pipeline, user, existing_process=Non
         keywords=metadata.keywords,
         user=user.id,
         pipeline_id=pipeline.id,
+        github_url=metadata.github_url,
+        git_commit_hash=metadata.git_commit_hash,
         id=metadata.id if not existing_process else existing_process.id,
         version=metadata.version if not existing_process else existing_process.version
     )
@@ -170,6 +181,7 @@ class Processes(Resource):
         existing_processes = db.session.query(Process_db).filter_by(status=DEPLOYED_PROCESS_STATUS).all()
 
         for process in existing_processes:
+            author = db.session.query(Member_db).filter_by(id=process.user).first()
             link_obj_process = {
                 "href": f"/{ns.name}/processes/{process.process_id}",
                 "rel": "self",
@@ -185,7 +197,9 @@ class Processes(Resource):
                 "id": process.id,
                 "version": process.version,
                 "jobControlOptions": [], # TODO Unsure what we want this to be yet
-                "cwl_link": process.cwl_link,
+                "author": author,
+                "lastModifiedTime": process.last_modified_time,
+                "cwlLink": process.cwl_link,
                 "links": [link_obj_process]
             })
             existing_links_return.append(link_obj_process)
@@ -203,48 +217,49 @@ class Processes(Resource):
         - for 409 error, adding additionalProperies which is a dictionary with the process id
         :return:
         """
-        user = get_authorized_user()
         req_data_string = request.data.decode("utf-8")
         if not req_data_string:
             return _generate_error("Body expected in request", status.HTTP_400_BAD_REQUEST)
         
         req_data = json.loads(req_data_string)
         
-        #try:
-        cwl_link = req_data.get("executionUnit", {}).get("href")
-        if not cwl_link:
-            return _generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
+        try:
+            print("graceal1 at the bginning of try")
+            cwl_link = req_data.get("executionUnit", {}).get("href")
+            if not cwl_link:
+                return _generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
 
-        metadata = _get_cwl_metadata(cwl_link)
+            print("graceal1 before getting metadata")
+            metadata = _get_cwl_metadata(cwl_link)
+            print("graceal1 after getting metadata")
 
-        existing_process = db.session.query(Process_db).filter_by(
-            id=metadata.id, version=metadata.version, status=DEPLOYED_PROCESS_STATUS
-        ).first()
-    
-        if existing_process:
-            response_body = {
-                "status": status.HTTP_409_CONFLICT,
-                "detail": "Duplicate process. Use PUT to modify existing process if you originally published it.",
-                "additionalProperties": {"processID": existing_process.process_id}
-            }
-            return response_body, status.HTTP_409_CONFLICT
-
-        #user = get_authorized_user()
-        print("graceal1 about to trigger the pipeline")
-        pipeline = _trigger_gitlab_pipeline(cwl_link)
-        deployment = _create_and_commit_deployment(metadata, pipeline, user)
+            existing_process = db.session.query(Process_db).filter_by(
+                id=metadata.id, version=metadata.version, status=DEPLOYED_PROCESS_STATUS
+            ).first()
         
-        # Re-query to get the auto-incremented job_id
-        deployment = db.session.query(Deployment_db).filter_by(id=metadata.id, version=metadata.version, status=INITIAL_JOB_STATUS).first()
-        deployment_job_id = deployment.job_id
+            if existing_process:
+                response_body = {
+                    "status": status.HTTP_409_CONFLICT,
+                    "detail": "Duplicate process. Use PUT to modify existing process if you originally published it.",
+                    "additionalProperties": {"processID": existing_process.process_id}
+                }
+                return response_body, status.HTTP_409_CONFLICT
 
-        # except ValueError as e:
-        #     return _generate_error(str(e), status.HTTP_400_BAD_REQUEST)
-        # except RuntimeError as e:
-        #     return _generate_error(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
-        # except Exception as e:
-        #     log.error(f"Unexpected error during process POST: {traceback.format_exc()}")
-        #     return _generate_error("An unexpected error occurred.", status.HTTP_500_INTERNAL_SERVER_ERROR)
+            user = get_authorized_user()
+            pipeline = _trigger_gitlab_pipeline(cwl_link)
+            deployment = _create_and_commit_deployment(metadata, pipeline, user)
+            
+            # Re-query to get the auto-incremented job_id
+            deployment = db.session.query(Deployment_db).filter_by(id=metadata.id, version=metadata.version, status=INITIAL_JOB_STATUS).first()
+            deployment_job_id = deployment.job_id
+
+        except ValueError as e:
+            return _generate_error(str(e), status.HTTP_400_BAD_REQUEST)
+        except RuntimeError as e:
+            return _generate_error(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            print(f"Unexpected error during process POST: {traceback.format_exc()}")
+            return _generate_error("An unexpected error occurred.", status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         response_body = {
             "title": metadata.title,
@@ -318,6 +333,9 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
                 existing_process.cwl_link = deployment.cwl_link
                 existing_process.user = deployment.user
                 process_id = existing_process.process_id
+                existing_process.github_url=deployment.github_url
+                existing_process.git_commit_hash=deployment.git_commit_hash
+                existing_process.last_modified_time=datetime.now()
             else:
                 process = Process_db(id=deployment.id,
                                 version=deployment.version,
@@ -326,6 +344,9 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
                                 description=deployment.description,
                                 keywords=deployment.keywords,
                                 user=deployment.user, 
+                                github_url=deployment.github_url,
+                                git_commit_hash=deployment.git_commit_hash,
+                                last_modified_time=datetime.now(),
                                 status=DEPLOYED_PROCESS_STATUS)
                 db.session.add(process)
                 db.session.commit()
@@ -436,6 +457,8 @@ class Describe(Resource):
         
         hysds_io_result = response.get("result")
 
+        author = db.session.query(Member_db).filter_by(id=existing_process.user).first()
+
         response_body = {
             "title": existing_process.title,
             "description": existing_process.description,
@@ -445,6 +468,9 @@ class Describe(Resource):
             "processID": process_id,
             "version": existing_process.version,
             "jobControlOptions": [],
+            "author": author,
+            "githubUrl": existing_process.github_url,
+            "gitCommitHash": existing_process.git_commit_hash,
             "cwlLink": existing_process.cwl_link,
             "links": [
                 {"href": f"/{ns.name}/processes/{process_id}", "rel": "self", "type": None, "hreflang": None, "title": "self"},
