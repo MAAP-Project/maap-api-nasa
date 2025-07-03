@@ -1,0 +1,32 @@
+name: Test Suite
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Build and run tests
+      run: |
+        cd docker
+        docker-compose -f docker-compose-test.yml build
+        docker-compose -f docker-compose-test.yml run --rm test
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results
+        path: docker/test-results/
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: docker/test-results/coverage.xml
