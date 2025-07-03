@@ -23,6 +23,7 @@ from api.maap_database import db
 from api.models.process import Process as Process_db
 from api.models.deployment import Deployment as Deployment_db
 from api.models.process_job import ProcessJob as ProcessJob_db
+from api.models.member import Member as Member_db
 from api.models.member_algorithm import MemberAlgorithm
 from sqlalchemy import or_, and_
 from datetime import datetime, timedelta
@@ -45,7 +46,7 @@ PIPELINE_URL_TEMPLATE = settings.GITLAB_URL_POST_PROCESS + "/root/deploy-ogc-hys
 INITIAL_JOB_STATUS = "accepted"
 DEPLOYED_PROCESS_STATUS = "deployed"
 UNDEPLOYED_PROCESS_STATUS = "undeployed"
-CWLMetadata = namedtuple("CWLMetadata", ["id", "version", "title", "description", "keywords", "raw_text"])
+CWLMetadata = namedtuple("CWLMetadata", ["id", "version", "title", "description", "keywords", "raw_text", "github_url", "git_commit_hash"])
 
 def _generate_error(detail, error_status):
     """Generates a standardized error response body and status code."""
@@ -104,6 +105,12 @@ def _get_cwl_metadata(cwl_link):
     cwl_id = os.path.basename(fragment)
     process_version = version_match.group(1)
 
+    # Get git information
+    github_url = re.search(r"s:codeRepository:\s*(\S+)", cwl_text, re.IGNORECASE)
+    github_url = github_url.group(1)
+    git_commit_hash = re.search(r"s:commitHash:\s*(\S+)", cwl_text, re.IGNORECASE)
+    git_commit_hash = git_commit_hash.group(1)
+
     keywords_match = re.search(r"s:keywords:\s*(.*)", cwl_text, re.IGNORECASE)
     keywords = keywords_match.group(1).replace(" ", "") if keywords_match else None
 
@@ -113,7 +120,9 @@ def _get_cwl_metadata(cwl_link):
         title=workflow.label,
         description=workflow.doc,
         keywords=keywords,
-        raw_text=cwl_text
+        raw_text=cwl_text,
+        github_url=github_url,
+        git_commit_hash=git_commit_hash
     )
 
 
@@ -145,6 +154,8 @@ def _create_and_commit_deployment(metadata, pipeline, user, existing_process=Non
         keywords=metadata.keywords,
         user=user.id,
         pipeline_id=pipeline.id,
+        github_url=metadata.github_url,
+        git_commit_hash=metadata.git_commit_hash,
         id=metadata.id if not existing_process else existing_process.id,
         version=metadata.version if not existing_process else existing_process.version
     )
@@ -168,6 +179,7 @@ class Processes(Resource):
         existing_processes = db.session.query(Process_db).filter_by(status=DEPLOYED_PROCESS_STATUS).all()
 
         for process in existing_processes:
+            author = db.session.query(Member_db).filter_by(id=process.user).first()
             link_obj_process = {
                 "href": f"/{ns.name}/processes/{process.process_id}",
                 "rel": "self",
@@ -183,7 +195,9 @@ class Processes(Resource):
                 "id": process.id,
                 "version": process.version,
                 "jobControlOptions": [], # TODO Unsure what we want this to be yet
-                "cwl_link": process.cwl_link,
+                "author": author,
+                "lastModifiedTime": process.last_modified_time,
+                "cwlLink": process.cwl_link,
                 "links": [link_obj_process]
             })
             existing_links_return.append(link_obj_process)
@@ -314,6 +328,9 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
                 existing_process.cwl_link = deployment.cwl_link
                 existing_process.user = deployment.user
                 process_id = existing_process.process_id
+                existing_process.github_url=deployment.github_url
+                existing_process.git_commit_hash=deployment.git_commit_hash
+                existing_process.last_modified_time=datetime.now()
             else:
                 process = Process_db(id=deployment.id,
                                 version=deployment.version,
@@ -322,6 +339,9 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
                                 description=deployment.description,
                                 keywords=deployment.keywords,
                                 user=deployment.user, 
+                                github_url=deployment.github_url,
+                                git_commit_hash=deployment.git_commit_hash,
+                                last_modified_time=datetime.now(),
                                 status=DEPLOYED_PROCESS_STATUS)
                 db.session.add(process)
                 db.session.commit()
@@ -432,6 +452,8 @@ class Describe(Resource):
         
         hysds_io_result = response.get("result")
 
+        author = db.session.query(Member_db).filter_by(id=existing_process.user).first()
+
         response_body = {
             "title": existing_process.title,
             "description": existing_process.description,
@@ -441,6 +463,9 @@ class Describe(Resource):
             "processID": process_id,
             "version": existing_process.version,
             "jobControlOptions": [],
+            "author": author,
+            "githubUrl": existing_process.github_url,
+            "gitCommitHash": existing_process.git_commit_hash,
             "cwlLink": existing_process.cwl_link,
             "links": [
                 {"href": f"/{ns.name}/processes/{process_id}", "rel": "self", "type": None, "hreflang": None, "title": "self"},

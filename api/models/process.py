@@ -15,3 +15,7 @@ class Process(Base):
     description = db.Column(db.String(), nullable=True)
     # comma separated list of keywords from CWL 
     keywords = db.Column(db.String(), nullable=True)
+    # UTC time the process was last modified
+    last_modified_time = db.Column(db.DateTime(), nullable=True)
+    github_url = db.Column(db.String(), nullable=True)
+    git_commit_hash = db.Column(db.String(), nullable=True)
