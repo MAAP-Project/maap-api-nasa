@@ -20,3 +20,6 @@ class Deployment(Base):
     keywords = db.Column(db.String(), nullable=True)
     github_url = db.Column(db.String(), nullable=True)
     git_commit_hash = db.Column(db.String(), nullable=True)
+    ram_min = db.Column(db.Integer, nullable=True)
+    cores_min = db.Column(db.Integer, nullable=True)
+    base_command = db.Column(db.String(), nullable=True)

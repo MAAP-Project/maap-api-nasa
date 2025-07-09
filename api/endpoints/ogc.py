@@ -46,7 +46,7 @@ PIPELINE_URL_TEMPLATE = settings.GITLAB_URL_POST_PROCESS + "/root/deploy-ogc-hys
 INITIAL_JOB_STATUS = "accepted"
 DEPLOYED_PROCESS_STATUS = "deployed"
 UNDEPLOYED_PROCESS_STATUS = "undeployed"
-CWLMetadata = namedtuple("CWLMetadata", ["id", "version", "title", "description", "keywords", "raw_text", "github_url", "git_commit_hash", "cwl_link"])
+CWLMetadata = namedtuple("CWLMetadata", ["id", "version", "title", "description", "keywords", "raw_text", "github_url", "git_commit_hash", "cwl_link", "ram_min", "cores_min", "base_command"])
 
 def _generate_error(detail, error_status):
     """Generates a standardized error response body and status code."""
@@ -114,6 +114,28 @@ def _get_cwl_metadata(cwl_link):
     keywords_match = re.search(r"s:keywords:\s*(.*)", cwl_text, re.IGNORECASE)
     keywords = keywords_match.group(1).replace(" ", "") if keywords_match else None
 
+    # Find the CommandLineTool run by the first step of the workflow
+    if workflow.steps:
+        # Get the ID of the tool to run (e.g., '#main')
+        tool_id_ref = workflow.steps[0].run
+        # The actual ID is the part after the '#'
+        tool_id = os.path.basename(tool_id_ref)
+
+        #Find the CommandLineTool object in the parsed CWL graph
+        command_line_tool = next((obj for obj in cwl_obj if isinstance(obj, cwl_v1_2.CommandLineTool) and obj.id.endswith(tool_id)), None)
+    
+        if command_line_tool:
+            # Extract the baseCommand directly
+            base_command = command_line_tool.baseCommand
+    
+            # Find the ResourceRequirement to extract ramMin and coresMin
+            if command_line_tool.requirements:
+                for req in command_line_tool.requirements:
+                    if isinstance(req, cwl_v1_2.ResourceRequirement):
+                        ram_min = req.ramMin if req.ramMin else ram_min
+                        cores_min = req.coresMin if req.coresMin else cores_min
+                        break # Stop after finding the first ResourceRequirement
+
     return CWLMetadata(
         id=cwl_id,
         version=process_version,
@@ -123,7 +145,10 @@ def _get_cwl_metadata(cwl_link):
         raw_text=cwl_text,
         github_url=github_url,
         git_commit_hash=git_commit_hash,
-        cwl_link=cwl_link
+        cwl_link=cwl_link,
+        ram_min=ram_min,
+        cores_min=cores_min,
+        base_command=base_command
     )
 
 
@@ -158,7 +183,10 @@ def _create_and_commit_deployment(metadata, pipeline, user, existing_process=Non
         github_url=metadata.github_url,
         git_commit_hash=metadata.git_commit_hash,
         id=metadata.id if not existing_process else existing_process.id,
-        version=metadata.version if not existing_process else existing_process.version
+        version=metadata.version if not existing_process else existing_process.version,
+        ram_min = metadata.ram_min,
+        cores_min = metadata.cores_min,
+        base_command = metadata.base_command
     )
     db.session.add(deployment)
     db.session.commit()
@@ -342,7 +370,10 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
                                 github_url=deployment.github_url,
                                 git_commit_hash=deployment.git_commit_hash,
                                 last_modified_time=datetime.now(),
-                                status=DEPLOYED_PROCESS_STATUS)
+                                status=DEPLOYED_PROCESS_STATUS,
+                                ram_min=deployment.ram_min,
+                                cores_min=deployment.cores_min,
+                                base_command=deployment.base_command)
                 db.session.add(process)
                 db.session.commit()
                 # Re-query to get the auto-generated process_id
@@ -467,6 +498,9 @@ class Describe(Resource):
             "githubUrl": existing_process.github_url,
             "gitCommitHash": existing_process.git_commit_hash,
             "cwlLink": existing_process.cwl_link,
+            "ramMin": existing_process.ram_min,
+            "coresMin": existing_process.cores_min,
+            "baseCommand": existing_process.base_command,
             "links": [
                 {"href": f"/{ns.name}/processes/{process_id}", "rel": "self", "type": None, "hreflang": None, "title": "self"},
                 {"href": f"/{ns.name}/processes/{process_id}/package", "rel": "self", "type": None, "hreflang": None, "title": "self"}
