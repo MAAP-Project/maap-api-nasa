@@ -46,7 +46,8 @@ PIPELINE_URL_TEMPLATE = settings.GITLAB_URL_POST_PROCESS + "/root/deploy-ogc-hys
 INITIAL_JOB_STATUS = "accepted"
 DEPLOYED_PROCESS_STATUS = "deployed"
 UNDEPLOYED_PROCESS_STATUS = "undeployed"
-CWLMetadata = namedtuple("CWLMetadata", ["id", "version", "title", "description", "keywords", "raw_text", "github_url", "git_commit_hash", "cwl_link", "ram_min", "cores_min", "base_command"])
+CWL_METADATA = namedtuple("CWL_METADATA", ["id", "version", "title", "description", "keywords", "raw_text", "github_url", "git_commit_hash", "cwl_link", "ram_min", "cores_min", "base_command"])
+HREF_LANG = "en"
 
 def _generate_error(detail, error_status):
     """Generates a standardized error response body and status code."""
@@ -136,7 +137,7 @@ def _get_cwl_metadata(cwl_link):
                         cores_min = req.coresMin if req.coresMin else cores_min
                         break # Stop after finding the first ResourceRequirement
 
-    return CWLMetadata(
+    return CWL_METADATA(
         id=cwl_id,
         version=process_version,
         title=workflow.label,
@@ -211,8 +212,8 @@ class Processes(Resource):
             link_obj_process = {
                 "href": f"/{ns.name}/processes/{process.process_id}",
                 "rel": "self",
-                "type": None,
-                "hreflang": None,
+                "type": "application/json",
+                "hreflang": HREF_LANG,
                 "title": "OGC Process Description"
             }
             existing_processes_return.append({
@@ -294,16 +295,16 @@ class Processes(Resource):
             "jobControlOptions": [],
             "links": [{
                 "href": f"/{ns.name}/deploymentJobs/{deployment_job_id}",
-                "rel": "reference",
-                "type": None,
-                "hreflang": None,
+                "rel": "monitor",
+                "type": "application/json",
+                "hreflang": HREF_LANG,
                 "title": "Deploying process status link"
             }],
             "processPipelineLink": {
                 "href": pipeline.web_url,
-                "rel": "reference",
-                "type": None,
-                "hreflang": None,
+                "rel": "monitor",
+                "type": "text/html",
+                "hreflang": HREF_LANG,
                 "title": "Link to process pipeline"
             }
         }
@@ -393,21 +394,21 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
             "executionVenue": deployment.execution_venue,
             "pipelineId": deployment.pipeline_id,
             "processPipelineLink": {"href": pipeline_url,
-                                    "rel": "reference",
-                                    "type": None,
-                                    "hreflang": None,
+                                    "rel": "monitor",
+                                    "type": 'text/html',
+                                    "hreflang": HREF_LANG,
                                     "title": "Deploying Process Pipeline"}
         },
         "cwl": {"href": deployment.cwl_link,
-                "rel": "reference",
-                "type": None,
-                "hreflang": None,
+                "rel": "service-desc",
+                "type": "application/cwl",
+                "hreflang": HREF_LANG,
                 "title": "Process Reference"},
         "links": {
             "href": f"/{ns.name}/deploymentJobs/{deployment.job_id}", # Used job_id for consistency
             "rel": "self",
-            "type": None,
-            "hreflang": None,
+            "type": "application/json",
+            "hreflang": HREF_LANG,
             "title": "Deployment Link"
         }
     }
@@ -415,9 +416,9 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
     if deployment.process_id:
         response_body["processLocation"] = {
             "href": f"/{ns.name}/processes/{deployment.process_id}",
-            "rel": "self",
-            "type": None,
-            "hreflang": None,
+            "rel": "service-doc",
+            "type": "application/json",
+            "hreflang": HREF_LANG,
             "title": "Process Location"
         }
 
@@ -502,8 +503,8 @@ class Describe(Resource):
             "coresMin": existing_process.cores_min,
             "baseCommand": existing_process.base_command,
             "links": [
-                {"href": f"/{ns.name}/processes/{process_id}", "rel": "self", "type": None, "hreflang": None, "title": "self"},
-                {"href": f"/{ns.name}/processes/{process_id}/package", "rel": "self", "type": None, "hreflang": None, "title": "self"}
+                {"href": f"/{ns.name}/processes/{process_id}", "rel": "self", "type": "application/json", "hreflang": HREF_LANG, "title": "OGC Process Description"},
+                {"href": f"/{ns.name}/processes/{process_id}/package", "rel": "service-desc", "type": "application/json", "hreflang": HREF_LANG, "title": "OGC Process Package Description"}
             ]
         }
         
@@ -573,14 +574,14 @@ class Describe(Resource):
             "id": existing_process.id,
             "version": existing_process.version,
             "links": [
-                {"href": f"/{ns.name}/deploymentJobs/{deployment_job_id}", "rel": "reference", "type": None, "hreflang": None, "title": "Deploying process status link"},
-                {"href": f"/{ns.name}/processes/{process_id}", "rel": "self", "type": None, "hreflang": None, "title": "Process"}
+                {"href": f"/{ns.name}/deploymentJobs/{deployment_job_id}", "rel": "monitor", "type": "application/json", "hreflang": HREF_LANG, "title": "Deploying process status link"},
+                {"href": f"/{ns.name}/processes/{process_id}", "rel": "self", "type": "application/json", "hreflang": HREF_LANG, "title": "Process"}
             ],
             "processPipelineLink": {
                 "href": pipeline.web_url,
-                "rel": "reference",
-                "type": None,
-                "hreflang": None,
+                "rel": "monitor",
+                "type": "text/html",
+                "hreflang": HREF_LANG,
                 "title": "Link to process pipeline"
             }
         }
@@ -632,9 +633,9 @@ class Package(Resource):
         response_body["processDescription"] = existing_process.description
         response_body["executionUnit"] = {
                 "href": existing_process.cwl_link,
-                "rel": "reference",
-                "type": None,
-                "hreflang": None,
+                "rel": "monitor-desc",
+                "type": "text/html",
+                "hreflang": HREF_LANG,
                 "title": "Process Reference"
             }
         return response_body, status.HTTP_200_OK 
@@ -726,15 +727,15 @@ class ExecuteJob(Resource):
                         {
                             "href": f"/{ns.name}/processes/{existing_process.process_id}/execution",
                             "rel": "self",
-                            "type": None,
-                            "hreflang": None,
+                            "type": "application/json",
+                            "hreflang": HREF_LANG,
                             "title": "Process Execution"
                         },
                         {
                             "href": f"/{ns.name}/jobs/{job_id}",
-                            "rel": "job",
-                            "type": None,
-                            "hreflang": None,
+                            "rel": "monitor",
+                            "type": "application/json",
+                            "hreflang": HREF_LANG,
                             "title": "Job"
                         }
                     ]
@@ -864,8 +865,8 @@ class Status(Resource):
                 {
                     "href": "/"+ns.name+"/jobs/"+str(job_id),
                     "rel": "self",
-                    "type": None,
-                    "hreflang": None,
+                    "type": "application/json",
+                    "hreflang": HREF_LANG,
                     "title": "Job Status"
                 }
             ]
@@ -1082,7 +1083,13 @@ class Jobs(Resource):
                 hysds_status = job[next(iter(job))]["status"]
                 ogc_status = ogc.hysds_to_ogc_status(hysds_status)
                 job_with_required_fields["status"] = ogc_status
-                links.append({"href": "/"+ns.name+"/job/"+job_with_required_fields["id"]})
+                links.append({
+                        "href": "/"+ns.name+"/job/"+job_with_required_fields["id"],
+                        "rel": "self",
+                        "type": "application/json",
+                        "hreflang": HREF_LANG,
+                        "title": "Job"
+                    })
                 jobs_with_required_fields.append(job_with_required_fields)
             except: 
                 print("Error getting job type to get CWLs")
