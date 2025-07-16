@@ -48,10 +48,15 @@ DEPLOYED_PROCESS_STATUS = "deployed"
 UNDEPLOYED_PROCESS_STATUS = "undeployed"
 CWL_METADATA = namedtuple("CWL_METADATA", ["id", "version", "title", "description", "keywords", "raw_text", "github_url", "git_commit_hash", "cwl_link", "ram_min", "cores_min", "base_command"])
 HREF_LANG = "en"
+ERROR_TYPE_PREFIX="http://www.opengis.net/def/exceptions/"
 
-def _generate_error(detail, error_status):
+def _generate_error(detail, error_status, error_type=None):
     """Generates a standardized error response body and status code."""
-    response_body = {"status": error_status, "detail": detail}
+    response_body = {"type": error_type,
+                    "title": detail,
+                    "status": error_status,
+                    "detail": detail,
+                    "instance": ""} #TODO Description for this field: A URI reference that identifies the specific occurrence of the problem. Keep null for now 
     return response_body, error_status
 
 
@@ -63,11 +68,10 @@ def _get_deployed_process(process_id):
 
 def _get_cwl_metadata(cwl_link):
     """
-    Fetches, parses, and extracts metadata from a CWL file.
-    This function resolves the TODO to avoid making two separate web requests for the same file.
+    Fetches, parses, and extracts metadata from a CWL file. This approach avoid making 
+    two separate web requests for the same file
     """
     try:
-        # Approach for resolving TODO:
         # 1. Fetch the CWL content once using requests.
         # 2. Save the content to a temporary file.
         # 3. Use the local file URI with cwl_utils to parse the object model.
@@ -262,12 +266,9 @@ class Processes(Resource):
             ).first()
         
             if existing_process:
-                response_body = {
-                    "status": status.HTTP_409_CONFLICT,
-                    "detail": "Duplicate process. Use PUT to modify existing process if you originally published it.",
-                    "additionalProperties": {"processID": existing_process.process_id}
-                }
-                return response_body, status.HTTP_409_CONFLICT
+                response_body, code = _generate_error("Duplicate process. Use PUT to modify existing process if you originally published it.", status.HTTP_409_CONFLICT, "ogcapi-processes-2/1.0/duplicated-process")
+                response_body["additionalProperties"] = {"processID": existing_process.process_id}
+                return response_body, code
 
             user = get_authorized_user()
             pipeline = _trigger_gitlab_pipeline(cwl_link)
@@ -475,12 +476,12 @@ class Describe(Resource):
         """
         existing_process = _get_deployed_process(process_id)
         if not existing_process:
-            return _generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND)
+            return _generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
 
         hysdsio_type = f"hysds-io-{existing_process.id}:{existing_process.version}"
         response = hysds.get_hysds_io(hysdsio_type)
         if not response or not response.get("success"):
-            return _generate_error("No process with that process ID found on HySDS", status.HTTP_404_NOT_FOUND)
+            return _generate_error("No process with that process ID found on HySDS", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
         
         hysds_io_result = response.get("result")
 
@@ -534,10 +535,10 @@ class Describe(Resource):
         existing_process = _get_deployed_process(process_id)
         
         if not existing_process:
-            return _generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND)
+            return _generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
         
         if user.id != existing_process.user:
-            return _generate_error("You can only modify processes that you posted originally", status.HTTP_403_FORBIDDEN)
+            return _generate_error("You can only modify processes that you posted originally", status.HTTP_403_FORBIDDEN, "ogcapi-processes-2/1.0/immutable-process")
         
         req_data_string = request.data.decode("utf-8")
         if not req_data_string:
@@ -599,10 +600,10 @@ class Describe(Resource):
         existing_process = _get_deployed_process(process_id)
         
         if not existing_process:
-            return _generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND)
+            return _generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
 
         if user.id != existing_process.user:
-            return _generate_error("You can only modify processes that you posted originally", status.HTTP_403_FORBIDDEN)
+            return _generate_error("You can only modify processes that you posted originally", status.HTTP_403_FORBIDDEN, "ogcapi-processes-2/1.0/immutable-process")
         
         try:
             # Currently not deleting the process from HySDS, that might change later 
@@ -628,7 +629,7 @@ class Package(Resource):
             
         existing_process = _get_deployed_process(process_id)
         if not existing_process:
-            return _generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND)
+            return _generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
         
         response_body["processDescription"] = existing_process.description
         response_body["executionUnit"] = {
@@ -662,7 +663,7 @@ class ExecuteJob(Resource):
         
         existing_process = _get_deployed_process(process_id)
         if not existing_process:
-            return _generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND)
+            return _generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
         
         inputs = req_data.get("inputs")
         queue = req_data.get("queue")
@@ -773,7 +774,7 @@ class Result(Resource):
                 .filter_by(id=job_id) \
                 .first()
             if existing_job is None:
-                return _generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND)
+                return _generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
 
             response = hysds.get_mozart_job(existing_job.id)
             job_info = response.get("job").get("job_info").get("metrics").get("products_staged")
@@ -828,7 +829,7 @@ class Status(Resource):
             .filter_by(id=job_id) \
             .first()
         if existing_job is None:
-            return _generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND)
+            return _generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
         
         # For now, leave this so it can access all deployed and undeployed processes 
         existing_process = db.session \
@@ -913,7 +914,6 @@ class Status(Resource):
         :return:
         """
         response_body = dict()
-        # TODO: add optional parameter wait_for_completion to wait for cancel job to complete.
         # Since this can take a long time, we dont wait by default.
         wait_for_completion = request.args.get("wait_for_completion", False)
 
@@ -927,7 +927,7 @@ class Status(Resource):
             logging.info("current job status: {}".format(current_status))
 
             if current_status is None:
-                return _generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND)
+                return _generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
             
             # This is for the case when user did not wait for a previous dismissal of a job but it was successful
             elif current_status == hysds.STATUS_JOB_REVOKED and existing_job.status != "dismissed":
