@@ -3,7 +3,7 @@ import os
 from collections import namedtuple
 
 import sqlalchemy
-from flask import request, Response
+from flask import request, Response, current_app as app
 from flask_restx import Resource, reqparse
 from flask_api import status
 
@@ -534,15 +534,25 @@ class Publish(Resource):
                             username='imgspecs',
                             email='wai.phyo@jpl.nasa.gov',
                             organization='nasa')
-            db.session.add(member)
-            db.session.commit()
+            try:
+                db.session.add(member)
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"Failed to create imgspecs member: {e}")
+                raise
         log.info('imgspecs member id: {}'.format(member.id))
         # ma = MemberAlgorithm(member_id=m.id, algorithm_key="{}:{}".format(algo_id, version), is_public=True,
         #                      creation_date=datetime.utcnow())
         ma = MemberAlgorithm(member_id=member.id, algorithm_key="{}:{}".format(algo_id, version), is_public=True,
                              creation_date=datetime.utcnow())
-        db.session.add(ma)
-        db.session.commit()
+        try:
+            db.session.add(ma)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Failed to publish algorithm {algo_id}: {e}")
+            raise
 
         response_body = dict()
         response_body["message"] = "Successfully published algorithm {}".format(algo_id)

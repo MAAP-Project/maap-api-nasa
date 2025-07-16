@@ -4,6 +4,7 @@ from datetime import datetime
 import json
 import sqlalchemy
 from sqlalchemy.exc import SQLAlchemyError
+from flask import current_app as app
 from api.maap_database import db
 from api.models.job_queue import JobQueue
 from api.models.member import Member
@@ -107,8 +108,13 @@ def create_organization(name, parent_org_id, default_job_limit_count, default_jo
         new_org = Organization(name=name, parent_org_id=parent_org_id, default_job_limit_count=default_job_limit_count,
                                default_job_limit_hours=default_job_limit_hours, creation_date=datetime.utcnow())
 
-        db.session.add(new_org)
-        db.session.commit()
+        try:
+            db.session.add(new_org)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Failed to create organization {name}: {e}")
+            raise
 
         org_members = []
         for org_member in members:
@@ -117,8 +123,13 @@ def create_organization(name, parent_org_id, default_job_limit_count, default_jo
                                                       creation_date=datetime.utcnow()))
 
         if len(org_members) > 0:
-            db.session.add_all(org_members)
-            db.session.commit()
+            try:
+                db.session.add_all(org_members)
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"Failed to add members to organization {new_org.id}: {e}")
+                raise
 
         org_schema = OrganizationSchema()
         return json.loads(org_schema.dumps(new_org))
@@ -130,13 +141,23 @@ def update_organization(org, members):
 
     try:
         # Update org
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Failed to update organization {org.id}: {e}")
+            raise
 
         # Update membership
-        db.session.execute(
-            db.delete(OrganizationMembership).filter_by(org_id=org.id)
-        )
-        db.session.commit()
+        try:
+            db.session.execute(
+                db.delete(OrganizationMembership).filter_by(org_id=org.id)
+            )
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Failed to clear organization membership for org {org.id}: {e}")
+            raise
 
         org_members = []
         for org_member in members:
@@ -147,8 +168,13 @@ def update_organization(org, members):
                 creation_date=datetime.utcnow()))
 
         if len(org_members) > 0:
-            db.session.add_all(org_members)
-            db.session.commit()
+            try:
+                db.session.add_all(org_members)
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"Failed to add new members to organization {org.id}: {e}")
+                raise
 
         org_schema = OrganizationSchema()
         return json.loads(org_schema.dumps(org))
@@ -160,19 +186,34 @@ def delete_organization(org_id):
     try:
 
         # Clear membership
-        db.session.execute(
-            db.delete(OrganizationMembership).filter_by(org_id=org_id)
-        )
-        db.session.commit()
+        try:
+            db.session.execute(
+                db.delete(OrganizationMembership).filter_by(org_id=org_id)
+            )
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Failed to clear membership for organization {org_id}: {e}")
+            raise
 
         # Clear job queues
-        db.session.execute(
-            db.delete(OrganizationJobQueue).filter_by(org_id=org_id)
-        )
-        db.session.commit()
+        try:
+            db.session.execute(
+                db.delete(OrganizationJobQueue).filter_by(org_id=org_id)
+            )
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Failed to clear job queues for organization {org_id}: {e}")
+            raise
 
-        db.session.query(Organization).filter_by(id=org_id).delete()
-        db.session.commit()
+        try:
+            db.session.query(Organization).filter_by(id=org_id).delete()
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Failed to delete organization {org_id}: {e}")
+            raise
 
     except SQLAlchemyError as ex:
         raise ex

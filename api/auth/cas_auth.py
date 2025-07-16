@@ -165,15 +165,30 @@ def start_member_session(cas_response, ticket, auto_create_member=False):
                         email=get_cas_attribute_value(attributes, 'email'),
                         organization=get_cas_attribute_value(attributes, 'organization'),
                         urs_token=urs_access_token)
-        db.session.add(member)
+        try:
+            db.session.add(member)
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Failed to add new member {usr}: {e}")
+            raise
     else:
         member.urs_token = urs_access_token
 
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Failed to update member {usr}: {e}")
+        raise
 
     member_session = MemberSession(member_id=member.id, session_key=ticket, creation_date=datetime.utcnow())
-    db.session.add(member_session)
-    db.session.commit()
+    try:
+        db.session.add(member_session)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Failed to create member session for {usr}: {e}")
+        raise
 
     return member_session
 

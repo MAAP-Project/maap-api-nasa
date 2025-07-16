@@ -1,6 +1,6 @@
 import logging
 from flask_restx import Resource
-from flask import request
+from flask import request, current_app as app
 from flask_api import status
 from api.models.job_queue import JobQueue
 from api.models.role import Role
@@ -165,8 +165,13 @@ class PreApprovedEmails(Resource):
 
         new_email = PreApproved(email=email, creation_date=datetime.utcnow())
 
-        db.session.add(new_email)
-        db.session.commit()
+        try:
+            db.session.add(new_email)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Failed to add pre-approved email {email}: {e}")
+            raise
 
         pre_approved_schema = PreApprovedSchema()
         return json.loads(pre_approved_schema.dumps(new_email))
@@ -187,7 +192,12 @@ class PreApprovedEmails(Resource):
         if pre_approved_email is None:
             return err_response(msg="Email does not exist")
 
-        db.session.query(PreApproved).filter_by(email=email).delete()
-        db.session.commit()
+        try:
+            db.session.query(PreApproved).filter_by(email=email).delete()
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Failed to delete pre-approved email {email}: {e}")
+            raise
 
         return {"code": status.HTTP_200_OK, "message": "Successfully deleted {}.".format(email)}

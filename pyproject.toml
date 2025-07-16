@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "maap-api-nasa"
-version = "4.3.0a4"
+version = "4.3.0a7"
 description = "NASA Python implementation of the MAAP API specification"
 authors = ["MAAP-Project Platform <platform@MAAP-Project.github.com>"]
 license = "Apache 2.0"
@@ -45,6 +45,14 @@ python-gitlab = "^4.11.1"
 
 [tool.poetry.group.dev.dependencies]
 pylint = "^3.1.0"
+pytest = "^7.4.0"
+pytest-cov = "^4.1.0"
+pytest-mock = "^3.11.1"
+responses = "^0.23.0"
+requests-mock = "^1.11.0"
+faker = "^19.0.0"
+factory-boy = "^3.3.0"
+freezegun = "^1.2.2"
 
 [build-system]
 requires = ["poetry-core"]
