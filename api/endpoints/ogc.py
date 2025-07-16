@@ -52,7 +52,8 @@ ERROR_TYPE_PREFIX="http://www.opengis.net/def/exceptions/"
 
 def _generate_error(detail, error_status, error_type=None):
     """Generates a standardized error response body and status code."""
-    response_body = {"type": error_type,
+    full_error_type = f"{ERROR_TYPE_PREFIX}{error_type}" if error_type is not None else None
+    response_body = {"type": full_error_type,
                     "title": detail,
                     "status": error_status,
                     "detail": detail,
