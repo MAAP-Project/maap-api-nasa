@@ -5,10 +5,17 @@ Development server: https://api.dit.maap-project.org/api
 
 ## I. Local development using docker
 
+Set your FERNET_KEY environment variable to be a key, doesn't necessarily need to be valid. 
+
+See instructions for generating a test key: https://cryptography.io/en/latest/fernet/
+
 ```bash
 cd docker
 docker-compose -f docker-compose-local.yml up
 ```
+Once you make code changes you might need to delete your maap-api-nasa docker image for these code changes to be reflected. If you are getting a network not found error, try running `docker-compose -f docker-compose-local.yml up --force-recreate`
+You may need to add these keys to your docker compose environment variables to get the api running correctly/ being able to submit jobs: FERNET_KEY, GITLAB_TOKEN, CAS_PROXY_DECRYPTION_TOKEN, CAS_SECRET_KEY, CAS_SERVER_NAME, REGISTER_JOB_REPO_ID, GITLAB_API_TOKEN, GIT_REPO_URL, GITLAB_POST_PROCESS_TOKEN, MOZART_URL, MOZART_V1_URL, THIRD_PARTY_SECRET_TOKEN, MAAP_TEMP_URS_TOKEN  
+If you make changes to the settings, rebuild with `docker-compose -f docker-compose-local.yml build --no-cache`
 
 ## II. Local development using poetry and virtualenv
 
@@ -89,25 +96,53 @@ Some issues you may experience while running the above line:
   sudo /etc/init.d/postgresql start
   ```
 
-### Running tests
+## Running Tests
 
-When using docker-compose to start the app it is possible to run the tests locally if you first
-update the settings.py `DATABASE_URL` value to specify `localhost` as the servername instead of `db`
-(DO NOT check in this change).
+### Prerequisites
+- Local development environment set up (see CLAUDE.md)
+- Test database configured
+- Required environment variables set
 
+## Test Execution Commands
+
+### Local Development
 ```bash
-python -m unittest test/api/endpoints/test_wmts_get_tile.py
+# Build and run all tests
+./scripts/run-tests.sh
+
+# Run specific test categories
+docker-compose -f docker/docker-compose-test.yml run --rm test pytest test/api/endpoints/
+
+# Run tests with coverage
+docker-compose -f docker/docker-compose-test.yml run --rm test pytest --cov=api --cov-report=html
+
+# Run tests in watch mode
+docker-compose -f docker/docker-compose-test.yml run --rm test pytest -f
 ```
 
-If you are running the latest version of Titiler, use the following local test scripts:
-while keeping the server in the previous step running (i.e., local maap-api-nasa). Open a new terminal
-
+### Debugging Tests
 ```bash
-poetry env use $(poetry env info -e)
+# Run tests with detailed output
+docker-compose -f docker/docker-compose-test.yml run --rm test pytest -vvv -s
 
-#If you are running the latest version of Titiler, then use the following test scripts:
-python -m unittest -v test/api/endpoints/test_wmts_get_tile_new_titiler.py
-python -m unittest -v test/api/endpoints/test_wmts_get_capabilities_new_titiler.py
+# Run specific test
+docker-compose -f docker/docker-compose-test.yml run --rm test pytest test/api/endpoints/test_members.py::TestMemberManagement::test_new_member_can_be_created_successfully
+
+# Run with debugger
+docker-compose -f docker/docker-compose-test.yml run --rm test pytest --pdb
+```
+
+### Test Execution
+```bash
+# Run all tests
+python -m unittest discover test/
+
+# Run specific test modules
+python -m unittest test.api.endpoints.test_members
+python -m unittest test.api.utils.test_email
+
+# Run individual test methods
+python -m unittest test.api.endpoints.test_members.MembersCase.test_create_member
 ```
 
 ## III. User Accounts

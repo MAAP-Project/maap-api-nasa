@@ -1,7 +1,7 @@
 import logging
 from cachetools import TLRUCache, cached
 from flask_restx import Resource, reqparse
-from flask import request, jsonify, Response
+from flask import request, jsonify, Response, current_app as app
 from flask_api import status
 from sqlalchemy.exc import SQLAlchemyError
 from api.utils.organization import get_member_organizations
@@ -202,8 +202,13 @@ class Member(Resource):
                           status=member_status,
                           creation_date=datetime.utcnow())
 
-        db.session.add(guest)
-        db.session.commit()
+        try:
+            db.session.add(guest)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Failed to create member: {e}")
+            raise
 
         # Send Email Notifications based on member status
         if member_status == MEMBER_STATUS_ACTIVE:
@@ -272,7 +277,12 @@ class Member(Resource):
         member.public_ssh_key = req_data.get("public_ssh_key", member.public_ssh_key)
         member.public_ssh_key_name = req_data.get("public_ssh_key_name", member.public_ssh_key_name)
         member.role_id = req_data.get("role_id", member.role_id)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Failed to update member {member.id}: {e}")
+            raise
 
         member_schema = MemberSchema()
         return json.loads(member_schema.dumps(member))
@@ -320,7 +330,12 @@ class MemberStatus(Resource):
 
         if activated or deactivated:
             member.status = member_status
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"Failed to update member status {member.id}: {e}")
+                raise
             gitlab_account = github_util.sync_gitlab_account(
                 activated,
                 member.username,
@@ -333,7 +348,12 @@ class MemberStatus(Resource):
                 member.gitlab_id = gitlab_account["gitlab_id"]
                 member.gitlab_token = gitlab_account["gitlab_token"]
                 member.gitlab_username = member.username
-                db.session.commit()
+                try:
+                    db.session.commit()
+                except Exception as e:
+                    db.session.rollback()
+                    app.logger.error(f"Failed to update member gitlab info {member.id}: {e}")
+                    raise
 
         # Send "Account Activated" email notification to Member & Admins
         if activated:
@@ -413,12 +433,16 @@ class PublicSshKeyUpload(Resource):
 
         file_lines = f.read().decode("utf-8")
 
-        db.session.query(Member_db).filter(Member_db.id == member.id). \
-            update({Member_db.public_ssh_key: file_lines,
-                    Member_db.public_ssh_key_name: f.filename,
-                    Member_db.public_ssh_key_modified_date: datetime.utcnow()})
-
-        db.session.commit()
+        try:
+            db.session.query(Member_db).filter(Member_db.id == member.id). \
+                update({Member_db.public_ssh_key: file_lines,
+                        Member_db.public_ssh_key_name: f.filename,
+                        Member_db.public_ssh_key_modified_date: datetime.utcnow()})
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Failed to update SSH key for member {member.id}: {e}")
+            raise
 
         member_schema = MemberSchema()
         return json.loads(member_schema.dumps(member))
@@ -428,12 +452,16 @@ class PublicSshKeyUpload(Resource):
     def delete(self):
         member = get_authorized_user()
 
-        db.session.query(Member_db).filter(Member_db.id == member.id). \
-            update({Member_db.public_ssh_key: '',
-                    Member_db.public_ssh_key_name: '',
-                    Member_db.public_ssh_key_modified_date: datetime.utcnow()})
-
-        db.session.commit()
+        try:
+            db.session.query(Member_db).filter(Member_db.id == member.id). \
+                update({Member_db.public_ssh_key: '',
+                        Member_db.public_ssh_key_name: '',
+                        Member_db.public_ssh_key_modified_date: datetime.utcnow()})
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Failed to delete SSH key for member {member.id}: {e}")
+            raise
 
         member_schema = MemberSchema()
         return json.loads(member_schema.dumps(member))

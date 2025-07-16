@@ -1,5 +1,5 @@
 import logging
-from flask import request, Response
+from flask import request, Response, current_app as app
 from flask_restx import Resource
 from flask_api import status
 from api.restplus import api
@@ -117,8 +117,13 @@ class Submit(Resource):
 
         if _user_id is not None:
             ma = MemberJob(member_id=_user_id, job_id=job_id, submitted_date=datetime.utcnow())
-            db.session.add(ma)
-            db.session.commit()
+            try:
+                db.session.add(ma)
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"Failed to log job submission for user {_user_id}, job {job_id}: {e}")
+                raise
 
     def _get_user_id(self, params={}):
         # First try request token
