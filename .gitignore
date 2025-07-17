@@ -17,3 +17,5 @@ docker/logs/
 /dist/
 .claude
 .serena
+docker/test-results/results.xml
+.vscode/launch.json

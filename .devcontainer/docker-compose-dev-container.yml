@@ -1,10 +1,10 @@
+version: '3.8'
 services:
-  test:
-    container_name: 'maap-api-test'
+  debug:
+    container_name: 'maap-api-debug'
     build:
       context: ../
-      dockerfile: docker/Dockerfile.test
-      target: test-runtime
+      dockerfile: .devcontainer/Dockerfile.devcontainer
     depends_on:
       test-db:
         condition: service_healthy
@@ -16,16 +16,16 @@ services:
       - SECRET_KEY=test-secret-key-for-testing-only
       - CMR_API_TOKEN=test-cmr-token
       - GITLAB_TOKEN=test-gitlab-token
+    command: tail -f /dev/null
     volumes:
+      - ../api:/maap-api-nasa/api
       - ../test:/maap-api-nasa/test
-      - ./test-results:/maap-api-nasa/test-results
-    command: pytest -v --tb=short --junitxml=test-results/results.xml --cov=api --cov-report=html:test-results/coverage
+
     networks:
       - test-network
-
   test-db:
     image: postgres:14.5
-    container_name: 'maap-test-db'
+    container_name: 'maap-debug-db'
     environment:
       POSTGRES_DB: maap_test
       POSTGRES_USER: testuser
