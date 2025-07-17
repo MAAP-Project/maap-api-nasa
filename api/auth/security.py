@@ -2,6 +2,7 @@ from functools import wraps
 import requests
 from flask import request, abort
 from flask_api import status
+from werkzeug.exceptions import HTTPException
 from api import settings
 from api.auth.cas_auth import validate_proxy, validate_bearer, validate_cas_request
 from api.utils.security_utils import AuthenticationError, ExternalServiceError
@@ -143,6 +144,9 @@ def login_required(role=Role.ROLE_GUEST):
             except ExternalServiceError as e:
                 # ExternalServiceError inherits from werkzeug.exceptions.ServiceUnavailable (503)
                 abort(status.HTTP_503_SERVICE_UNAVAILABLE, description=e.description or "Authentication service unavailable.")
+            except HTTPException as http_err:
+                # CAtch any Werkzeig exceptions
+                abort(http_err.code, description=http_err.description)
             except Exception as e:
                 # Catch any other unexpected errors during the auth process
                 # Log this error, as it's unexpected.

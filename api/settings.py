@@ -99,7 +99,7 @@ FERNET_KEY = os.getenv('FERNET_KEY','')
 
 # File Upload Security
 MAX_SSH_KEY_SIZE_BYTES = int(os.getenv('MAX_SSH_KEY_SIZE_BYTES', 4 * 1024)) # 4KB
-ALLOWED_SSH_KEY_EXTENSIONS = os.getenv('ALLOWED_SSH_KEY_EXTENSIONS', '.txt,.pub,').split(',') # Empty string for no extension
+ALLOWED_SSH_KEY_EXTENSIONS = os.getenv('ALLOWED_SSH_KEY_EXTENSIONS', '.txt,.pub,.key,').split(',') # Empty string for no extension
 MAX_SHAPEFILE_ZIP_SIZE_BYTES = int(os.getenv('MAX_SHAPEFILE_ZIP_SIZE_BYTES', 10 * 1024 * 1024)) # 10MB
 MAX_SHAPEFILE_UNCOMPRESSED_SIZE_BYTES = int(os.getenv('MAX_SHAPEFILE_UNCOMPRESSED_SIZE_BYTES', 50 * 1024 * 1024)) # 50MB
 REQUESTS_TIMEOUT_SECONDS = int(os.getenv('REQUESTS_TIMEOUT_SECONDS', 10))

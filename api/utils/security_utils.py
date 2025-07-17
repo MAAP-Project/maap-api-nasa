@@ -11,6 +11,9 @@ class InvalidFileTypeError(BadRequest):
 class FileSizeTooLargeError(RequestEntityTooLarge):
     description = "File size exceeds the allowable limit."
 
+class EmptyFileError(BadRequest):
+    description = "File has no content."
+
 class InvalidRequestError(BadRequest):
     description = "The request is invalid or malformed."
 
@@ -42,7 +45,8 @@ def validate_ssh_key_file(file_storage, max_size_bytes, allowed_extensions):
         raise InvalidFileTypeError("File name is missing.")
 
     _, ext = os.path.splitext(filename)
-    if ext.lower() not in allowed_extensions and '' not in allowed_extensions: # allow no extension if '' is present
+    print("Validating ssh key", locals)
+    if ext.lower() not in allowed_extensions:
          # Check if filename itself is an allowed extension (for files like 'mykey' with no dot)
         if filename.lower() not in allowed_extensions:
             raise InvalidFileTypeError(f"Invalid file extension: {ext}. Allowed: {allowed_extensions}")
@@ -54,6 +58,9 @@ def validate_ssh_key_file(file_storage, max_size_bytes, allowed_extensions):
 
     if file_size > max_size_bytes:
         raise FileSizeTooLargeError(f"File size {file_size} bytes exceeds limit of {max_size_bytes} bytes.")
+
+    if file_size == 0:
+        raise EmptyFileError(f"No file uploaded.")
 
     # Optionally, attempt to read and decode to ensure it's text-based if strict
     try:

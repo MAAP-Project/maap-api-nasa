@@ -18,7 +18,7 @@ from api.models.member_session import MemberSession as MemberSession_db
 from api.models.member_secret import MemberSecret as MemberSecret_db
 from api.schemas.member_schema import MemberSchema
 from api.schemas.member_session_schema import MemberSessionSchema
-from api.utils.security_utils import validate_ssh_key_file, sanitize_filename, InvalidFileTypeError, FileSizeTooLargeError
+from api.utils.security_utils import validate_ssh_key_file, sanitize_filename, InvalidFileTypeError, FileSizeTooLargeError, EmptyFileError
 from api.utils.email_util import send_user_status_update_active_user_email, \
     send_user_status_update_suspended_user_email, send_user_status_change_email, \
     send_welcome_to_maap_active_user_email, send_welcome_to_maap_suspended_user_email
@@ -454,7 +454,7 @@ class PublicSshKeyUpload(Resource):
             member_schema = MemberSchema()
             return json.loads(member_schema.dumps(updated_member))
 
-        except (InvalidFileTypeError, FileSizeTooLargeError) as e:
+        except (InvalidFileTypeError, FileSizeTooLargeError, EmptyFileError) as e:
             log.error(f"SSH key upload validation failed for member {member.id}: {e.description}")
             # These exceptions are already werkzeug HTTPExceptions, so they will be handled by Flask/RestX
             raise e
