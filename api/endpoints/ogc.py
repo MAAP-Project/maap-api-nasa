@@ -922,6 +922,9 @@ class Status(Resource):
             .query(ProcessJob_db) \
             .filter_by(id=job_id) \
             .first()
+        if existing_job is None:
+            return _generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
+
         try:
             # check if job is non-running
             current_status = hysds.mozart_job_status(job_id).get("status")
@@ -1099,13 +1102,20 @@ class Jobs(Resource):
         return response_body, status
     
 @ns.route("/jobs/<string:job_id>/metrics")
-class Status(Resource):
+class Metrics(Resource):
 
     @api.doc(security="ApiKeyAuth")
     @login_required()
     def get(self, job_id):
         response_body = dict()
         docker_metrics = None
+
+        existing_job = db.session \
+            .query(ProcessJob_db) \
+            .filter_by(id=job_id) \
+            .first()
+        if existing_job is None:
+            return _generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
 
         try:
             logging.info("Finding result of job with id {}".format(job_id))
