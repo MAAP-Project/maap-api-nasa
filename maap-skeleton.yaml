@@ -419,6 +419,431 @@ paths:
       #     schema:
       #       $ref: "#/definitions/ErrorResponse"
 
+  /ogc/processes:
+    get:
+      tags:
+        - OGC
+      description: Search all processes
+      operationId: get_ogc_processes
+      responses:
+        200:
+          description: List of processes
+          schema:
+            $ref: "#/definitions/OGCProcessList"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    post:
+      tags:
+        - OGC
+      description: Deploy a new process
+      operationId: deploy_process
+      parameters:
+        - name: process_input
+          in: body
+          required: true
+          schema:
+            $ref: "#/definitions/OGCProcessInput"
+      responses:
+        202:
+          description: Process deployment accepted
+          schema:
+            $ref: "#/definitions/OGCProcessDeployResponse"
+        409:
+          description: Duplicate process
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+  /ogc/processes/{process_id}:
+    get:
+      tags:
+        - OGC
+      description: Get detailed information about a specific process
+      operationId: describe_process
+      parameters:
+        - name: process_id
+          in: path
+          description: unique id of process
+          type: string
+          required: true
+      responses:
+        200:
+          description: Process details
+          schema:
+            $ref: "#/definitions/OGCProcessDetails"
+        404:
+          description: Process not found
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    put:
+      tags:
+        - OGC
+      description: Replace an existing process
+      operationId: update_process
+      parameters:
+        - name: process_id
+          in: path
+          description: unique id of process
+          type: string
+          required: true
+        - name: process_input
+          in: body
+          required: true
+          schema:
+            $ref: "#/definitions/OGCProcessInput"
+      responses:
+        202:
+          description: Process update accepted
+          schema:
+            $ref: "#/definitions/OGCProcessDeployResponse"
+        403:
+          description: Forbidden - can only modify own processes
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        404:
+          description: Process not found
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    delete:
+      tags:
+        - OGC
+      description: Delete an existing process
+      operationId: delete_process
+      parameters:
+        - name: process_id
+          in: path
+          description: unique id of process
+          type: string
+          required: true
+      responses:
+        200:
+          description: Process deleted
+        403:
+          description: Forbidden - can only delete own processes
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        404:
+          description: Process not found
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+  /ogc/processes/{process_id}/package:
+    get:
+      tags:
+        - OGC
+      description: Access the formal description that can be used to deploy a process
+      operationId: get_process_package
+      parameters:
+        - name: process_id
+          in: path
+          description: unique id of process
+          type: string
+          required: true
+      responses:
+        200:
+          description: Process package description
+          schema:
+            $ref: "#/definitions/OGCProcessPackage"
+        404:
+          description: Process not found
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+  /ogc/processes/{process_id}/execution:
+    post:
+      tags:
+        - OGC
+      description: Execute a process
+      operationId: execute_process
+      parameters:
+        - name: process_id
+          in: path
+          description: unique id of process
+          type: string
+          required: true
+        - name: execution_input
+          in: body
+          required: true
+          schema:
+            $ref: "#/definitions/OGCExecutionInput"
+      responses:
+        202:
+          description: Job execution accepted
+          schema:
+            $ref: "#/definitions/OGCJobResponse"
+        404:
+          description: Process not found
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+  /ogc/jobs:
+    get:
+      tags:
+        - OGC
+      description: Get list of jobs for a given user
+      operationId: get_ogc_jobs
+      parameters:
+        - name: page_size
+          in: query
+          description: Job listing pagination size
+          type: string
+          required: false
+        - name: offset
+          in: query
+          description: Job listing pagination offset
+          type: string
+          required: false
+        - name: job_type
+          in: query
+          description: Job type + version, e.g. topsapp:v1.0
+          type: string
+          required: false
+        - name: tag
+          in: query
+          description: User-defined job tag
+          type: string
+          required: false
+        - name: queue
+          in: query
+          description: Submitted job queue
+          type: string
+          required: false
+        - name: priority
+          in: query
+          description: Job priority, 0-9
+          type: integer
+          required: false
+        - name: start_time
+          in: query
+          description: Start time of @timestamp field
+          type: string
+          required: false
+        - name: end_time
+          in: query
+          description: End time of @timestamp field
+          type: string
+          required: false
+        - name: get_job_details
+          in: query
+          description: Return full details if True. List of job id's if false. Default True.
+          type: boolean
+          required: false
+        - name: status
+          in: query
+          description: Job status, e.g. job-started, job-completed, job-failed, etc.
+          type: string
+          required: false
+        - name: username
+          in: query
+          description: Username of job submitter
+          type: string
+          required: false
+        - name: min_duration
+          in: query
+          description: Minimum job duration in seconds
+          type: number
+          required: false
+        - name: max_duration
+          in: query
+          description: Maximum job duration in seconds
+          type: number
+          required: false
+        - name: limit
+          in: query
+          description: Limit of jobs to return
+          type: string
+          required: false
+      responses:
+        200:
+          description: List of jobs
+          schema:
+            $ref: "#/definitions/OGCJobList"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+  /ogc/jobs/{job_id}:
+    get:
+      tags:
+        - OGC
+      description: Get the status of a job
+      operationId: get_ogc_job_status
+      parameters:
+        - name: job_id
+          in: path
+          description: unique id of job
+          type: string
+          required: true
+      responses:
+        200:
+          description: Job status
+          schema:
+            $ref: "#/definitions/OGCJobStatus"
+        404:
+          description: Job not found
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    delete:
+      tags:
+        - OGC
+      description: Cancel a running job or delete a queued job
+      operationId: cancel_job
+      parameters:
+        - name: job_id
+          in: path
+          description: unique id of job
+          type: string
+          required: true
+        - name: wait_for_completion
+          in: query
+          description: Wait for Cancel job to finish
+          type: boolean
+          required: false
+          default: false
+      responses:
+        202:
+          description: Job cancellation accepted
+          schema:
+            $ref: "#/definitions/OGCJobCancelResponse"
+        404:
+          description: Job not found
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+  /ogc/jobs/{job_id}/results:
+    get:
+      tags:
+        - OGC
+      description: Get the results of a completed job
+      operationId: get_job_results
+      parameters:
+        - name: job_id
+          in: path
+          description: unique id of job
+          type: string
+          required: true
+      responses:
+        200:
+          description: Job results
+          schema:
+            $ref: "#/definitions/OGCJobResults"
+        404:
+          description: Job not found
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+  /ogc/jobs/{job_id}/metrics:
+    get:
+      tags:
+        - OGC
+      description: Get performance metrics for a job
+      operationId: get_job_metrics
+      parameters:
+        - name: job_id
+          in: path
+          description: unique id of job
+          type: string
+          required: true
+      responses:
+        200:
+          description: Job metrics
+          schema:
+            $ref: "#/definitions/OGCJobMetrics"
+        404:
+          description: Job not found
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+  /ogc/deploymentJobs:
+    post:
+      tags:
+        - OGC
+      description: Update deployment status via webhook (for 3rd party services)
+      operationId: update_deployment_status
+      parameters:
+        - name: deployment_update
+          in: body
+          required: true
+          schema:
+            $ref: "#/definitions/OGCDeploymentUpdate"
+      responses:
+        200:
+          description: Deployment status updated
+          schema:
+            $ref: "#/definitions/OGCDeploymentStatus"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
+  /ogc/deploymentJobs/{deployment_id}:
+    get:
+      tags:
+        - OGC
+      description: Query the current status of an algorithm being deployed
+      operationId: get_deployment_status
+      parameters:
+        - name: deployment_id
+          in: path
+          description: unique id of deployment
+          type: string
+          required: true
+      responses:
+        200:
+          description: Deployment status
+          schema:
+            $ref: "#/definitions/OGCDeploymentStatus"
+        404:
+          description: Deployment not found
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+        default:
+          description: Error
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+
 definitions:
   ServiceInfo:
     description: Information about the MAAP service
@@ -724,6 +1149,428 @@ definitions:
     properties:
       message:
         type: string
+
+  OGCProcessList:
+    description: List of OGC processes
+    properties:
+      processes:
+        type: array
+        items:
+          $ref: "#/definitions/OGCProcess"
+      links:
+        type: array
+        items:
+          $ref: "#/definitions/OGCLink"
+
+  OGCProcess:
+    description: OGC process definition
+    properties:
+      title:
+        type: string
+        description: Human readable title
+      description:
+        type: string
+        description: Process description
+      keywords:
+        type: array
+        items:
+          type: string
+        description: Keywords associated with the process
+      metadata:
+        type: array
+        items:
+          type: object
+        description: Process metadata
+      id:
+        type: string
+        description: Process identifier
+      version:
+        type: string
+        description: Process version
+      jobControlOptions:
+        type: array
+        items:
+          type: string
+        description: Job control options
+      author:
+        type: string
+        description: Process author
+      lastModifiedTime:
+        type: string
+        description: Last modified time
+      cwlLink:
+        type: string
+        description: Link to CWL definition
+      links:
+        type: array
+        items:
+          $ref: "#/definitions/OGCLink"
+
+  OGCProcessInput:
+    description: Input for creating/updating a process
+    properties:
+      executionUnit:
+        type: object
+        properties:
+          href:
+            type: string
+            description: URL to the CWL file
+        required:
+          - href
+    required:
+      - executionUnit
+
+  OGCProcessDeployResponse:
+    description: Response from process deployment
+    properties:
+      title:
+        type: string
+      description:
+        type: string
+      keywords:
+        type: array
+        items:
+          type: string
+      metadata:
+        type: array
+        items:
+          type: object
+      id:
+        type: string
+      version:
+        type: string
+      jobControlOptions:
+        type: array
+        items:
+          type: string
+      links:
+        type: array
+        items:
+          $ref: "#/definitions/OGCLink"
+      processPipelineLink:
+        $ref: "#/definitions/OGCLink"
+
+  OGCProcessDetails:
+    description: Detailed information about a process
+    allOf:
+      - $ref: "#/definitions/OGCProcess"
+      - type: object
+        properties:
+          processID:
+            type: string
+            description: Process ID
+          githubUrl:
+            type: string
+            description: GitHub repository URL
+          gitCommitHash:
+            type: string
+            description: Git commit hash
+          ramMin:
+            type: number
+            description: Minimum RAM requirement
+          coresMin:
+            type: number
+            description: Minimum core requirement
+          baseCommand:
+            type: string
+            description: Base command
+          inputs:
+            type: object
+            description: Process inputs
+            additionalProperties:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                type:
+                  type: string
+                placeholder:
+                  type: string
+                default:
+                  type: string
+
+  OGCProcessPackage:
+    description: Process package description
+    properties:
+      processDescription:
+        type: string
+        description: Process description
+      executionUnit:
+        $ref: "#/definitions/OGCLink"
+
+  OGCExecutionInput:
+    description: Input for executing a process
+    properties:
+      inputs:
+        type: object
+        description: Process inputs
+        additionalProperties:
+          type: object
+      queue:
+        type: string
+        description: Queue to run the job on
+      dedup:
+        type: boolean
+        description: Enable deduplication
+      tag:
+        type: string
+        description: Job tag
+    required:
+      - queue
+
+  OGCJobResponse:
+    description: Response from job execution
+    properties:
+      title:
+        type: string
+      description:
+        type: string
+      keywords:
+        type: array
+        items:
+          type: string
+      metadata:
+        type: array
+        items:
+          type: object
+      id:
+        type: string
+        description: Job ID
+      processID:
+        type: string
+        description: Process ID
+      type:
+        type: string
+      request:
+        type: object
+      status:
+        type: string
+        description: Job status
+      message:
+        type: string
+      created:
+        type: string
+        description: Creation time
+      updated:
+        type: string
+        description: Last update time
+      links:
+        type: array
+        items:
+          $ref: "#/definitions/OGCLink"
+
+  OGCJobList:
+    description: List of OGC jobs
+    properties:
+      jobs:
+        type: array
+        items:
+          $ref: "#/definitions/OGCJobResponse"
+      links:
+        type: array
+        items:
+          $ref: "#/definitions/OGCLink"
+
+  OGCJobStatus:
+    description: Job status information
+    properties:
+      title:
+        type: string
+      description:
+        type: string
+      keywords:
+        type: array
+        items:
+          type: string
+      id:
+        type: string
+        description: Job ID
+      processID:
+        type: string
+        description: Process ID
+      type:
+        type: string
+      request:
+        type: object
+      status:
+        type: string
+        description: Job status
+      message:
+        type: string
+      created:
+        type: string
+        description: Creation time
+      started:
+        type: string
+        description: Start time
+      finished:
+        type: string
+        description: Finish time
+      updated:
+        type: string
+        description: Last update time
+      progress:
+        type: number
+        description: Progress percentage
+      links:
+        type: array
+        items:
+          $ref: "#/definitions/OGCLink"
+
+  OGCJobCancelResponse:
+    description: Response from job cancellation
+    properties:
+      id:
+        type: string
+        description: Job ID
+      type:
+        type: string
+      detail:
+        type: string
+        description: Cancellation details
+      status:
+        type: string
+        description: Job status
+
+  OGCJobResults:
+    description: Job results
+    properties:
+      additionalProperties:
+        type: object
+        properties:
+          id:
+            type: string
+          links:
+            type: array
+            items:
+              $ref: "#/definitions/OGCLink"
+      detail:
+        type: string
+        description: Details about the results or error
+
+  OGCJobMetrics:
+    description: Job performance metrics
+    properties:
+      machine_type:
+        type: string
+        description: Machine type used
+      architecture:
+        type: string
+        description: CPU architecture
+      machine_memory_size:
+        type: string
+        description: Total machine memory
+      directory_size:
+        type: string
+        description: Job directory size
+      operating_system:
+        type: string
+        description: Operating system
+      job_start_time:
+        type: string
+        description: Job start time
+      job_end_time:
+        type: string
+        description: Job end time
+      job_duration_seconds:
+        type: number
+        description: Job duration in seconds
+      cpu_usage:
+        type: number
+        description: CPU usage
+      cache_usage:
+        type: number
+        description: Cache usage
+      mem_usage:
+        type: number
+        description: Memory usage
+      max_mem_usage:
+        type: number
+        description: Maximum memory usage
+      swap_usage:
+        type: number
+        description: Swap usage
+      read_io_stats:
+        type: number
+        description: Read I/O statistics
+      write_io_stats:
+        type: number
+        description: Write I/O statistics
+      sync_io_stats:
+        type: number
+        description: Sync I/O statistics
+      async_io_stats:
+        type: number
+        description: Async I/O statistics
+      total_io_stats:
+        type: number
+        description: Total I/O statistics
+
+  OGCDeploymentUpdate:
+    description: Update for deployment status
+    properties:
+      object_attributes:
+        type: object
+        properties:
+          id:
+            type: string
+            description: Pipeline ID
+          status:
+            type: string
+            description: Deployment status
+        required:
+          - id
+          - status
+    required:
+      - object_attributes
+
+  OGCDeploymentStatus:
+    description: Deployment status information
+    properties:
+      created:
+        type: string
+        description: Creation time
+      status:
+        type: string
+        description: Deployment status
+      pipeline:
+        type: object
+        properties:
+          executionVenue:
+            type: string
+            description: Execution venue
+          pipelineId:
+            type: string
+            description: Pipeline ID
+          processPipelineLink:
+            $ref: "#/definitions/OGCLink"
+      cwl:
+        $ref: "#/definitions/OGCLink"
+      links:
+        $ref: "#/definitions/OGCLink"
+      processLocation:
+        $ref: "#/definitions/OGCLink"
+
+  OGCLink:
+    description: Link object
+    properties:
+      href:
+        type: string
+        description: URL
+      rel:
+        type: string
+        description: Relationship
+      type:
+        type: string
+        description: Media type
+      hreflang:
+        type: string
+        description: Language
+      title:
+        type: string
+        description: Title
 
 
 parameters:
