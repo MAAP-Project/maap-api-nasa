@@ -4,7 +4,6 @@ import json
 from unittest.mock import patch, MagicMock
 from io import BytesIO
 from werkzeug.datastructures import FileStorage
-
 from api.maapapp import app
 from api.maap_database import db
 from api.models import initialize_sql
@@ -15,22 +14,11 @@ from api.models.role import Role
 from api import settings # For accessing MAX_SSH_KEY_SIZE_BYTES etc.
 
 
-# Mock get_authorized_user to simulate an authenticated user
-def mock_get_authorized_user():
-    mock_user = MagicMock(spec=Member)
-    mock_user.id = 1 # Ensure it has an ID for db operations
-    mock_user.username = 'testuser' # Ensure it has a username
-    # Add other attributes if your endpoint logic uses them from get_authorized_user
-    return mock_user
-
-
-@patch('api.endpoints.members.get_authorized_user', side_effect=mock_get_authorized_user)
 class TestMemberManagementEndpoints(unittest.TestCase): # Renamed for clarity
     """Test suite for member management endpoints, including SSH key uploads."""
 
     @classmethod
     def setUpClass(cls):
-        """Set up test environment once for the class."""
         cls.app = app.test_client()
         # cls.app.testing = True # Not needed with test_client()
         with app.app_context():
@@ -54,10 +42,6 @@ class TestMemberManagementEndpoints(unittest.TestCase): # Renamed for clarity
             db.session.query(MemberSession).delete()
             db.session.query(Member).delete()
             # Roles are class-level, so don't delete them here unless necessary
-            db.session.commit()
-            # Create a sample member for tests that need an existing user
-            self.sample_member = self._create_sample_member(id=1, username='testuser', role_id=Role.ROLE_MEMBER) # Match mock_get_authorized_user
-            db.session.add(self.sample_member)
             db.session.commit()
 
 
@@ -107,6 +91,34 @@ class TestMemberManagementEndpoints(unittest.TestCase): # Renamed for clarity
         }
         defaults.update(kwargs)
         return Member(**defaults)
+    
+    def _create_test_member(self, username="testuser", email="test@example.com"):
+        """Create a test member for authentication tests."""
+        member = Member(
+            username=username,
+            email=email,
+            first_name="Test",
+            last_name="User",
+            organization="NASA",
+            role_id=Role.ROLE_MEMBER,
+            status="active",
+            public_ssh_key="ssh-rsa AAAAB3NzaC1yc2ETEST...",
+            creation_date=datetime.datetime.now()
+        )
+        db.session.add(member)
+        db.session.commit()
+        return member
+
+    def _create_test_session(self, member_id, session_key="test-session-key"):
+        """Create a test session for authentication tests."""
+        session = MemberSession(
+            member_id=member_id,
+            session_key=session_key,
+            creation_date=datetime.datetime.now()
+        )
+        db.session.add(session)
+        db.session.commit()
+        return session
 
     def test_new_member_can_be_created_successfully(self):
         """Test: New member can be created successfully"""
@@ -174,7 +186,8 @@ class TestMemberManagementEndpoints(unittest.TestCase): # Renamed for clarity
         """Test: Member algorithms can be associated with members"""
         with app.app_context():
             # Given an existing member
-            member = self._create_sample_member()
+            username = "algorithm_user"
+            member = self._create_sample_member(username=username, email=f"{username}@example.com")
             db.session.add(member)
             db.session.commit()
             
@@ -193,7 +206,7 @@ class TestMemberManagementEndpoints(unittest.TestCase): # Renamed for clarity
                 algorithm_key='test-algo-key-12345'
             ).first()
             self.assertIsNotNone(saved_algo)
-            self.assertEqual(saved_algo.member.username, 'testuser')
+            self.assertEqual(saved_algo.member.username, username)
             self.assertEqual(saved_algo.member_id, member.id)
             self.assertFalse(saved_algo.is_public)
 
@@ -402,48 +415,59 @@ class TestMemberManagementEndpoints(unittest.TestCase): # Renamed for clarity
             self.assertEqual(saved_member.public_ssh_key_modified_date, ssh_modified_date)
 
     # SSH Key Upload Tests
-    def _upload_ssh_key(self, mock_auth_user, filename, content_bytes, content_type='text/plain'):
+    def _upload_ssh_key(self, filename, content_bytes, content_type='text/plain', member=None):
         """Helper to simulate SSH key file upload."""
         data = {'file': (BytesIO(content_bytes), filename, content_type)}
         # The mock_auth_user is already patched in for the class, so no need to pass it here
         # Headers might be needed if your login_required checks other things
-        return self.app.post('/api/members/self/sshKey', data=data, content_type='multipart/form-data')
+        if member is None:
+            member = self._create_sample_member()
+            db.session.add(member)
+            db.session.commit()
+        session = self._create_test_session(member.id, "sensitive-session-token-12345")
+        headers = {'proxy-ticket': session.session_key}
+        with patch('api.auth.cas_auth.decrypt_proxy_ticket') as mock_decrpyt:
+            mock_decrpyt.return_value = "sensitive-session-token-12345"
+            return self.app.post('/api/members/self/sshKey', data=data, content_type='multipart/form-data', headers=headers)
 
-    def test_ssh_key_upload_valid(self, mock_auth_user_func): # mock_auth_user_func is from class patch
+    def test_ssh_key_upload_valid(self): # mock_auth_user_func is from class patch
         """Test: Successfully upload a valid SSH key."""
         valid_key_content = b"ssh-rsa AAAA... valid_key@example.com"
         filename = "id_rsa.pub"
-
-        response = self._upload_ssh_key(mock_auth_user_func, filename, valid_key_content)
+        member = self._create_sample_member()
+        db.session.add(member)
+        db.session.commit()
+        response = self._upload_ssh_key(filename, valid_key_content, member=member)
 
         self.assertEqual(response.status_code, 200)
+        print(response.data.decode('utf-8'))
         response_data = json.loads(response.data.decode('utf-8'))
         self.assertEqual(response_data['public_ssh_key_name'], filename)
         self.assertEqual(response_data['public_ssh_key'], valid_key_content.decode('utf-8'))
 
         # Verify in DB
         with app.app_context():
-            member = db.session.query(Member).filter_by(id=self.sample_member.id).first()
+            member = db.session.query(Member).filter_by(id=member.id).first()
             self.assertEqual(member.public_ssh_key_name, filename)
             self.assertEqual(member.public_ssh_key, valid_key_content.decode('utf-8'))
 
-    def test_ssh_key_upload_no_file(self, mock_auth_user_func):
+    def test_ssh_key_upload_no_file(self):
         """Test: Uploading with no file results in BadRequest."""
-        response = self.app.post('/api/members/self/sshKey', data={}, content_type='multipart/form-data')
+        response = self._upload_ssh_key("Somefile", b"")
         self.assertEqual(response.status_code, 400) # BadRequest
         response_data = json.loads(response.data.decode('utf-8'))
         self.assertIn("No file uploaded", response_data.get('message', ''))
 
 
-    def test_ssh_key_upload_invalid_extension(self, mock_auth_user_func):
+    def test_ssh_key_upload_invalid_extension(self):
         """Test: Uploading SSH key with invalid extension."""
         key_content = b"ssh-rsa AAAA... key@example.com"
-        response = self._upload_ssh_key(mock_auth_user_func, "key.exe", key_content)
+        response = self._upload_ssh_key("key.exe", key_content)
         self.assertEqual(response.status_code, 400) # InvalidFileTypeError is BadRequest
         response_data = json.loads(response.data.decode('utf-8'))
         self.assertIn("Invalid file extension", response_data.get('message', ''))
 
-    def test_ssh_key_upload_too_large(self, mock_auth_user_func):
+    def test_ssh_key_upload_too_large(self):
         """Test: Uploading SSH key that is too large."""
         # settings.MAX_SSH_KEY_SIZE_BYTES should be set for this test
         # Ensure it's smaller than the content for the test to be meaningful
@@ -451,7 +475,7 @@ class TestMemberManagementEndpoints(unittest.TestCase): # Renamed for clarity
         settings.MAX_SSH_KEY_SIZE_BYTES = 10 # Set a small limit for test
 
         large_content = b"a" * 20 # Content larger than 10 bytes
-        response = self._upload_ssh_key(mock_auth_user_func, "large_key.pub", large_content)
+        response = self._upload_ssh_key("large_key.pub", large_content)
 
         settings.MAX_SSH_KEY_SIZE_BYTES = original_max_size # Reset
 
@@ -461,29 +485,33 @@ class TestMemberManagementEndpoints(unittest.TestCase): # Renamed for clarity
         self.assertIn("exceeds limit", response_data.get('message', ''))
 
 
-    def test_ssh_key_upload_non_utf8_content(self, mock_auth_user_func):
+    def test_ssh_key_upload_non_utf8_content(self):
         """Test: Uploading SSH key with non-UTF-8 content."""
         binary_content = b"\x80\x90\xa0" # Invalid UTF-8 sequence
-        response = self._upload_ssh_key(mock_auth_user_func, "binary_key.pub", binary_content)
+        response = self._upload_ssh_key("binary_key.pub", binary_content)
         # This is now caught as BadRequest by validate_ssh_key_file's decode check
         self.assertEqual(response.status_code, 400)
         response_data = json.loads(response.data.decode('utf-8'))
         self.assertIn("File does not appear to be a valid text file", response_data.get('message',''))
 
 
-    def test_ssh_key_upload_filename_sanitization(self, mock_auth_user_func):
+    def test_ssh_key_upload_filename_sanitization(self):
         """Test: SSH key filename is sanitized."""
         key_content = b"ssh-rsa AAAA... key@example.com"
         malicious_filename = "../../../etc/evil.key"
         sanitized_name = "etc_evil.key" # Based on werkzeug.utils.secure_filename and our custom logic
+        
+        member = self._create_sample_member()
+        db.session.add(member)
+        db.session.commit()
 
-        response = self._upload_ssh_key(mock_auth_user_func, malicious_filename, key_content)
+        response = self._upload_ssh_key(malicious_filename, key_content, member=member)
         self.assertEqual(response.status_code, 200)
         response_data = json.loads(response.data.decode('utf-8'))
         self.assertEqual(response_data['public_ssh_key_name'], sanitized_name)
 
         with app.app_context():
-            member = db.session.query(Member).filter_by(id=self.sample_member.id).first()
+            member = db.session.query(Member).filter_by(id=member.id).first()
             self.assertEqual(member.public_ssh_key_name, sanitized_name)
 
 
