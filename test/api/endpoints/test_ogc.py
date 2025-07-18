@@ -167,7 +167,7 @@ class TestOGCEndpoints(unittest.TestCase):
                                       content_type='application/json')
             
             # Then authentication should be required
-            self.assertEqual(response.status_code, 403)
+            self.assertEqual(response.status_code, 401)
 
     @patch('api.auth.security.get_authorized_user')
     @patch('api.endpoints.ogc._get_cwl_metadata')
@@ -334,8 +334,8 @@ class TestOGCEndpoints(unittest.TestCase):
             
             response = self._make_authenticated_request('PUT', f'/api/ogc/processes/{process.process_id}', process_data, different_user)
             
-            # Then unauthorized should be returned
-            self.assertEqual(response.status_code, 401)
+            # Then forbidden should be returned
+            self.assertEqual(response.status_code, 403)
             data = response.get_json()
             if 'detail' in data:
                 self.assertIn('You can only modify processes that you posted originally', data['detail'])
@@ -353,8 +353,8 @@ class TestOGCEndpoints(unittest.TestCase):
             # When attempting to delete process as different user
             response = self._make_authenticated_request('DELETE', f'/api/ogc/processes/{process.process_id}', None, different_user)
             
-            # Then unauthorized should be returned
-            self.assertEqual(response.status_code, 401)
+            # Then forbidden should be returned
+            self.assertEqual(response.status_code, 403)
             data = response.get_json()
             if 'detail' in data:
                 self.assertIn('You can only modify processes that you posted originally', data['detail'])
