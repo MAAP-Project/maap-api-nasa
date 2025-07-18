@@ -531,7 +531,7 @@ class Describe(Resource):
             return _generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
         
         if user.id != existing_process.user:
-            return _generate_error("You can only modify processes that you posted originally", status.HTTP_403_FORBIDDEN, "ogcapi-processes-2/1.0/immutable-process")
+            return _generate_error("You can only modify processes that you posted originally", status.HTTP_401_UNAUTHORIZED, "ogcapi-processes-2/1.0/immutable-process")
         
         req_data_string = request.data.decode("utf-8")
         if not req_data_string:
@@ -596,7 +596,7 @@ class Describe(Resource):
             return _generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
 
         if user.id != existing_process.user:
-            return _generate_error("You can only modify processes that you posted originally", status.HTTP_403_FORBIDDEN, "ogcapi-processes-2/1.0/immutable-process")
+            return _generate_error("You can only modify processes that you posted originally", status.HTTP_401_UNAUTHORIZED, "ogcapi-processes-2/1.0/immutable-process")
         
         try:
             # Currently not deleting the process from HySDS, that might change later 

@@ -9,7 +9,7 @@ from api.models.member import Member
 from api.models.role import Role
 
 HEADER_PROXY_TICKET = "proxy-ticket"
-THIRD_PARTY_AUTH_HEADER = "X-Gitlab-Token"
+THIRD_PARTY_AUTH_HEADER_GITLAB = "X-Gitlab-Token"
 HEADER_CP_TICKET = "cpticket"
 HEADER_AUTHORIZATION = "Authorization"
 HEADER_CAS_AUTHORIZATION = "cas-authorization"
@@ -41,7 +41,7 @@ def authenticate_third_party():
     def authenticate_third_party_outer(wrapped_function):
         @wraps(wrapped_function)
         def wrap(*args, **kwargs):
-            if THIRD_PARTY_AUTH_HEADER in request.headers and validate_third_party(request.headers[THIRD_PARTY_AUTH_HEADER]):
+            if THIRD_PARTY_AUTH_HEADER_GITLAB in request.headers and validate_third_party(request.headers[THIRD_PARTY_AUTH_HEADER_GITLAB]):
                 return wrapped_function(*args, **kwargs)
 
             abort(status.HTTP_403_FORBIDDEN, description="Not authorized.")

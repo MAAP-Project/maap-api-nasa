@@ -128,7 +128,7 @@ def validate_bearer(token):
     return None
 
 def validate_third_party(secret_token):
-    return secret_token == settings.THIRD_PARTY_SECRET_TOKEN
+    return secret_token == settings.THIRD_PARTY_SECRET_TOKEN_GITLAB
 
 def validate_cas_request(cas_url):
 

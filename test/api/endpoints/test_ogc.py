@@ -534,7 +534,7 @@ class TestOGCEndpoints(unittest.TestCase):
             
             # Mock the validation function to return True
             with patch('api.auth.cas_auth.validate_third_party', return_value=True):
-                with patch('api.settings.THIRD_PARTY_SECRET_TOKEN', 'test-token'):
+                with patch('api.settings.THIRD_PARTY_SECRET_TOKEN_GITLAB', 'test-token'):
                     with patch('api.endpoints.ogc.update_status_post_process_if_applicable') as mock_update:
                         mock_update.return_value = (
                             {

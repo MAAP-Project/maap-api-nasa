@@ -51,7 +51,7 @@ REPO_NAME = os.getenv('REPO_NAME', 'register-job')
 REPO_PATH = os.getenv('REPO_PATH', '/home/ubuntu/repo')
 VERSION = os.getenv('VERSION', 'main')
 SUPPORTED_EXTENSIONS = os.getenv('SUPPORTED_EXTENSIONS', 'py,java,sh').split(',')
-THIRD_PARTY_SECRET_TOKEN = os.getenv('THIRD_PARTY_SECRET_TOKEN', '')
+THIRD_PARTY_SECRET_TOKEN_GITLAB = os.getenv('THIRD_PARTY_SECRET_TOKEN_GITLAB', '')
 
 # Docker container URL
 CONTAINER_URL = os.getenv('CONTAINER_URL', 'registry.dit.maap-project.org/root/dps_plot:master')
