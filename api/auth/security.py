@@ -44,7 +44,7 @@ def authenticate_third_party():
             if THIRD_PARTY_AUTH_HEADER_GITLAB in request.headers and validate_third_party(request.headers[THIRD_PARTY_AUTH_HEADER_GITLAB]):
                 return wrapped_function(*args, **kwargs)
 
-            abort(status.HTTP_403_FORBIDDEN, description="Not authorized.")
+            abort(status.HTTP_401_UNAUTHORIZED, description="Not authorized.")
 
         return wrap
     return authenticate_third_party_outer
