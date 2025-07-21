@@ -2,7 +2,8 @@
 FROM python:3.9 as builder
 
 # Install Poetry
-RUN curl -sSL https://install.python-poetry.org | python3 -
+RUN curl -sSL https://install.python-poetry.org | python3 - && \
+    export PATH="/root/.local/bin:$PATH" 
 
 ENV PATH="${PATH}:/root/.local/bin" \
     POETRY_NO_INTERACTION=1 \
