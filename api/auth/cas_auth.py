@@ -175,6 +175,8 @@ def validate_bearer(token):
         current_app.logger.error(f"Unexpected error during bearer token validation: {e}")
         raise ExternalServiceError("An unexpected error occurred during token validation.")
 
+def validate_third_party(secret_token):
+    return secret_token == settings.THIRD_PARTY_SECRET_TOKEN_GITLAB
 
 def validate_cas_request(cas_url):
 
