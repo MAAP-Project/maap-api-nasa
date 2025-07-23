@@ -218,7 +218,7 @@ class Processes(Resource):
         existing_processes = db.session.query(Process_db).filter_by(status=DEPLOYED_PROCESS_STATUS).all()
 
         for process in existing_processes:
-            deployer = db.session.query(Member_db).filter_by(id=process.user).first()
+            deployer = db.session.query(Member_db).filter_by(id=process.deployer).first()
             link_obj_process = {
                 "href": f"/{ns.name}/processes/{process.process_id}",
                 "rel": "self",
@@ -363,7 +363,7 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
             
             if existing_process:
                 existing_process.cwl_link = deployment.cwl_link
-                existing_process.user = deployment.user
+                existing_process.deployer = deployment.deployer
                 process_id = existing_process.process_id
                 existing_process.github_url=deployment.github_url
                 existing_process.git_commit_hash=deployment.git_commit_hash
@@ -493,7 +493,7 @@ class Describe(Resource):
         
         hysds_io_result = response.get("result")
 
-        deployer = db.session.query(Member_db).filter_by(id=existing_process.user).first()
+        deployer = db.session.query(Member_db).filter_by(id=existing_process.deployer).first()
 
         response_body = {
             "title": existing_process.title,
@@ -546,7 +546,7 @@ class Describe(Resource):
         if not existing_process:
             return _generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
         
-        if user.id != existing_process.user:
+        if user.id != existing_process.deployer:
             return _generate_error("You can only modify processes that you posted originally", status.HTTP_403_FORBIDDEN, "ogcapi-processes-2/1.0/immutable-process")
         
         req_data_string = request.data.decode("utf-8")
@@ -611,7 +611,7 @@ class Describe(Resource):
         if not existing_process:
             return _generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
 
-        if user.id != existing_process.user:
+        if user.id != existing_process.deployer:
             return _generate_error("You can only modify processes that you posted originally", status.HTTP_403_FORBIDDEN, "ogcapi-processes-2/1.0/immutable-process")
         
         try:
