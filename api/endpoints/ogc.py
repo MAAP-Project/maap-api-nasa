@@ -38,7 +38,7 @@ PIPELINE_URL_TEMPLATE = settings.GITLAB_URL_POST_PROCESS + "/root/deploy-ogc-hys
 INITIAL_JOB_STATUS = "accepted"
 DEPLOYED_PROCESS_STATUS = "deployed"
 UNDEPLOYED_PROCESS_STATUS = "undeployed"
-CWL_METADATA = namedtuple("CWL_METADATA", ["id", "version", "title", "description", "keywords", "raw_text", "github_url", "git_commit_hash", "cwl_link", "ram_min", "cores_min", "base_command"])
+CWL_METADATA = namedtuple("CWL_METADATA", ["id", "version", "title", "description", "keywords", "raw_text", "github_url", "git_commit_hash", "cwl_link", "ram_min", "cores_min", "base_command", "author"])
 HREF_LANG = "en"
 ERROR_TYPE_PREFIX="http://www.opengis.net/def/exceptions/"
 
@@ -112,6 +112,17 @@ def _get_cwl_metadata(cwl_link):
     keywords_match = re.search(r"s:keywords:\s*(.*)", cwl_text, re.IGNORECASE)
     keywords = keywords_match.group(1).replace(" ", "") if keywords_match else None
 
+    try:
+        author_match = re.search(
+            r"s:author:.*?s:name:\s*(\S+)",
+            cwl_text,
+            re.DOTALL | re.IGNORECASE
+        )
+        author = author_match.group(1) if author_match else None
+    except Exception as e:
+        author = None
+        log.error(f"Failed to get author name: {e}")
+
     # Find the CommandLineTool run by the first step of the workflow
     if workflow.steps:
         # Get the ID of the tool to run (e.g., '#main')
@@ -146,7 +157,8 @@ def _get_cwl_metadata(cwl_link):
         cwl_link=cwl_link,
         ram_min=ram_min,
         cores_min=cores_min,
-        base_command=base_command
+        base_command=base_command,
+        author=author
     )
 
 
@@ -176,7 +188,8 @@ def _create_and_commit_deployment(metadata, pipeline, user, existing_process=Non
         title=metadata.title,
         description=metadata.description,
         keywords=metadata.keywords,
-        user=user.id,
+        deployer=user.id,
+        author=metadata.author,
         pipeline_id=pipeline.id,
         github_url=metadata.github_url,
         git_commit_hash=metadata.git_commit_hash,
@@ -205,7 +218,7 @@ class Processes(Resource):
         existing_processes = db.session.query(Process_db).filter_by(status=DEPLOYED_PROCESS_STATUS).all()
 
         for process in existing_processes:
-            author = db.session.query(Member_db).filter_by(id=process.user).first()
+            deployer = db.session.query(Member_db).filter_by(id=process.user).first()
             link_obj_process = {
                 "href": f"/{ns.name}/processes/{process.process_id}",
                 "rel": "self",
@@ -221,7 +234,8 @@ class Processes(Resource):
                 "id": process.id,
                 "version": process.version,
                 "jobControlOptions": [], # TODO Unsure what we want this to be yet
-                "author": author.username,
+                "author": process.author,
+                "deployedBy": deployer.username,
                 "lastModifiedTime": process.last_modified_time.isoformat(),
                 "cwlLink": process.cwl_link,
                 "links": [link_obj_process]
@@ -361,7 +375,8 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
                                 title=deployment.title,
                                 description=deployment.description,
                                 keywords=deployment.keywords,
-                                user=deployment.user, 
+                                deployer=deployment.deployer, 
+                                author=deployment.author,
                                 github_url=deployment.github_url,
                                 git_commit_hash=deployment.git_commit_hash,
                                 last_modified_time=datetime.now(),
@@ -478,7 +493,7 @@ class Describe(Resource):
         
         hysds_io_result = response.get("result")
 
-        author = db.session.query(Member_db).filter_by(id=existing_process.user).first()
+        deployer = db.session.query(Member_db).filter_by(id=existing_process.user).first()
 
         response_body = {
             "title": existing_process.title,
@@ -489,7 +504,8 @@ class Describe(Resource):
             "processID": process_id,
             "version": existing_process.version,
             "jobControlOptions": [],
-            "author": author.username,
+            "author": existing_process.author,
+            "deployedBy": deployer.username,
             "githubUrl": existing_process.github_url,
             "gitCommitHash": existing_process.git_commit_hash,
             "cwlLink": existing_process.cwl_link,
