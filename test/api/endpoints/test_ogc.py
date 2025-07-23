@@ -136,7 +136,7 @@ class TestOGCEndpoints(unittest.TestCase):
             self.assertEqual(len(data['processes']), 1)
             self.assertEqual(data['processes'][0]['id'], 'test-process')
             self.assertEqual(data['processes'][0]['title'], 'Test Process')
-            self.assertEqual(data['processes'][0]['author'], 'testuser')
+            self.assertEqual(data['processes'][0]['author'], 'test-author')
 
     def test_processes_get_returns_empty_when_no_deployed_processes(self):
         """Test: GET /ogc/processes returns empty list when no deployed processes"""
