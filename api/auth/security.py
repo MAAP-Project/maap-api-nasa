@@ -34,22 +34,9 @@ def get_authorized_user():
                 token = auth_header_value.split(None, 1)[1]
                 # validate_bearer now returns user attributes on success or raises an exception
                 user_attributes = validate_bearer(token)
-                # Here, we'd ideally fetch a Member object based on 'id' or 'username' from user_attributes
-                # Assuming validate_bearer returns a dict that can be used to identify/create a Member object
-                # For now, if it doesn't raise, we assume success. This part might need adjustment
-                # based on what validate_bearer actually returns and how Member objects are mapped.
-                # Let's assume it returns a dict with 'username'.
                 if user_attributes and 'id' in user_attributes: # URS profile returns 'id' as username
-                    # Fetch member from DB based on username/id from token attributes
-                    # This is a simplified placeholder. Actual lookup logic might be needed.
-                    member = db.session.query(Member).filter(Member.username == user_attributes['id']).first()
-                    if member:
-                        return member
-                    else:
-                        # User authenticated via bearer token but not in local DB.
-                        # Depending on policy, could auto-create or deny.
-                        # For now, let's treat as unauthorized if not in DB.
-                        raise AuthenticationError("User identified by token not found in MAAP database.")
+                    # NOTE: Evaluate returning a member session object for oauth clients
+                    return user_attributes
                 else: # Should not happen if validate_bearer is successful and returns expected data
                     raise AuthenticationError("Bearer token validation succeeded but returned unexpected data.")
             else: # Malformed Authorization header
@@ -126,22 +113,11 @@ def login_required(role=Role.ROLE_GUEST):
                      # If it doesn't raise, then is_valid should be true for access.
                     is_valid, _ = validate_cas_request(auth_header_value)
                     if is_valid:
-                        # This auth method might not have roles in the same way,
-                        # or it implies a certain level of access (e.g., service-to-service).
-                        # If role check is needed, logic to determine user/role from CAS response is required.
-                        # For now, assuming if valid, it passes any role check (or role is GUEST by default).
-                        # This might need refinement based on how HEADER_CAS_AUTHORIZATION is used.
-                        if Role.ROLE_GUEST >= role: # Example: allow if role is guest or lower
-                             return wrapped_function(*args, **kwargs)
-                        else:
-                            raise AuthenticationError("Insufficient permissions for CAS authorized request.")
-
+                        # This auth method is a service-to-service request. Proceed with invocation
+                        return wrapped_function(*args, **kwargs)
 
                 elif auth_header_name == HEADER_DPS_TOKEN and valid_dps_request():
                     # DPS token implies a trusted internal service, often with admin-like privileges or specific operational rights.
-                    # The role check might be implicitly handled or set to a high level.
-                    # For now, let's assume it bypasses typical user role checks if valid_dps_request is true.
-                    # If specific roles are needed for DPS access, that logic would go here.
                     return wrapped_function(*args, **kwargs)
 
                 # If none of the above conditions were met and returned, it's an authorization failure.
