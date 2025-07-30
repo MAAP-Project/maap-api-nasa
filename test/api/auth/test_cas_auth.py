@@ -10,6 +10,7 @@ from api.models.member_session import MemberSession
 from api.models.role import Role
 from api.auth.cas_auth import validate, validate_proxy, validate_bearer, decrypt_proxy_ticket
 from api.auth.cas_auth import start_member_session, get_cas_attribute_value
+from api.utils.security_utils import AuthenticationError
 
 
 class TestCASAuthentication(unittest.TestCase):
@@ -109,11 +110,10 @@ class TestCASAuthentication(unittest.TestCase):
             
             mock_urlopen.return_value.read.return_value.strip.return_value.decode.return_value = mock_xml_response
             
-            # When they attempt to authenticate
-            result = validate("http://example.com", "ST-invalid")
+            # When they attempt to authenticate it should raise error
+            with self.assertRaises(AuthenticationError):
+                result = validate("http://example.com", "ST-invalid")
             
-            # Then authentication should fail
-            assert result is None
 
     def test_protected_endpoints_reject_unauthenticated_requests(self):
         """Test: Protected endpoints reject unauthenticated requests"""
@@ -227,11 +227,10 @@ class TestCASAuthentication(unittest.TestCase):
                 status=401
             )
             
-            # When validate_bearer is called
-            result = validate_bearer('invalid-bearer-token')
+            with self.assertRaises(AuthenticationError):
+                # When validate_bearer is called, raise error
+                result = validate_bearer('invalid-bearer-token')
             
-            # Then None should be returned
-            assert result is None
 
     def test_start_member_session_creates_new_member(self):
         """Test: start_member_session creates new member when auto_create_member=True"""

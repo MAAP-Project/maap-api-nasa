@@ -4,6 +4,7 @@ from flask_restx import Resource, reqparse
 from flask import request, jsonify, Response, current_app as app
 from flask_api import status
 from sqlalchemy.exc import SQLAlchemyError
+from werkzeug.exceptions import BadRequest, RequestEntityTooLarge, Unauthorized, ServiceUnavailable
 from api.utils.organization import get_member_organizations
 from api.models.role import Role
 from api.restplus import api
@@ -17,6 +18,7 @@ from api.models.member_session import MemberSession as MemberSession_db
 from api.models.member_secret import MemberSecret as MemberSecret_db
 from api.schemas.member_schema import MemberSchema
 from api.schemas.member_session_schema import MemberSessionSchema
+from api.utils.security_utils import validate_ssh_key_file, sanitize_filename, InvalidFileTypeError, FileSizeTooLargeError, EmptyFileError
 from api.utils.email_util import send_user_status_update_active_user_email, \
     send_user_status_update_suspended_user_email, send_user_status_change_email, \
     send_welcome_to_maap_active_user_email, send_welcome_to_maap_suspended_user_email
@@ -425,27 +427,52 @@ class PublicSshKeyUpload(Resource):
     def post(self):
         if 'file' not in request.files:
             log.error('Upload attempt with no file')
-            raise Exception('No file uploaded')
+            # Use a more specific error from werkzeug.exceptions or our custom ones
+            raise BadRequest('No file uploaded.')
 
         member = get_authorized_user()
-
         f = request.files['file']
 
-        file_lines = f.read().decode("utf-8")
+        # Sanitize filename first
+        safe_filename = sanitize_filename(f.filename)
 
         try:
+            # Validate the file (type, size, content)
+            validate_ssh_key_file(f, settings.MAX_SSH_KEY_SIZE_BYTES, settings.ALLOWED_SSH_KEY_EXTENSIONS)
+            # f.seek(0) # validate_ssh_key_file should reset seek(0) if it reads
+
+            file_content = f.read().decode("utf-8") # Read after validation
+
             db.session.query(Member_db).filter(Member_db.id == member.id). \
-                update({Member_db.public_ssh_key: file_lines,
-                        Member_db.public_ssh_key_name: f.filename,
+                update({Member_db.public_ssh_key: file_content,
+                        Member_db.public_ssh_key_name: safe_filename, # Use sanitized filename
                         Member_db.public_ssh_key_modified_date: datetime.utcnow()})
             db.session.commit()
-        except Exception as e:
-            db.session.rollback()
-            app.logger.error(f"Failed to update SSH key for member {member.id}: {e}")
-            raise
 
-        member_schema = MemberSchema()
-        return json.loads(member_schema.dumps(member))
+            # Re-fetch member to get updated data for the response
+            updated_member = db.session.query(Member_db).filter_by(id=member.id).first()
+            member_schema = MemberSchema()
+            return json.loads(member_schema.dumps(updated_member))
+
+        except (InvalidFileTypeError, FileSizeTooLargeError, EmptyFileError) as e:
+            log.error(f"SSH key upload validation failed for member {member.id}: {e.description}")
+            # These exceptions are already werkzeug HTTPExceptions, so they will be handled by Flask/RestX
+            raise e
+        except UnicodeDecodeError:
+            log.error(f"SSH key for member {member.id} is not valid UTF-8 text.")
+            raise BadRequest("File content is not valid UTF-8 text.")
+        except SQLAlchemyError as e:
+            db.session.rollback()
+            log.error(f"Database error updating SSH key for member {member.id}: {e}")
+            # For database errors, we might want a more generic server error
+            # Or a specific error if api.restplus handles SQLAlchemyError specifically
+            raise ServiceUnavailable("Could not save SSH key due to a database error.")
+        except Exception as e:
+            db.session.rollback() # Ensure rollback for any other unexpected error
+            log.error(f"Unexpected error updating SSH key for member {member.id}: {e}")
+            # Fallback for truly unexpected errors
+            raise ServiceUnavailable("An unexpected error occurred while saving the SSH key.")
+
 
     @api.doc(security='ApiKeyAuth')
     @login_required()
