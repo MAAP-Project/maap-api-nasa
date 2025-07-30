@@ -326,7 +326,7 @@ class TestCMRIntegration(unittest.TestCase):
             # Test POST without file
             response = client.post('/api/cmr/collections/shapefile')
             
-            self.assertEqual(response.status_code, 500)  # Should raise exception for no file
+            self.assertEqual(response.status_code, 400)  # Should raise exception for no file
     
     @responses.activate
     @patch('api.endpoints.cmr.shapefile.Reader')
