@@ -159,8 +159,7 @@ def _trigger_gitlab_pipeline(cwl_link):
         project = gl.projects.get(settings.GITLAB_PROJECT_ID_POST_PROCESS)
         pipeline = project.pipelines.create({
             "ref": settings.VERSION,
-            "variables": [{"key": "CWL_URL", "value": cwl_link}],
-            "process_name_hysds": process_name_hysds
+            "variables": [{"key": "CWL_URL", "value": cwl_link}, {"key": "PROCESS_NAME_HYSDS", "value": process_name_hysds}]
         })
         log.info(f"Triggered pipeline ID: {pipeline.id}")
         return pipeline, process_name_hysds
