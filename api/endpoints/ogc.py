@@ -153,23 +153,27 @@ def _get_cwl_metadata(cwl_link):
 def _trigger_gitlab_pipeline(cwl_link):
     """Triggers the CI/CD pipeline in GitLab to deploy a process."""
     try:
+        # random process name to prevent 
+        process_name_hysds = datetime.now().isoformat()+os.urandom(10).hex()
         gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token=settings.GITLAB_POST_PROCESS_TOKEN)
         project = gl.projects.get(settings.GITLAB_PROJECT_ID_POST_PROCESS)
         pipeline = project.pipelines.create({
             "ref": settings.VERSION,
-            "variables": [{"key": "CWL_URL", "value": cwl_link}]
+            "variables": [{"key": "CWL_URL", "value": cwl_link}],
+            "process_name_hysds": process_name_hysds
         })
         log.info(f"Triggered pipeline ID: {pipeline.id}")
-        return pipeline
+        return pipeline, process_name_hysds
     except Exception as e:
         log.error(f"GitLab pipeline trigger failed: {e}")
         raise RuntimeError("Failed to start CI/CD to deploy process. The deployment venue is likely down.")
 
 
-def _create_and_commit_deployment(metadata, pipeline, user, existing_process=None):
+def _create_and_commit_deployment(metadata, pipeline, user, process_name_hysds, existing_process=None):
     """Creates a new deployment record in the database."""
     deployment = Deployment_db(
         created=datetime.now(),
+        process_name_hysds=process_name_hysds,
         execution_venue=settings.DEPLOY_PROCESS_EXECUTION_VENUE,
         status=INITIAL_JOB_STATUS,
         cwl_link=metadata.cwl_link, 
@@ -264,8 +268,8 @@ class Processes(Resource):
                 return response_body, code
 
             user = get_authorized_user()
-            pipeline = _trigger_gitlab_pipeline(cwl_link)
-            deployment = _create_and_commit_deployment(metadata, pipeline, user)
+            pipeline, process_name_hysds = _trigger_gitlab_pipeline(cwl_link)
+            deployment = _create_and_commit_deployment(metadata, pipeline, user, process_name_hysds)
             
             # Re-query to get the auto-incremented job_id
             deployment = db.session.query(Deployment_db).filter_by(id=metadata.id, version=metadata.version, status=INITIAL_JOB_STATUS).first()
@@ -357,6 +361,7 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
             else:
                 process = Process_db(id=deployment.id,
                                 version=deployment.version,
+                                process_name_hysds=deployment.process_name_hysds,
                                 cwl_link=deployment.cwl_link,
                                 title=deployment.title,
                                 description=deployment.description,
@@ -550,8 +555,8 @@ class Describe(Resource):
                 detail = f"Need to provide same id and version as previous process which is {existing_process.id}:{existing_process.version}"
                 return _generate_error(detail, status.HTTP_400_BAD_REQUEST)
 
-            pipeline = _trigger_gitlab_pipeline(cwl_link)
-            deployment = _create_and_commit_deployment(metadata, pipeline, user, existing_process=existing_process)
+            pipeline, process_name_hysds = _trigger_gitlab_pipeline(cwl_link)
+            deployment = _create_and_commit_deployment(metadata, pipeline, user, process_name_hysds, existing_process)
             
             deployment = db.session.query(Deployment_db).filter_by(pipeline_id=pipeline.id).first()
             deployment_job_id = deployment.job_id
@@ -681,7 +686,7 @@ class ExecuteJob(Resource):
                 job_time_limit = int(queue_obj.time_limit_minutes) * 60
             
             response = hysds.mozart_submit_job(
-                job_type=job_type, 
+                job_type=existing_process.process_name_hysds,
                 params=params, 
                 dedup=dedup, 
                 queue=queue_obj.queue_name,

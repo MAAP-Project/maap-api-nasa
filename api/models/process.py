@@ -17,6 +17,8 @@ class Process(Base):
     keywords = db.Column(db.String(), nullable=True)
     # UTC time the process was last modified
     last_modified_time = db.Column(db.DateTime(), nullable=True)
+    # Process name as it is stored in like HySDS
+    process_name_hysds = db.Column(db.String(), nullable=True)
     github_url = db.Column(db.String(), nullable=True)
     git_commit_hash = db.Column(db.String(), nullable=True)
     ram_min = db.Column(db.Integer, nullable=True)
