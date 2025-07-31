@@ -153,7 +153,7 @@ def _get_cwl_metadata(cwl_link):
 def _trigger_gitlab_pipeline(cwl_link, version):
     """Triggers the CI/CD pipeline in GitLab to deploy a process."""
     try:
-        # random process name to prevent 
+        # random process name to allow algorithms later having the same id/version if the deployer is different 
         process_name_hysds = datetime.now().isoformat()+os.urandom(10).hex()
         gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token=settings.GITLAB_POST_PROCESS_TOKEN)
         project = gl.projects.get(settings.GITLAB_PROJECT_ID_POST_PROCESS)
@@ -261,13 +261,13 @@ class Processes(Resource):
             existing_process = db.session.query(Process_db).filter_by(
                 id=metadata.id, version=metadata.version, status=DEPLOYED_PROCESS_STATUS
             ).first()
-        
-            if existing_process:
+
+            user = get_authorized_user()
+            if existing_process and existing_process.deployed_by == user.id:
                 response_body, code = _generate_error("Duplicate process. Use PUT to modify existing process if you originally published it.", status.HTTP_409_CONFLICT, "ogcapi-processes-2/1.0/duplicated-process")
                 response_body["additionalProperties"] = {"processID": existing_process.process_id}
                 return response_body, code
 
-            user = get_authorized_user()
             pipeline, process_name_hysds = _trigger_gitlab_pipeline(cwl_link, metadata.version)
             deployment = _create_and_commit_deployment(metadata, pipeline, user, process_name_hysds)
             
@@ -476,7 +476,7 @@ class Describe(Resource):
         if not existing_process:
             return _generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
 
-        hysdsio_type = f"hysds-io-{existing_process.id}:{existing_process.version}"
+        hysdsio_type = f"hysds-io-{existing_process.process_name_hysds}"
         response = hysds.get_hysds_io(hysdsio_type)
         if not response or not response.get("success"):
             return _generate_error("No process with that process ID found on HySDS", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
@@ -670,7 +670,7 @@ class ExecuteJob(Resource):
 
         dedup = req_data.get("dedup")
         tag = req_data.get("tag")
-        job_type = f"job-{existing_process.id}:{existing_process.version}"
+        job_type = f"job-{existing_process.process_name_hysds}"
 
         try:
             user = get_authorized_user()
@@ -686,11 +686,11 @@ class ExecuteJob(Resource):
                 job_time_limit = int(queue_obj.time_limit_minutes) * 60
             
             response = hysds.mozart_submit_job(
-                job_type=existing_process.process_name_hysds,
+                job_type=job_type,
                 params=params, 
                 dedup=dedup, 
                 queue=queue_obj.queue_name,
-                identifier=tag or f"{existing_process.id}:{existing_process.version}", 
+                identifier=tag or existing_process.process_name_hysds, 
                 job_time_limit=int(job_time_limit)
             )
 
@@ -1022,7 +1022,7 @@ class Jobs(Resource):
                 .filter_by(process_id=request.args.get("process_id"), status=DEPLOYED_PROCESS_STATUS) \
                 .first()
             if existing_process is not None:
-                params["job_type"]="job-"+existing_process.id+":"+existing_process.version
+                params["job_type"]="job-"+existing_process.process_name_hysds
             else:
                 response_body["jobs"] = []
                 return response_body, status.HTTP_200_OK
