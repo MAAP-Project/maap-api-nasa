@@ -150,7 +150,7 @@ def _get_cwl_metadata(cwl_link):
     )
 
 
-def _trigger_gitlab_pipeline(cwl_link):
+def _trigger_gitlab_pipeline(cwl_link, version):
     """Triggers the CI/CD pipeline in GitLab to deploy a process."""
     try:
         # random process name to prevent 
@@ -161,6 +161,7 @@ def _trigger_gitlab_pipeline(cwl_link):
             "ref": settings.VERSION,
             "variables": [{"key": "CWL_URL", "value": cwl_link}, {"key": "PROCESS_NAME_HYSDS", "value": process_name_hysds}]
         })
+        process_name_hysds = process_name_hysds+":"+version
         log.info(f"Triggered pipeline ID: {pipeline.id}")
         return pipeline, process_name_hysds
     except Exception as e:
@@ -267,7 +268,7 @@ class Processes(Resource):
                 return response_body, code
 
             user = get_authorized_user()
-            pipeline, process_name_hysds = _trigger_gitlab_pipeline(cwl_link)
+            pipeline, process_name_hysds = _trigger_gitlab_pipeline(cwl_link, metadata.version)
             deployment = _create_and_commit_deployment(metadata, pipeline, user, process_name_hysds)
             
             # Re-query to get the auto-incremented job_id
@@ -554,7 +555,7 @@ class Describe(Resource):
                 detail = f"Need to provide same id and version as previous process which is {existing_process.id}:{existing_process.version}"
                 return _generate_error(detail, status.HTTP_400_BAD_REQUEST)
 
-            pipeline, process_name_hysds = _trigger_gitlab_pipeline(cwl_link)
+            pipeline, process_name_hysds = _trigger_gitlab_pipeline(cwl_link, metadata.version)
             deployment = _create_and_commit_deployment(metadata, pipeline, user, process_name_hysds, existing_process)
             
             deployment = db.session.query(Deployment_db).filter_by(pipeline_id=pipeline.id).first()
