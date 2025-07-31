@@ -277,7 +277,7 @@ class Processes(Resource):
             ).first()
 
             user = get_authorized_user()
-            if existing_process and existing_process.deployed_by == user.id:
+            if existing_process and existing_process.deployer == user.id:
                 response_body, code = _generate_error("Duplicate process. Use PUT to modify existing process if you originally published it.", status.HTTP_409_CONFLICT, "ogcapi-processes-2/1.0/duplicated-process")
                 response_body["additionalProperties"] = {"processID": existing_process.process_id}
                 return response_body, code
