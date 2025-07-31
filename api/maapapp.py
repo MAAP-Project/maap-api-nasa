@@ -50,6 +50,19 @@ initialize_sql(db.engine)
 db.create_all()
 
 
+@app.after_request
+def add_security_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN' # Consider DENY if no framing is ever needed
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    # A basic CSP. Might need to be adjusted based on actual content (e.g. if Swagger UI needs more).
+    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; object-src 'none';"
+    # Add HSTS header if your application is always served over HTTPS
+    if request.is_secure or request.headers.get('X-Forwarded-Proto', 'http') == 'https':
+         response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    return response
+
+
 @app.route('/')
 def index():
 

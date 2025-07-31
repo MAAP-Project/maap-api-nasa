@@ -209,7 +209,7 @@ def execute_response(job_id, job_status, output):
 
 def parse_status_request(request_xml):
     """
-    OCG GetStatus REQUEST EXAMPLE
+    OGC GetStatus REQUEST EXAMPLE
 
     <wps:GetStatus service="WPS" version="2.0.0" xmlns:wps="http://www.opengis.net/wps/2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengis.net/wps/2.0 ../wps.xsd ">
     <wps:JobID>336d5fa5-3bd6-4ee9-81ea-c6bccd2d443e</wps:JobID>
@@ -225,7 +225,7 @@ def parse_status_request(request_xml):
 
 def parse_result_request(request_xml):
     """
-    OCG GetResult REQUEST EXAMPLE
+    OGC GetResult REQUEST EXAMPLE
 
     <wps:GetResult service="WPS" version="2.0.0"
       xmlns:wps="http://www.opengis.net/wps/2.0"
@@ -253,7 +253,7 @@ def construct_product(xml_element, product):
 
 def result_response(job_id, job_result=None, error=None):
     """
-    OCG GetResult Response
+    OGC GetResult Response
     <wps:Result xsi:schemaLocation="http://www.opengis.net/wps/2.0 http://schemas.opengis.net/wps/2.0/wps.xsd" xmlns:wps="http://www.opengis.net/wps/2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
     <wps:JobID>336d5fa5-3bd6-4ee9-81ea-c6bccd2d443e</wps:JobID>
     <wps:Output id="filename">
@@ -339,13 +339,13 @@ def get_capabilities(base_url, job_list):
 
     serv_id = ET.SubElement(response, "ows:ServiceIdentification")
     ET.SubElement(serv_id, "ows:Title").text = "Multi Mission Analysis Platform"
-    ET.SubElement(serv_id, "ows:Abstract").text = "The MAAP Services are based on the OCG REST Specifications"
+    ET.SubElement(serv_id, "ows:Abstract").text = "The MAAP Services are based on the OGC REST Specifications"
     keywords = ET.SubElement(serv_id, "ows:Keywords")
     ET.SubElement(keywords, "ows:Keyword").text = "MAAP"
     ET.SubElement(keywords, "ows:Keyword").text = "NASA"
     ET.SubElement(keywords, "ows:Keyword").text = "ESA"
     ET.SubElement(keywords, "ows:Keyword").text = "API"
-    ET.SubElement(serv_id, "ows:ServiceType").text = "OCG"
+    ET.SubElement(serv_id, "ows:ServiceType").text = "OGC"
     ET.SubElement(serv_id, "ows:ServiceTypeVersion").text = "0.0.1"
     ET.SubElement(serv_id, "ows:Fees").text = "NONE"
     ET.SubElement(serv_id, "ows:AccessConstraints").text = "NONE"

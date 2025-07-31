@@ -17,4 +17,5 @@ docker/logs/
 /dist/
 .claude
 .serena
-docker/test-results
+.vscode/
+docker/test-results/

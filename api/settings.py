@@ -102,6 +102,14 @@ AWS_REQUESTER_PAYS_BUCKET_ARN = os.getenv('AWS_REQUESTER_PAYS_BUCKET_ARN', 'arn:
 DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://maapuser:mysecretpassword@host.docker.internal/maap')
 FERNET_KEY = os.getenv('FERNET_KEY','')
 
+# File Upload Security
+MAX_SSH_KEY_SIZE_BYTES = int(os.getenv('MAX_SSH_KEY_SIZE_BYTES', 4 * 1024)) # 4KB
+ALLOWED_SSH_KEY_EXTENSIONS = os.getenv('ALLOWED_SSH_KEY_EXTENSIONS', '.txt,.pub,.key,').split(',') # Empty string for no extension
+MAX_SHAPEFILE_ZIP_SIZE_BYTES = int(os.getenv('MAX_SHAPEFILE_ZIP_SIZE_BYTES', 10 * 1024 * 1024)) # 10MB
+MAX_SHAPEFILE_UNCOMPRESSED_SIZE_BYTES = int(os.getenv('MAX_SHAPEFILE_UNCOMPRESSED_SIZE_BYTES', 50 * 1024 * 1024)) # 50MB
+REQUESTS_TIMEOUT_SECONDS = int(os.getenv('REQUESTS_TIMEOUT_SECONDS', 10))
+
+
 # SMTP
 SMTP_HOSTNAME = os.getenv('SMTP_HOSTNAME', 'my_smtp_hostname')
 SMTP_PORT = int(os.getenv('SMTP_PORT', '9999'))
@@ -126,6 +134,9 @@ CLIENT_SETTINGS = {
         "algorithm_build": "dps/algorithm/build",
         "mas_algo": "mas/algorithm",
         "dps_job": "dps/job",
+        "processes_ogc": "ogc/processes",
+        "deployment_jobs_ogc": "ogc/deploymentJobs",
+        "jobs_ogc": "ogc/jobs",
         "wmts": "wmts",
         "member": "members/self",
         "member_dps_token": "members/dps/userImpersonationToken",

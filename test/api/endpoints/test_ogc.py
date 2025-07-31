@@ -73,7 +73,7 @@ class TestOGCEndpoints(unittest.TestCase):
         
         return member
 
-    def _create_test_process(self, member, process_id="test-process", version="1.0"):
+    def _create_test_process(self, member, process_id="test-process", version="1.0", author="test-author"):
         """Create a test deployed process"""
         process = Process(
             id=process_id,
@@ -83,7 +83,8 @@ class TestOGCEndpoints(unittest.TestCase):
             description="A test process for OGC testing",
             keywords="test,ogc",
             cwl_link="https://example.com/test.cwl",
-            user=member.id,
+            deployer=member.id,
+            author=author,
             status="deployed",
             last_modified_time=datetime.now()
         )
@@ -135,7 +136,7 @@ class TestOGCEndpoints(unittest.TestCase):
             self.assertEqual(len(data['processes']), 1)
             self.assertEqual(data['processes'][0]['id'], 'test-process')
             self.assertEqual(data['processes'][0]['title'], 'Test Process')
-            self.assertEqual(data['processes'][0]['author'], 'testuser')
+            self.assertEqual(data['processes'][0]['author'], 'test-author')
 
     def test_processes_get_returns_empty_when_no_deployed_processes(self):
         """Test: GET /ogc/processes returns empty list when no deployed processes"""
@@ -191,6 +192,8 @@ class TestOGCEndpoints(unittest.TestCase):
                 mock_metadata.return_value.version = "1.0"
                 mock_metadata.return_value.title = "New Process"
                 mock_metadata.return_value.description = "A new process"
+                mock_metadata.return_value.deployer = "Deployer"
+                mock_metadata.return_value.author = "Author"
                 mock_metadata.return_value.keywords = "test,new"
                 mock_metadata.return_value.cwl_link = "https://example.com/new.cwl"
                 mock_metadata.return_value.github_url = "https://github.com/test/repo"
@@ -301,7 +304,7 @@ class TestOGCEndpoints(unittest.TestCase):
                 self.assertEqual(data['id'], 'test-process')
                 self.assertEqual(data['processID'], str(process.process_id))
                 self.assertEqual(data['title'], 'Test Process')
-                self.assertEqual(data['author'], 'testuser')
+                self.assertEqual(data['author'], 'test-author')
                 self.assertIn('inputs', data)
                 self.assertIn('input_file', data['inputs'])
 
@@ -475,7 +478,8 @@ class TestOGCEndpoints(unittest.TestCase):
                 cwl_link="https://example.com/test.cwl",
                 title="Test Process",
                 description="Test deployment",
-                user=member.id,
+                deployer=member.id,
+                author="test-author",
                 pipeline_id=12345
             )
             db.session.add(deployment)
@@ -518,7 +522,8 @@ class TestOGCEndpoints(unittest.TestCase):
                 cwl_link="https://example.com/test.cwl",
                 title="Test Process",
                 description="Test deployment",
-                user=member.id,
+                deployer=member.id,
+                author="test-author",
                 pipeline_id=12345
             )
             db.session.add(deployment)

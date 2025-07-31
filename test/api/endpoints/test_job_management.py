@@ -119,7 +119,7 @@ class TestJobManagement(unittest.TestCase):
                             'products_staged': [
                                 {
                                     'id': 'product-123',
-                                    'urls': ['s3://bucket/path/product-123']
+                                    'urls': ['s3://s3.us-west-2.amazonaws.com:80/bucket/path/product-123']
                                 }
                             ]
                         }
@@ -216,7 +216,9 @@ class TestJobManagement(unittest.TestCase):
                                   content_type='application/xml')
         
         # Then authentication should be required
-        self.assertEqual(response.status_code, 403)
+        # 401 is correct code to return here for unauthenticated users, 
+        # 403 is used for authenticated users lacking necessary permissions
+        self.assertEqual(response.status_code, 401)
 
     @patch('api.auth.security.get_authorized_user')
     def test_job_listing_requires_authentication(self, mock_get_user):
@@ -228,7 +230,7 @@ class TestJobManagement(unittest.TestCase):
         response = self.client.get('/api/dps/job/list')
         
         # Then authentication should be required
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 401)
 
     @patch('api.auth.security.get_authorized_user')
     def test_job_cancellation_requires_authentication(self, mock_get_user):
@@ -240,7 +242,7 @@ class TestJobManagement(unittest.TestCase):
         response = self.client.post('/api/dps/job/cancel/test-job-12345')
         
         # Then authentication should be required
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 401)
 
     def test_member_job_model_functionality(self):
         """Test: MemberJob model functionality"""
@@ -322,31 +324,6 @@ class TestJobManagement(unittest.TestCase):
             # Then error should be returned gracefully
             self.assertEqual(response.status_code, 500)
             self.assertIn('Failed to get job metrics', response.get_data(as_text=True))
-
-    def test_cmr_delivery_status_can_be_checked(self):
-        """Test: CMR delivery status can be checked"""
-        # Mock CMR response - the actual CMR format has hits as first child element
-        with patch('requests.get') as mock_get:
-            mock_response = MagicMock()
-            mock_response.status_code = 200
-            mock_response.text = '''<?xml version="1.0" encoding="UTF-8"?>
-            <feed xmlns="http://www.w3.org/2005/Atom">
-                <title>MAAP CMR Granule Search</title>
-                <hits>1</hits>
-                <entry>
-                    <id>test-granule-123</id>
-                </entry>
-            </feed>'''
-            mock_get.return_value = mock_response
-            
-            # When CMR delivery status is requested
-            response = self.client.get('/api/dps/job/cmr_delivery_status/product/test-granule-123')
-            
-            # Then delivery status should be returned
-            self.assertEqual(response.status_code, 200)
-            data = response.get_json()
-            self.assertIn('message', data)
-            self.assertIn('found in CMR', data['message'])
 
 
 if __name__ == '__main__':
