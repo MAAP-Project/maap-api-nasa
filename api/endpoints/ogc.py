@@ -166,7 +166,7 @@ def _trigger_gitlab_pipeline(cwl_link, version):
     """Triggers the CI/CD pipeline in GitLab to deploy a process."""
     try:
         # random process name to allow algorithms later having the same id/version if the deployer is different 
-        process_name_hysds = "test:4"#datetime.now().isoformat(timespec='seconds')+os.urandom(5).hex()
+        process_name_hysds = "sardem-sarsen1"#datetime.now().isoformat(timespec='seconds')+os.urandom(5).hex()
         gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token=settings.GITLAB_POST_PROCESS_TOKEN)
         project = gl.projects.get(settings.GITLAB_PROJECT_ID_POST_PROCESS)
         pipeline = project.pipelines.create({
