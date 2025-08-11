@@ -109,10 +109,11 @@ def login_required(role=Role.ROLE_GUEST):
                         raise AuthenticationError("Malformed Authorization header.")
 
                 elif auth_header_name == HEADER_CAS_AUTHORIZATION:
-                     # validate_cas_request returns (is_valid, xml_dict) or raises.
-                     # If it doesn't raise, then is_valid should be true for access.
-                    is_valid, _ = validate_cas_request(auth_header_value)
-                    if is_valid:
+                    # Validate CAS SECRET KEY
+                    is_valid = bool(auth_header_value == settings.CAS_SECRET_KEY)
+                    if not is_valid:
+                        raise AuthenticationError("Invalid CAS secret key.")
+                    else:
                         # This auth method is a service-to-service request. Proceed with invocation
                         return wrapped_function(*args, **kwargs)
 
