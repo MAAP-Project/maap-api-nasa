@@ -41,12 +41,16 @@ GIT_API_URL = os.getenv('GIT_API_URL', 'https://repo.dit.maap-project.org/api/v4
 REGISTER_JOB_REPO_ID = os.getenv('REGISTER_JOB_REPO_ID', '')  # Enter project ID for register job repo
 
 # GTILAB Settings
+GITLAB_URL = os.getenv('GITLAB_URL', 'https://repo.dit.maap-project.org')
 GITLAB_TOKEN = os.getenv('GITLAB_TOKEN', 'foobar')
 GITLAB_API_TOKEN = os.getenv('GITLAB_API_TOKEN','')  # New setting inherited from sister, remove comment after API is stable
 GITLAB_POST_PROCESS_TOKEN = os.getenv('GITLAB_POST_PROCESS_TOKEN', '')
 DEPLOY_PROCESS_EXECUTION_VENUE = os.getenv('DEPLOY_PROCESS_EXECUTION_VENUE', 'gitlab')
 GITLAB_URL_POST_PROCESS = os.getenv('GITLAB_URL_POST_PROCESS', 'https://repo.dit.maap-project.org')
 GITLAB_PROJECT_ID_POST_PROCESS = os.getenv('GITLAB_PROJECT_ID_POST_PROCESS', 31)
+GITLAB_BUILD_APP_PACK_PROJECT_ID = os.getenv('GITLAB_PROJECT_ID_BUILD')
+GITLAB_BUILD_APP_PACK_PIPELINE_REF = os.getenv('GITLAB_PROJECT_ID_BUILD_PIPELINE_REF', 'main')
+GITLAB_BUILD_APP_PACK_PIPELINE_TOKEN = os.getenv('GITLAB_PROJECT_ID_BUILD_PIPELINE_TOKEN')
 REPO_NAME = os.getenv('REPO_NAME', 'register-job')
 REPO_PATH = os.getenv('REPO_PATH', '/home/ubuntu/repo')
 VERSION = os.getenv('VERSION', 'main')
