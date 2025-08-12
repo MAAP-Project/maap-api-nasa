@@ -92,11 +92,8 @@ def _generate_error(detail, error_status, error_type=None):
 
 def _validate_build_payload(payload):
     # Required variables
-    if payload.get("repository_url") is None:
-        raise ValueError("repository_url is required")
-    
-    if payload.get("branch_ref") is None:
-        raise ValueError("branch_ref is required")
+    if payload.get("code_repository") is None:
+        raise ValueError("code_repository is required")
     
     # Image name - derive from algorithm_name if not provided
     algorithm_name = payload.get("algorithm_name")
@@ -119,11 +116,8 @@ def _trigger_build_pipeline(payload, namespace):
         variables = []
         
         # Required variables
-        repository_url = payload.get("repository_url")
+        repository_url = payload.get("code_repository")
         variables.append({"key": "REPOSITORY_URL", "value": repository_url})
-        
-        branch_ref = payload.get("branch_ref", "main")
-        variables.append({"key": "BRANCH_REF", "value": branch_ref})
         
         # Build command
         build_cmd = payload.get("build_command")
@@ -141,6 +135,7 @@ def _trigger_build_pipeline(payload, namespace):
         
         algorithm_version = payload.get("algorithm_version")
         variables.append({"key": "IMAGE_TAG", "value": algorithm_version})
+        variables.append({"key": "BRANCH_REF", "value": algorithm_version})
         
         # Base64 encode the algorithm configuration
         algo_config_json = json.dumps(payload)
@@ -355,8 +350,8 @@ class BuildList(Resource):
             pipeline = _trigger_build_pipeline(req_data, namespace=user.username)
             
             # Create build record
-            repository_url = req_data.get("repository_url")
-            branch_ref = req_data.get("branch_ref", "main")
+            repository_url = req_data.get("code_repository")
+            branch_ref = req_data.get("algorithm_version")
             build = _create_and_commit_build(build_id, pipeline, repository_url, branch_ref, user)
 
         except ValueError as e:

@@ -117,10 +117,9 @@ class TestBuildEndpoints(unittest.TestCase):
         mock_trigger.return_value = mock_pipeline
         
         payload = {
-            'repository_url': 'https://gitlab.com/test/repo.git',
-            'branch_ref': 'main',
+            'code_repository': 'https://gitlab.com/test/repo.git',
             'algorithm_name': 'test-algorithm',
-            'algorithm_version': '1.0.0',
+            'algorithm_version': 'main',
             'build_command': 'make build'
         }
         
@@ -138,17 +137,16 @@ class TestBuildEndpoints(unittest.TestCase):
         self.assertEqual(data['pipelineLink']['href'], 'https://gitlab.com/pipeline/12345')
 
     @patch('api.endpoints.build._trigger_build_pipeline')
-    def test_create_build_missing_repository_url(self, mock_trigger):
-        """Test build creation with missing repository URL"""
+    def test_create_build_missing_code_repository(self, mock_trigger):
+        """Test build creation with missing code repository"""
         
         mock_pipeline = MagicMock()
         mock_pipeline.id = 12345
         mock_pipeline.web_url = 'https://gitlab.com/pipeline/12345'
         mock_trigger.return_value = mock_pipeline
         payload = {
-            'branch_ref': 'main',
             'algorithm_name': 'test-algorithm',
-            'algorithm_version': '1.0.0'
+            'algorithm_version': 'main'
         }
         
         response = self._make_authenticated_request(
@@ -159,7 +157,7 @@ class TestBuildEndpoints(unittest.TestCase):
         
         self.assertEqual(response.status_code, 400)
         data = json.loads(response.data)
-        self.assertIn('repository_url', data['detail'])
+        self.assertIn('code_repository', data['detail'])
 
     def test_get_builds_list_success(self):
         """Test successful retrieval of user's builds list"""
