@@ -321,22 +321,22 @@ def _update_build_status(build, req_data=None, query_pipeline=False):
         current_status = mapped_status
 
         if current_status != build.status:
-            log.debug(f"Build changed status to {current_status} from {build.status}")
+            current_app.logger.debug(f"Build changed status to {current_status} from {build.status}")
             old_status = build.status
             build.status = current_status
             build.updated = datetime.now(datetime.timezone.utc)
             
             try:
-                log.debug(f"Updating build status in database from {old_status} to {current_status}")
+                current_app.logger.debug(f"Updating build status in database from {old_status} to {current_status}")
                 db.session.commit()
-                log.info(f"Build {build.build_id} status updated from {old_status} to {current_status}")
+                current_app.logger.info(f"Build {build.build_id} status updated from {old_status} to {current_status}")
                 response_body.update({"updated": build.updated.isoformat()})
             except Exception as e:
-                log.error(f"Failed to update build status in database: {e}")
+                current_app.logger.error(f"Failed to update build status in database: {e}")
                 db.session.rollback()
                 raise
         else:
-            log.debug(f"Build status {current_status} is not final, no database update needed")
+            current_app.logger.debug(f"Build status {current_status} is not final, no database update needed")
     else:
         current_app.logger.debug(f"Build already in finished status: {build.status}")
 
