@@ -125,6 +125,14 @@ def _validate_build_payload(payload):
     current_app.logger.debug(f"Algorithm version from payload: {algorithm_version}")
     # Validate algorithm version format
     _validate_algorithm_version(algorithm_version)
+
+    algorithm_container_url = payload.get("algorithm_container_url")
+    base_image = payload.get("base_image")
+    if algorithm_container_url and base_image:
+        raise ValueError("algorithm_container_url and base_image are mutually exclusive, please provide only one.")
+    
+    if not algorithm_container_url and not base_image:
+        raise ValueError("algorithm_container_url or base_image is required")
     
     current_app.logger.debug("Build payload validation completed successfully")
 
@@ -178,6 +186,12 @@ def _trigger_build_pipeline(payload, namespace):
         current_app.logger.debug(f"Algorithm version: {algorithm_version}")
         variables.append({"key": "IMAGE_TAG", "value": algorithm_version})
         variables.append({"key": "BRANCH_REF", "value": algorithm_version})
+
+        # Check if the submitter is bring their own algorithm docker image
+        algorithm_container_url = payload.get("algorithm_container_url")
+        if algorithm_container_url:
+            current_app.logger.debug(f"Algorithm container URL provided: {algorithm_container_url}")
+            variables.append({"FULLY_QUALIFIED_IMAGE_URL": algorithm_container_url})
         
         # Base64 encode the algorithm configuration
         current_app.logger.debug("Encoding algorithm configuration to base64")
