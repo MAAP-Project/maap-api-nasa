@@ -121,7 +121,7 @@ def _validate_build_payload(payload):
     _validate_algorithm_name(algorithm_name)
     
     # Image tag - derive from algorithm_version if not provided
-    algorithm_version = payload.get("algorithm_version")
+    algorithm_version = str(payload.get("algorithm_version"))
     current_app.logger.debug(f"Algorithm version from payload: {algorithm_version}")
     # Validate algorithm version format
     _validate_algorithm_version(algorithm_version)
@@ -174,7 +174,7 @@ def _trigger_build_pipeline(payload, namespace):
         current_app.logger.debug(f"Generated image name: {image_name}")
         variables.append({"key": "IMAGE_NAME", "value": image_name})
         
-        algorithm_version = payload.get("algorithm_version")
+        algorithm_version = str(payload.get("algorithm_version"))
         current_app.logger.debug(f"Algorithm version: {algorithm_version}")
         variables.append({"key": "IMAGE_TAG", "value": algorithm_version})
         variables.append({"key": "BRANCH_REF", "value": algorithm_version})
