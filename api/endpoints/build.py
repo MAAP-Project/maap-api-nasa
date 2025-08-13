@@ -127,12 +127,13 @@ def _validate_build_payload(payload):
     _validate_algorithm_version(algorithm_version)
 
     algorithm_container_url = payload.get("algorithm_container_url")
-    base_image = payload.get("base_image")
+    current_app.logger.debug(f"Algorithm container URL: {algorithm_container_url}")
+    base_image = payload.get("base_container_url")
+    current_app.logger.debug(f"Base image: {base_image}")
     if algorithm_container_url and base_image:
-        raise ValueError("algorithm_container_url and base_image are mutually exclusive, please provide only one.")
-    
+        raise ValueError("algorithm_container_url and base_container_url are mutually exclusive, please provide only one.")
     if not algorithm_container_url and not base_image:
-        raise ValueError("algorithm_container_url or base_image is required")
+        raise ValueError("algorithm_container_url or base_container_url is required")
     
     current_app.logger.debug("Build payload validation completed successfully")
 
@@ -170,7 +171,7 @@ def _trigger_build_pipeline(payload, namespace):
             current_app.logger.debug("No build command provided")
         
         # Base image with fallback
-        base_image = payload.get("base_image")
+        base_image = payload.get("base_container_url")
         if base_image:
             current_app.logger.debug(f"Base image: {base_image}")
             variables.append({"key": "BASE_IMAGE_NAME", "value": base_image})
@@ -191,7 +192,7 @@ def _trigger_build_pipeline(payload, namespace):
         algorithm_container_url = payload.get("algorithm_container_url")
         if algorithm_container_url:
             current_app.logger.debug(f"Algorithm container URL provided: {algorithm_container_url}")
-            variables.append({"FULLY_QUALIFIED_IMAGE_URL": algorithm_container_url})
+            variables.append({"key": "FULLY_QUALIFIED_IMAGE_URL", "value": algorithm_container_url})
         
         # Base64 encode the algorithm configuration
         current_app.logger.debug("Encoding algorithm configuration to base64")
