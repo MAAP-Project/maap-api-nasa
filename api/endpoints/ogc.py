@@ -706,7 +706,7 @@ class ExecuteJob(Resource):
                 params=params, 
                 dedup=dedup, 
                 queue=queue_obj.queue_name,
-                identifier=tag or existing_process.process_name_hysds, 
+                identifier=tag or f"{existing_process.id}:{existing_process.version}", 
                 job_time_limit=int(job_time_limit)
             )
 
