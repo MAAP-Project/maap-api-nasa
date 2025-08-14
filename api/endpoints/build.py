@@ -5,6 +5,7 @@ import traceback
 import base64
 import re
 import datetime
+import urllib.parse
 
 import gitlab
 from flask import request, current_app
@@ -17,6 +18,10 @@ from api.maap_database import db
 from api.models.build import Build
 from api.models.role import Role
 import api.settings as settings
+from api.models.member import Member
+from api.models.member_session import MemberSession
+import requests
+from datetime import datetime, timedelta
 
 log = logging.getLogger(__name__)
 
@@ -89,6 +94,150 @@ def _validate_algorithm_version(algorithm_version):
     
     current_app.logger.debug(f"Algorithm version validation successful: {algorithm_version}")
     return algorithm_version
+
+
+def _deploy_ogc_process_for_build(build, ogc_process_file_publish_url):
+    """Deploy an OGC process using the process file URL from a successful build."""
+    current_app.logger.debug(f"Starting OGC deployment for build {build.build_id}")
+    
+    # Get the user who requested the build
+    requester = db.session.query(Member).filter_by(id=build.requester).first()
+    if not requester:
+        raise RuntimeError(f"Build requester with ID {build.requester} not found")
+    
+    current_app.logger.debug(f"Build requester: {requester.username} (ID: {requester.id})")
+    
+    # Create or get an active session for the requester
+    existing_session = db.session.query(MemberSession).filter_by(
+        member_id=requester.id
+    ).filter(
+        MemberSession.creation_date > datetime.utcnow() - timedelta(days=1)
+    ).first()
+    
+    if existing_session:
+        session_key = existing_session.session_key
+        current_app.logger.debug(f"Using existing session for user {requester.username}")
+    else:
+        # Create a temporary session for this request
+        import uuid
+        from api.auth.cas_auth import encrypt_proxy_ticket
+        
+        # Generate a unique session key
+        raw_session_key = str(uuid.uuid4())
+        session_key = encrypt_proxy_ticket(raw_session_key)
+        
+        # Create session record
+        temp_session = MemberSession(
+            member_id=requester.id,
+            session_key=raw_session_key,
+            creation_date=datetime.utcnow()
+        )
+        db.session.add(temp_session)
+        db.session.commit()
+        current_app.logger.debug(f"Created temporary session for user {requester.username}")
+    
+    # Prepare the OGC process deployment payload
+    ogc_payload = {
+        "executionUnit": {
+            "href": ogc_process_file_publish_url
+        }
+    }
+    
+    # Get the base URL for the internal API call
+    base_url = request.url_root.rstrip('/')
+    ogc_url = f"{base_url}/ogc/processes"
+    
+    # Set up headers for the authenticated request
+    headers = {
+        "Content-Type": "application/json",
+        "proxy-ticket": session_key
+    }
+    
+    current_app.logger.debug(f"Making OGC deployment request to: {ogc_url}")
+    current_app.logger.debug(f"OGC payload: {json.dumps(ogc_payload)}")
+    
+    try:
+        # Make the initial POST request to deploy the OGC process
+        response = requests.post(
+            ogc_url,
+            json=ogc_payload,
+            headers=headers,
+            timeout=60
+        )
+        
+        current_app.logger.debug(f"OGC deployment POST response status: {response.status_code}")
+        current_app.logger.debug(f"OGC deployment POST response: {response.text}")
+        
+        # Handle 409 Conflict by switching to PUT
+        if response.status_code == 409:
+            current_app.logger.info(f"Process already exists (409), attempting PUT for build {build.build_id}")
+            
+            # Extract process ID from the 409 response for PUT request
+            try:
+                conflict_response = response.json()
+                process_id = conflict_response.get("additionalProperties", {}).get("processID")
+                
+                if process_id:
+                    # Make PUT request to update existing process
+                    put_url = f"{base_url}/ogc/processes/{process_id}"
+                    current_app.logger.debug(f"Making PUT request to: {put_url}")
+                    
+                    response = requests.put(
+                        put_url,
+                        json=ogc_payload,
+                        headers=headers,
+                        timeout=60
+                    )
+                    
+                    current_app.logger.debug(f"OGC deployment PUT response status: {response.status_code}")
+                    current_app.logger.debug(f"OGC deployment PUT response: {response.text}")
+                else:
+                    error_msg = "Process already exists but could not extract process ID for PUT request"
+                    current_app.logger.error(error_msg)
+                    build.deployment_error = error_msg
+                    db.session.commit()
+                    raise RuntimeError(error_msg)
+                    
+            except (json.JSONDecodeError, KeyError) as e:
+                error_msg = f"Failed to parse 409 response for PUT request: {e}"
+                current_app.logger.error(error_msg)
+                build.deployment_error = error_msg
+                db.session.commit()
+                raise RuntimeError(error_msg)
+        
+        # Check if the request was successful (either POST or PUT)
+        if response.status_code in [200, 201, 202]:
+            current_app.logger.info(f"Successfully deployed OGC process for build {build.build_id}")
+            response_data = response.json()
+            
+            # Extract deployment job link from the response
+            if "links" in response_data:
+                for link in response_data["links"]:
+                    if link.get("rel") == "monitor" and "deploymentJobs" in link.get("href", ""):
+                        deployment_link = link["href"]
+                        
+                        # Update the build record with the deployment link and clear any previous errors
+                        build.deployment_link = deployment_link
+                        build.deployment_error = None  # Clear any previous errors on success
+                        db.session.commit()
+                        
+                        current_app.logger.info(f"Stored deployment link {deployment_link} for build {build.build_id}")
+                        break
+            
+            return response_data
+        else:
+            error_msg = f"OGC deployment failed with status {response.status_code}: {response.text}"
+            current_app.logger.error(error_msg)
+            build.deployment_error = error_msg
+            db.session.commit()
+            raise RuntimeError(error_msg)
+            
+    except requests.exceptions.RequestException as e:
+        error_msg = f"Failed to make OGC deployment request: {e}"
+        current_app.logger.error(error_msg)
+        build.deployment_error = error_msg
+        db.session.commit()
+        raise RuntimeError(error_msg)
 
 
 def _generate_error(detail, error_status, error_type=None):
@@ -193,6 +342,11 @@ def _trigger_build_pipeline(payload, namespace):
         if algorithm_container_url:
             current_app.logger.debug(f"Algorithm container URL provided: {algorithm_container_url}")
             variables.append({"key": "FULLY_QUALIFIED_IMAGE_URL", "value": algorithm_container_url})
+        
+        url_encoded_process_file_location = urllib.parse.quote(f"{image_name}/{algorithm_version}/process.cwl", safe='')
+        ogc_process_file_publish_url = f"{settings.GIT_API_URL}/{settings.GITLAB_OGC_APP_PACK_PROJECT_ID}/repository/files/{url_encoded_process_file_location}"
+        current_app.logger.debug(f"OGC process file publish URL: {ogc_process_file_publish_url}")
+        variables.append({"key": "OGC_PROCESS_FILE_PUBLISH_URL", "value": ogc_process_file_publish_url})
         
         # Base64 encode the algorithm configuration
         current_app.logger.debug("Encoding algorithm configuration to base64")
@@ -335,6 +489,16 @@ def _update_build_status(build, req_data=None, query_pipeline=False):
         current_app.logger.debug(f"Status mapping: {updated_status} -> {mapped_status}")
         current_status = mapped_status
 
+        # Extract OGC_PROCESS_FILE_PUBLISH_URL from webhook payload if pipeline status is success
+        ogc_process_file_publish_url = None
+        if updated_status == "success" and req_data and "object_attributes" in req_data:
+            variables = req_data["object_attributes"].get("variables", [])
+            for variable in variables:
+                if variable.get("key") == "OGC_PROCESS_FILE_PUBLISH_URL":
+                    ogc_process_file_publish_url = variable.get("value")
+                    current_app.logger.debug(f"OGC process file publish URL from webhook: {ogc_process_file_publish_url}")
+                    break
+
         if current_status != build.status:
             current_app.logger.debug(f"Build changed status to {current_status} from {build.status}")
             old_status = build.status
@@ -346,6 +510,19 @@ def _update_build_status(build, req_data=None, query_pipeline=False):
                 db.session.commit()
                 current_app.logger.info(f"Build {build.build_id} status updated from {old_status} to {current_status}")
                 response_body.update({"updated": build.updated.isoformat()})
+                
+                # Deploy OGC process if build was successful and we have the process file URL
+                if current_status == BUILD_SUCCESS and ogc_process_file_publish_url:
+                    try:
+                        current_app.logger.info(f"Deploying OGC process for successful build {build.build_id}")
+                        _deploy_ogc_process_for_build(build, ogc_process_file_publish_url)
+                    except Exception as e:
+                        current_app.logger.error(f"Failed to deploy OGC process for build {build.build_id}: {e}")
+                        current_app.logger.debug(f"OGC deployment error traceback: {traceback.format_exc()}")
+                        # Don't fail the build status update if OGC deployment fails
+                        # Error is already stored in the database by _deploy_ogc_process_for_build()
+                        # But we continue with the webhook processing to ensure webhook returns success
+                        
             except Exception as e:
                 current_app.logger.error(f"Failed to update build status in database: {e}")
                 db.session.rollback()
@@ -367,6 +544,24 @@ def _update_build_status(build, req_data=None, query_pipeline=False):
                     "title": "Link to build pipeline"
                 }
             })
+    
+    # Add deployment link if it exists
+    if build.deployment_link:
+        current_app.logger.debug(f"Adding deployment link to response: {build.deployment_link}")
+        response_body.update({
+                "deploymentLink": {
+                    "href": build.deployment_link,
+                    "rel": "monitor",
+                    "type": "application/json",
+                    "hreflang": HREF_LANG,
+                    "title": "Link to OGC process deployment"
+                }
+            })
+    
+    # Add deployment error if it exists
+    if build.deployment_error:
+        current_app.logger.debug(f"Adding deployment error to response: {build.deployment_error}")
+        response_body.update({"deploymentError": build.deployment_error})
     
     current_app.logger.debug(f"Returning response with status code: {status_code}")
     return response_body, status_code
@@ -424,6 +619,24 @@ class BuildList(Resource):
                 }
             else:
                 current_app.logger.debug(f"No pipeline URL for build {build.build_id}")
+            
+            # Add deployment link if available
+            if build.deployment_link:
+                current_app.logger.debug(f"Adding deployment link for build {build.build_id}")
+                build_info["deploymentLink"] = {
+                    "href": build.deployment_link,
+                    "rel": "monitor",
+                    "type": "application/json",
+                    "hreflang": HREF_LANG,
+                    "title": "Link to OGC process deployment"
+                }
+            else:
+                current_app.logger.debug(f"No deployment link for build {build.build_id}")
+            
+            # Add deployment error if available
+            if build.deployment_error:
+                current_app.logger.debug(f"Adding deployment error for build {build.build_id}")
+                build_info["deploymentError"] = build.deployment_error
             
             build_list.append(build_info)
         

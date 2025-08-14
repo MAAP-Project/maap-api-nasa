@@ -21,3 +21,5 @@ class Build(Base):
     pipeline_url = db.Column(db.String(), nullable=True)
     repository_url = db.Column(db.String(), nullable=True)
     branch_ref = db.Column(db.String(), nullable=True, default='main')
+    deployment_link = db.Column(db.String(), nullable=True)
+    deployment_error = db.Column(db.Text(), nullable=True)
