@@ -17,6 +17,8 @@ class Deployment(Base):
     process_id= db.Column(db.String(), nullable=True)
     title = db.Column(db.String(), nullable=True)
     description = db.Column(db.String(), nullable=True)
+    # Process name as it is stored in like HySDS
+    process_name_hysds = db.Column(db.String(), nullable=True)
     # comma separated list of keywords from CWL 
     keywords = db.Column(db.String(), nullable=True)
     github_url = db.Column(db.String(), nullable=True)
