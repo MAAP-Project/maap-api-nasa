@@ -19,9 +19,10 @@ from api.models.build import Build
 from api.models.role import Role
 import api.settings as settings
 from api.models.member import Member
-from api.models.member_session import MemberSession
-import requests
-from datetime import datetime, timedelta
+from datetime import datetime
+
+# Import shared OGC process deployment utility
+from api.utils.ogc_process_util import create_process_deployment
 
 log = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ BUILD_SUCCESS = "successful"
 INITIAL_BUILD_STATUS = "accepted"
 HREF_LANG = "en"
 ERROR_TYPE_PREFIX = "http://www.opengis.net/def/exceptions/"
+
 
 
 def _validate_algorithm_name(algorithm_name):
@@ -100,140 +102,30 @@ def _deploy_ogc_process_for_build(build, ogc_process_file_publish_url):
     """Deploy an OGC process using the process file URL from a successful build."""
     current_app.logger.debug(f"Starting OGC deployment for build {build.build_id}")
     
-    # Get the user who requested the build
-    requester = db.session.query(Member).filter_by(id=build.requester).first()
-    if not requester:
-        raise RuntimeError(f"Build requester with ID {build.requester} not found")
-    
-    current_app.logger.debug(f"Build requester: {requester.username} (ID: {requester.id})")
-    
-    # Create or get an active session for the requester
-    existing_session = db.session.query(MemberSession).filter_by(
-        member_id=requester.id
-    ).filter(
-        MemberSession.creation_date > datetime.utcnow() - timedelta(days=1)
-    ).first()
-    
-    if existing_session:
-        session_key = existing_session.session_key
-        current_app.logger.debug(f"Using existing session for user {requester.username}")
-    else:
-        # Create a temporary session for this request
-        import uuid
-        from api.auth.cas_auth import encrypt_proxy_ticket
-        
-        # Generate a unique session key
-        raw_session_key = str(uuid.uuid4())
-        session_key = encrypt_proxy_ticket(raw_session_key)
-        
-        # Create session record
-        temp_session = MemberSession(
-            member_id=requester.id,
-            session_key=raw_session_key,
-            creation_date=datetime.utcnow()
-        )
-        db.session.add(temp_session)
-        db.session.commit()
-        current_app.logger.debug(f"Created temporary session for user {requester.username}")
-    
-    # Prepare the OGC process deployment payload
-    ogc_payload = {
-        "executionUnit": {
-            "href": ogc_process_file_publish_url
-        }
-    }
-    
-    # Get the base URL for the internal API call
-    base_url = request.url_root.rstrip('/')
-    ogc_url = f"{base_url}/ogc/processes"
-    
-    # Set up headers for the authenticated request
-    headers = {
-        "Content-Type": "application/json",
-        "proxy-ticket": session_key
-    }
-    
-    current_app.logger.debug(f"Making OGC deployment request to: {ogc_url}")
-    current_app.logger.debug(f"OGC payload: {json.dumps(ogc_payload)}")
-    
     try:
-        # Make the initial POST request to deploy the OGC process
-        response = requests.post(
-            ogc_url,
-            json=ogc_payload,
-            headers=headers,
-            timeout=60
+        # Use the shared utility function
+        response_data, status_code = create_process_deployment(
+            cwl_link=ogc_process_file_publish_url,
+            user_id=build.requester
         )
         
-        current_app.logger.debug(f"OGC deployment POST response status: {response.status_code}")
-        current_app.logger.debug(f"OGC deployment POST response: {response.text}")
+        current_app.logger.info(f"Successfully deployed OGC process for build {build.build_id}")
         
-        # Handle 409 Conflict by switching to PUT
-        if response.status_code == 409:
-            current_app.logger.info(f"Process already exists (409), attempting PUT for build {build.build_id}")
+        # Extract deployment job link from the response
+        if "links" in response_data and len(response_data["links"]) > 0:
+            deployment_link = response_data["links"][0]["href"]
             
-            # Extract process ID from the 409 response for PUT request
-            try:
-                conflict_response = response.json()
-                process_id = conflict_response.get("additionalProperties", {}).get("processID")
-                
-                if process_id:
-                    # Make PUT request to update existing process
-                    put_url = f"{base_url}/ogc/processes/{process_id}"
-                    current_app.logger.debug(f"Making PUT request to: {put_url}")
-                    
-                    response = requests.put(
-                        put_url,
-                        json=ogc_payload,
-                        headers=headers,
-                        timeout=60
-                    )
-                    
-                    current_app.logger.debug(f"OGC deployment PUT response status: {response.status_code}")
-                    current_app.logger.debug(f"OGC deployment PUT response: {response.text}")
-                else:
-                    error_msg = "Process already exists but could not extract process ID for PUT request"
-                    current_app.logger.error(error_msg)
-                    build.deployment_error = error_msg
-                    db.session.commit()
-                    raise RuntimeError(error_msg)
-                    
-            except (json.JSONDecodeError, KeyError) as e:
-                error_msg = f"Failed to parse 409 response for PUT request: {e}"
-                current_app.logger.error(error_msg)
-                build.deployment_error = error_msg
-                db.session.commit()
-                raise RuntimeError(error_msg)
-        
-        # Check if the request was successful (either POST or PUT)
-        if response.status_code in [200, 201, 202]:
-            current_app.logger.info(f"Successfully deployed OGC process for build {build.build_id}")
-            response_data = response.json()
-            
-            # Extract deployment job link from the response
-            if "links" in response_data:
-                for link in response_data["links"]:
-                    if link.get("rel") == "monitor" and "deploymentJobs" in link.get("href", ""):
-                        deployment_link = link["href"]
-                        
-                        # Update the build record with the deployment link and clear any previous errors
-                        build.deployment_link = deployment_link
-                        build.deployment_error = None  # Clear any previous errors on success
-                        db.session.commit()
-                        
-                        current_app.logger.info(f"Stored deployment link {deployment_link} for build {build.build_id}")
-                        break
-            
-            return response_data
-        else:
-            error_msg = f"OGC deployment failed with status {response.status_code}: {response.text}"
-            current_app.logger.error(error_msg)
-            build.deployment_error = error_msg
+            # Update the build record with the deployment link and clear any previous errors
+            build.deployment_link = deployment_link
+            build.deployment_error = None  # Clear any previous errors on success
             db.session.commit()
-            raise RuntimeError(error_msg)
             
-    except requests.exceptions.RequestException as e:
-        error_msg = f"Failed to make OGC deployment request: {e}"
+            current_app.logger.info(f"Stored deployment link {deployment_link} for build {build.build_id}")
+        
+        return response_data
+        
+    except (ValueError, RuntimeError) as e:
+        error_msg = f"OGC deployment failed: {e}"
         current_app.logger.error(error_msg)
         build.deployment_error = error_msg
         db.session.commit()
@@ -489,16 +381,6 @@ def _update_build_status(build, req_data=None, query_pipeline=False):
         current_app.logger.debug(f"Status mapping: {updated_status} -> {mapped_status}")
         current_status = mapped_status
 
-        # Extract OGC_PROCESS_FILE_PUBLISH_URL from webhook payload if pipeline status is success
-        ogc_process_file_publish_url = None
-        if updated_status == "success" and req_data and "object_attributes" in req_data:
-            variables = req_data["object_attributes"].get("variables", [])
-            for variable in variables:
-                if variable.get("key") == "OGC_PROCESS_FILE_PUBLISH_URL":
-                    ogc_process_file_publish_url = variable.get("value")
-                    current_app.logger.debug(f"OGC process file publish URL from webhook: {ogc_process_file_publish_url}")
-                    break
-
         if current_status != build.status:
             current_app.logger.debug(f"Build changed status to {current_status} from {build.status}")
             old_status = build.status
@@ -511,11 +393,19 @@ def _update_build_status(build, req_data=None, query_pipeline=False):
                 current_app.logger.info(f"Build {build.build_id} status updated from {old_status} to {current_status}")
                 response_body.update({"updated": build.updated.isoformat()})
                 
-                # Deploy OGC process if build was successful and we have the process file URL
-                if current_status == BUILD_SUCCESS and ogc_process_file_publish_url:
+                # Deploy OGC process if build was successful
+                if current_status == BUILD_SUCCESS:
+                    ogc_process_file_publish_url = None
+                    variables = req_data["object_attributes"].get("variables", [])
+                    for variable in variables:
+                        if variable.get("key") == "OGC_PROCESS_FILE_PUBLISH_URL":
+                            ogc_process_file_publish_url = variable.get("value")
+                            current_app.logger.debug(f"OGC process file publish URL from webhook: {ogc_process_file_publish_url}")
+                            break
                     try:
                         current_app.logger.info(f"Deploying OGC process for successful build {build.build_id}")
-                        _deploy_ogc_process_for_build(build, ogc_process_file_publish_url)
+                        ogc_process_file_publish_url_raw = f"{ogc_process_file_publish_url}/raw"
+                        _deploy_ogc_process_for_build(build, ogc_process_file_publish_url_raw)
                     except Exception as e:
                         current_app.logger.error(f"Failed to deploy OGC process for build {build.build_id}: {e}")
                         current_app.logger.debug(f"OGC deployment error traceback: {traceback.format_exc()}")
