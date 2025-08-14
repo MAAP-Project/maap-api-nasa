@@ -503,7 +503,7 @@ def _update_build_status(build, req_data=None, query_pipeline=False):
             current_app.logger.debug(f"Build changed status to {current_status} from {build.status}")
             old_status = build.status
             build.status = current_status
-            build.updated = datetime.now(datetime.timezone.utc)
+            build.updated = datetime.utcnow()
             
             try:
                 current_app.logger.debug(f"Updating build status in database from {old_status} to {current_status}")
