@@ -263,7 +263,7 @@ def create_process_deployment(cwl_link, user_id):
                 "ogcapi-processes-2/1.0/duplicated-process"
             )
             response_body["additionalProperties"] = {"processID": existing_process.process_id}
-            raise RuntimeError(f"Process already exists with ID {existing_process.process_id}")
+            return response_body, code
         
         # Trigger GitLab pipeline for deployment
         current_app.logger.debug(f"Triggering GitLab pipeline for deployment")
@@ -293,7 +293,7 @@ def create_process_deployment(cwl_link, user_id):
             "jobControlOptions": [],
             "jobID": deployment_job_id,
             "status": deployment.status,
-            "created": deployment.created.isoformat() if hasattr(deployment, 'created') else datetime.now().isoformat(),
+            "created": deployment.created if hasattr(deployment, 'created') else datetime.utcnow().isoformat(),
             "links": [{
                 "href": f"/ogc/deploymentJobs/{deployment_job_id}",
                 "rel": "monitor",
