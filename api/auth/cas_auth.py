@@ -292,5 +292,3 @@ def decrypt_proxy_ticket(ticket):
         except:
             current_app.logger.debug("invalid proxy granting ticket")
             return ''
-
-

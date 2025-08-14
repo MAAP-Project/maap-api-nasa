@@ -170,10 +170,10 @@ class TestOGCEndpoints(unittest.TestCase):
             # Then authentication should be required
             self.assertEqual(response.status_code, 401)
 
-    @patch('api.auth.security.get_authorized_user')
-    @patch('api.endpoints.ogc._get_cwl_metadata')
     @patch('api.endpoints.ogc._trigger_gitlab_pipeline')
-    def test_processes_post_creates_new_process_deployment(self, mock_pipeline, mock_metadata, mock_get_user):
+    @patch('api.endpoints.ogc._get_cwl_metadata')
+    @patch('api.auth.security.get_authorized_user')
+    def test_processes_post_creates_new_process_deployment(self, mock_get_user, mock_metadata, mock_pipeline):
         """Test: POST /ogc/processes creates new process deployment"""
         with app.app_context():
             with patch('api.auth.security.validate_proxy') as mock_validate_proxy:
@@ -187,25 +187,27 @@ class TestOGCEndpoints(unittest.TestCase):
                 mock_session.member.role_id = 2  # ROLE_MEMBER 
                 mock_validate_proxy.return_value = mock_session
                 
-                mock_metadata.return_value = MagicMock()
-                mock_metadata.return_value.id = "new-process"
-                mock_metadata.return_value.version = "1.0"
-                mock_metadata.return_value.title = "New Process"
-                mock_metadata.return_value.description = "A new process"
-                mock_metadata.return_value.deployer = "Deployer"
-                mock_metadata.return_value.author = "Author"
-                mock_metadata.return_value.keywords = "test,new"
-                mock_metadata.return_value.cwl_link = "https://example.com/new.cwl"
-                mock_metadata.return_value.github_url = "https://github.com/test/repo"
-                mock_metadata.return_value.git_commit_hash = "abc123"
-                mock_metadata.return_value.ram_min = 1024
-                mock_metadata.return_value.cores_min = 1
-                mock_metadata.return_value.base_command = "python"
+                # Mock CWL metadata
+                mock_metadata.return_value = MagicMock(
+                    id="new-process",
+                    version="1.0",
+                    title="New Process",
+                    description="A new process",
+                    author="Author",
+                    keywords="test,new",
+                    cwl_link="https://example.com/new.cwl",
+                    github_url="https://github.com/test/repo",
+                    git_commit_hash="abc123",
+                    ram_min=1024,
+                    cores_min=1,
+                    base_command="python"
+                )
                 
+                # Mock GitLab pipeline
                 mock_pipeline_obj = MagicMock()
                 mock_pipeline_obj.id = 12345
                 mock_pipeline_obj.web_url = "https://gitlab.com/pipeline/12345"
-                mock_pipeline.return_value = mock_pipeline_obj
+                mock_pipeline.return_value = (mock_pipeline_obj, "random-process-name:1.0")
                 
                 # When posting a new process
                 process_data = {
