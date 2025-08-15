@@ -46,18 +46,18 @@ def generate_error(detail, error_status, error_type=None):
     return response_body, error_status
 
 
-def trigger_gitlab_pipeline(cwl_link, version):
+def trigger_gitlab_pipeline(cwl_link, version, metadata_id, uuid):
     """Triggers the CI/CD pipeline in GitLab to deploy a process."""
     try:
         # random process name to allow algorithms later having the same id/version if the deployer is different 
-        process_name_hysds = datetime.now().isoformat(timespec='seconds')+os.urandom(5).hex()
+        process_name_hysds = f"{metadata_id}_{uuid}"
         gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token=settings.GITLAB_POST_PROCESS_TOKEN)
         project = gl.projects.get(settings.GITLAB_PROJECT_ID_POST_PROCESS)
         pipeline = project.pipelines.create({
             "ref": settings.VERSION,
             "variables": [{"key": "CWL_URL", "value": cwl_link}, {"key": "PROCESS_NAME_HYSDS", "value": process_name_hysds}]
         })
-        process_name_hysds = process_name_hysds+":"+version
+        process_name_hysds = f"{process_name_hysds}:{version}"
         log.info(f"Triggered pipeline ID: {pipeline.id}")
         return pipeline, process_name_hysds
     except Exception as e:
@@ -267,7 +267,8 @@ def create_process_deployment(cwl_link, user_id):
         
         # Trigger GitLab pipeline for deployment
         current_app.logger.debug(f"Triggering GitLab pipeline for deployment")
-        pipeline, process_name_hysds = trigger_gitlab_pipeline(cwl_link, metadata.version)
+        process_name_uid = f"{user.email}".encode("utf-8").hex()
+        pipeline, process_name_hysds = trigger_gitlab_pipeline(cwl_link, metadata.version, metadata.id, process_name_uid)
         current_app.logger.debug(f"Pipeline created with ID: {pipeline.id}")
         
         # Create deployment record
