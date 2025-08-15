@@ -1,7 +1,7 @@
 import unittest
 import json
 import uuid
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, ANY as mock_any
 from datetime import datetime
 from api.maapapp import app
 from api.maap_database import db
@@ -602,7 +602,8 @@ class TestBuildEndpoints(unittest.TestCase):
             with app.app_context():
                 response_body, status_code = create_process_deployment(
                     cwl_link='https://example.com/test-process.cwl',
-                    user_id=user_id
+                    user_id=user_id,
+                    ignore_existing=True
                 )
         
         # Assertions
@@ -617,7 +618,7 @@ class TestBuildEndpoints(unittest.TestCase):
         
         # Verify function calls
         mock_get_cwl.assert_called_once_with('https://example.com/test-process.cwl')
-        mock_trigger_pipeline.assert_called_once_with('https://example.com/test-process.cwl', 'v1.0')
+        mock_trigger_pipeline.assert_called_once_with('https://example.com/test-process.cwl', 'v1.0', mock_metadata.id, mock_any)
 
     @patch('api.utils.ogc_process_util.get_cwl_metadata')
     def test_create_process_deployment_invalid_cwl(self, mock_get_cwl):
