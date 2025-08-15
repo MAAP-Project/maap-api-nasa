@@ -226,6 +226,7 @@ def create_process_deployment(cwl_link, user_id, ignore_existing=False):
     Args:
         cwl_link (str): URL to the CWL file
         user_id (int): ID of the user creating the process
+        ignore_existing: If true, checks for duplicate process before creating a new one
         
     Returns:
         tuple: (response_body dict, status_code int)
@@ -255,7 +256,7 @@ def create_process_deployment(cwl_link, user_id, ignore_existing=False):
             id=metadata.id, version=metadata.version, status=DEPLOYED_PROCESS_STATUS
         ).first()
         
-        if existing_process and existing_process.deployer == user.id:
+        if not ignore_existing and existing_process and existing_process.deployer == user.id:
             current_app.logger.debug(f"Duplicate process found for user {user.id}")
             response_body, code = generate_error(
                 "Duplicate process. Use PUT to modify existing process if you originally published it.", 
