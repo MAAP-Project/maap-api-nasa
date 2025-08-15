@@ -370,8 +370,7 @@ class Describe(Resource):
                 detail = f"Need to provide same id and version as previous process which is {existing_process.id}:{existing_process.version}"
                 return generate_error(detail, status.HTTP_400_BAD_REQUEST)
 
-            process_name_uid = f"{user.email}".encode("utf-8").hex()
-            pipeline, process_name_hysds = trigger_gitlab_pipeline(cwl_link, metadata.version, metadata.id, process_name_uid)
+            pipeline, process_name_hysds = trigger_gitlab_pipeline(cwl_link, metadata.version, metadata.id, user.id)
             deployment = create_and_commit_deployment(metadata, pipeline, user, process_name_hysds, existing_process)
             
             deployment = db.session.query(Deployment_db).filter_by(pipeline_id=pipeline.id).first()
