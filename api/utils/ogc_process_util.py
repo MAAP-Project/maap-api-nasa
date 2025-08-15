@@ -216,7 +216,7 @@ def get_cwl_metadata(cwl_link):
     )
 
 
-def create_process_deployment(cwl_link, user_id):
+def create_process_deployment(cwl_link, user_id, ignore_existing=False):
     """
     Create a new OGC process deployment using the provided CWL link and user.
     
@@ -267,8 +267,7 @@ def create_process_deployment(cwl_link, user_id):
         
         # Trigger GitLab pipeline for deployment
         current_app.logger.debug(f"Triggering GitLab pipeline for deployment")
-        process_name_uid = f"{user.email}".encode("utf-8").hex()
-        pipeline, process_name_hysds = trigger_gitlab_pipeline(cwl_link, metadata.version, metadata.id, process_name_uid)
+        pipeline, process_name_hysds = trigger_gitlab_pipeline(cwl_link, metadata.version, metadata.id, user.id)
         current_app.logger.debug(f"Pipeline created with ID: {pipeline.id}")
         
         # Create deployment record

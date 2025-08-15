@@ -106,7 +106,8 @@ def _deploy_ogc_process_for_build(build, ogc_process_file_publish_url):
         # Use the shared utility function
         response_data, status_code = create_process_deployment(
             cwl_link=ogc_process_file_publish_url,
-            user_id=build.requester
+            user_id=build.requester,
+            ignore_existing=True
         )
         
         current_app.logger.info(f"Successfully deployed OGC process for build {build.build_id}")
