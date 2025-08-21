@@ -921,9 +921,12 @@ class Jobs(Resource):
         for job in response_body["jobs"]:
             try:
                 # Filter out most job details if user did not request them, default is to have all details
+                print("graceal1 getJobDetails param is ")
+                print(request.args.get("getJobDetails"))
                 if request.args.get("getJobDetails") is None or request.args.get("getJobDetails"):
                     job_with_required_fields = job
                 else:
+                    print("graceal1 in if statement i sould be in making job_with_required_fields an empty dict")
                     job_with_required_fields = {}
                 job_with_required_fields["id"] = next(iter(job))
                 # TODO graceal should this be hard coded in if the example options are process, wps, openeo?
