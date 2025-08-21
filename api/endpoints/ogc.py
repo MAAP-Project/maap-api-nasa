@@ -1,7 +1,7 @@
 import logging
 import os
 import traceback
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import gitlab
 import json
@@ -9,6 +9,7 @@ import requests
 from flask import request
 from flask_restx import Resource
 from flask_api import status
+import re
 
 from api.restplus import api
 import api.utils.hysds_util as hysds
@@ -24,7 +25,7 @@ from api.models.member import Member as Member_db
 from api.utils import job_queue
 from api.utils.ogc_process_util import (
     create_process_deployment, get_cwl_metadata, CWL_METADATA,
-    trigger_gitlab_pipeline, create_and_commit_deployment, generate_error,
+    trigger_gitlab_pipeline, create_and_commit_deployment, generate_error, determineDatetimeInRange, parse_rfc3339_datetime,
     DEPLOYED_PROCESS_STATUS, INITIAL_JOB_STATUS, UNDEPLOYED_PROCESS_STATUS, HREF_LANG
 )
 
@@ -32,7 +33,7 @@ log = logging.getLogger(__name__)
 
 ns = api.namespace("ogc", description="OGC compliant endpoints")
 
-OGC_FINISHED_STATUSES = ["successful", "failed", "dismisssed", "deduped"]
+OGC_FINISHED_STATUSES = ["successful", "failed", "dismissed", "deduped"]
 OGC_SUCCESS = "successful"
 PIPELINE_URL_TEMPLATE = settings.GITLAB_URL_POST_PROCESS + "/root/deploy-ogc-hysds/-/pipelines/{pipeline_id}"
 
@@ -42,8 +43,8 @@ def _get_deployed_process(process_id):
     Only shows processes with the deployed process status"""
     return db.session.query(Process_db).filter_by(process_id=process_id, status=DEPLOYED_PROCESS_STATUS).first()
 
-
-
+def camel_to_snake(camel_str):
+    return re.sub(r'(?<!^)(?=[A-Z])', '_', camel_str).lower()
 
 
 @ns.route("/processes")
@@ -168,9 +169,9 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
                 existing_process.cwl_link = deployment.cwl_link
                 existing_process.deployer = deployment.deployer
                 process_id = existing_process.process_id
-                existing_process.github_url=deployment.github_url
-                existing_process.git_commit_hash=deployment.git_commit_hash
-                existing_process.last_modified_time=datetime.now()
+                existing_process.github_url = deployment.github_url
+                existing_process.git_commit_hash = deployment.git_commit_hash
+                existing_process.last_modified_time = datetime.now()
             else:
                 process = Process_db(id=deployment.id,
                                 version=deployment.version,
@@ -790,40 +791,39 @@ class Status(Resource):
 @ns.route("/jobs")
 class Jobs(Resource):
     parser = api.parser()
-    parser.add_argument("page_size", required=False, type=str, help="Job Listing Pagination Size")
-    parser.add_argument("offset", required=False, type=str, help="Job Listing Pagination Offset")
-    parser.add_argument("job_type", type=str, help="Job type + version, e.g. topsapp:v1.0", required=False)
+    parser.add_argument("limit", required=False, type=int, help="Limit for number of jobs returned")
+    parser.add_argument("processID", type=str, help="Only jobs run on this process id will be returned", required=False)
+    parser.add_argument("minDuration", type=int, help="Min duration of the job in seconds", required=False)
+    parser.add_argument("maxDuration", type=int, help="Max duration of the job in seconds", required=False)
+    parser.add_argument("type", type=str, help="Type, available values: process", required=False)
+    parser.add_argument("datetime", type=str, help="Either a date-time or an interval, half-bounded or bounded. Date and time expressions adhere to RFC 3339. Half-bounded intervals are expressed using double-dots.", required=False)
+    parser.add_argument("status", type=str, help="Job status e.g. accepted, running, successful, failed, dismissed, deduped, offline", required=False)
+    parser.add_argument("pageSize", required=False, type=int, help="Job Listing Pagination Size")
+    parser.add_argument("offset", required=False, type=int, help="Job Listing Pagination Offset")
     parser.add_argument("tag", type=str, help="User-defined job tag", required=False)
     parser.add_argument("queue", type=str, help="Submitted job queue", required=False)
     parser.add_argument("priority", type=int, help="Job priority, 0-9", required=False)
-    parser.add_argument("start_time", type=str, help="Start time of @timestamp field", required=False)
-    parser.add_argument("end_time", type=str, help="Start time of @timestamp field", required=False)
-    parser.add_argument("get_job_details", type=bool, help="Return full details if True. "
+    parser.add_argument("getJobDetails", type=bool, help="Return full details if True. "
                                                            "List of job id's if false. Default True.", required=False)
-    parser.add_argument("status", type=str, help="Job status, e.g. job-started, job-completed, job-failed, etc.",
-                        required=False)
-    parser.add_argument("username", required=False, type=str, help="Username of job submitter")
 
     @api.doc(security="ApiKeyAuth")
     @login_required()
     def get(self):
         """
         Returns a list of jobs for a given user
-
-        :param get_job_details: Boolean that returns job details if set to True or just job ID's if set to False. Default is True.
-        :param page_size: Page size for pagination
+        :param status: Job status e.g. accepted, running, successful, failed, dismissed, deduped, offline
+        :param minDuration: Minimum duration in seconds
+        :param maxDuration: Maximum duration in seconds
+        :param processID: Process ID
+        :param limit: Limit of jobs to send back
+        :param type: Type, available values: process
+        :param datetime: Either a date-time or an interval, half-bounded or bounded. Date and time expressions adhere to RFC 3339. Half-bounded intervals are expressed using double-dots.
+        :param getJobDetails: Boolean that returns job details if set to True or just job ID's if set to False. Default is True.
+        :param pageSize: Page size for pagination
         :param offset: Offset for pagination
-        :param status: Job status
-        :param end_time: End time
-        :param start_time: Start time
-        :param min_duration: Minimum duration in seconds
-        :param max_duration: Maximum duration in seconds
         :param priority: Job priority
         :param queue: Queue
         :param tag: User tag
-        :param process_id: Process ID
-        :param username: Username
-        :param limit: Limit of jobs to send back
         :return: List of jobs for a given user that matches query params provided
         """
 
@@ -831,13 +831,13 @@ class Jobs(Resource):
         params = dict(request.args)
         response_body = dict()
         # change process id to job_type and send that so HySDS understands 
-        if request.args.get("process_id"):
+        if request.args.get("processID"):
             existing_process = db.session \
                 .query(Process_db) \
-                .filter_by(process_id=request.args.get("process_id"), status=DEPLOYED_PROCESS_STATUS) \
+                .filter_by(process_id=request.args.get("processID"), status=DEPLOYED_PROCESS_STATUS) \
                 .first()
             if existing_process is not None:
-                params["job_type"]="job-"+existing_process.process_name_hysds
+                params["jobType"]="job-"+existing_process.process_name_hysds
             else:
                 response_body["jobs"] = []
                 return response_body, status.HTTP_200_OK
@@ -845,15 +845,18 @@ class Jobs(Resource):
         # If status is provided, make sure it is HySDS-compliant
         if params.get("status") is not None:
             params["status"] = ogc.get_hysds_status_from_ogc(params["status"])
+        
+        # Change OGC camelcase to snakecase for HySDS
+        params = {camel_to_snake(key): value for key, value in params.items()}
         response_body, status = hysds.get_mozart_jobs_from_query_params(params, user)
         
         jobs_list = response_body["jobs"]
         # Filter based on start and end times if min/ max duration was passed as a parameter 
-        if (request.args.get("min_duration") or request.args.get("max_duration")):
+        if (request.args.get("minDuration") or request.args.get("maxDuration") or request.args.get("datetime")):
             jobs_in_duration_range = []
             try:
-                min_duration = float(request.args.get("min_duration")) if request.args.get("min_duration") else None
-                max_duration = float(request.args.get("max_duration")) if request.args.get("max_duration") else None  
+                min_duration = float(request.args.get("minDuration")) if request.args.get("minDuration") else None
+                max_duration = float(request.args.get("maxDuration")) if request.args.get("maxDuration") else None  
             except:
                 response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
                 response_body["detail"] = "Min/ max duration must be able to be converted to integers or floats"
@@ -865,14 +868,27 @@ class Jobs(Resource):
                     time_end = job[next(iter(job))]["job"]["job_info"]["time_end"]
                     if time_start and time_end:
                         fmt = "%Y-%m-%dT%H:%M:%S.%f"
-                        # Remove the Z and format 
-                        start_dt = datetime.strptime(time_start[:-1], fmt)
-                        end_dt = datetime.strptime(time_end[:-1], fmt)
+                        # Parse job times and ensure they're timezone-aware
+                        fmt = "%Y-%m-%dT%H:%M:%S.%f"
+                        if time_start.endswith('Z'):
+                            job_start = datetime.strptime(time_start[:-1], fmt).replace(tzinfo=timezone.utc)
+                        else:
+                            job_start = parse_rfc3339_datetime(time_start)
+                            
+                        if time_end.endswith('Z'):
+                            job_end = datetime.strptime(time_end[:-1], fmt).replace(tzinfo=timezone.utc)
+                        else:
+                            job_end = parse_rfc3339_datetime(time_end)
 
-                        duration = (end_dt - start_dt).total_seconds()
+                        print("graceal1 trying to find job duration so substracting")
+                        print(job_end)
+                        print(job_start)
+                        print((job_end - job_start).total_seconds())
+                        duration = (job_end - job_start).total_seconds()
                         
                         if ((min_duration is None or duration >= min_duration) and
-                            (max_duration is None or duration <= max_duration)):
+                            (max_duration is None or duration <= max_duration) and 
+                            (request.args.get("datetime") is None or determineDatetimeInRange(request.args.get("datetime"), job_start, job_end))):
                             jobs_in_duration_range.append(job)
                 except Exception as ex:
                     print(ex)
