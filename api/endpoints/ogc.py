@@ -921,7 +921,7 @@ class Jobs(Resource):
                 # Filter out most job details if user did not request them, default is to have all details
                 print("graceal1 getJobDetails param is ")
                 print(request.args.get("getJobDetails"))
-                if request.args.get("getJobDetails").lower() == "false":
+                if request.args.get("getJobDetails") and request.args.get("getJobDetails").lower() == "false":
                     print("graceal1 in if statement i sould be in making job_with_required_fields an empty dict")
                     job_with_required_fields = {}
                 else:
