@@ -795,7 +795,7 @@ class Jobs(Resource):
     parser.add_argument("processID", type=str, help="Only jobs run on this process id will be returned", required=False)
     parser.add_argument("minDuration", type=int, help="Min duration of the job in seconds", required=False)
     parser.add_argument("maxDuration", type=int, help="Max duration of the job in seconds", required=False)
-    parser.add_argument("type", type=str, help="Type, available values: process", required=False)
+    parser.add_argument("type", type=str, help="Type, since currently the only available option is process this doesn't filter. Keeping parameter for OGC compliance", required=False)
     parser.add_argument("datetime", type=str, help="Either a date-time or an interval, half-bounded or bounded. Date and time expressions adhere to RFC 3339. Half-bounded intervals are expressed using double-dots.", required=False)
     parser.add_argument("status", type=str, help="Job status e.g. accepted, running, successful, failed, dismissed, deduped, offline", required=False)
     parser.add_argument("pageSize", required=False, type=int, help="Job Listing Pagination Size")
@@ -844,13 +844,20 @@ class Jobs(Resource):
             
         # If status is provided, make sure it is HySDS-compliant
         if params.get("status") is not None:
-            params["status"] = ogc.get_hysds_status_from_ogc(params["status"])
+            hysds_status, error_message = ogc.get_hysds_status_from_ogc(params["status"])
+            if not hysds_status:
+                return generate_error(error_message, status.HTTP_400_BAD_REQUEST)
+            params["status"] = hysds_status
         
         # Change OGC camelcase to snakecase for HySDS
         params = {camel_to_snake(key): value for key, value in params.items()}
-        response_body, status = hysds.get_mozart_jobs_from_query_params(params, user)
+        response_body, status_code = hysds.get_mozart_jobs_from_query_params(params, user)
+        if status_code != status.HTTP_200_OK:
+            return response_body, status_code
         
         jobs_list = response_body["jobs"]
+        print("graceal return list from call is ")
+        print(jobs_list)
         # Filter based on start and end times if min/ max duration was passed as a parameter 
         if (request.args.get("minDuration") or request.args.get("maxDuration") or request.args.get("datetime")):
             jobs_in_duration_range = []
@@ -927,7 +934,7 @@ class Jobs(Resource):
                 print("Error getting job type to get CWLs")
         response_body["links"] = links
         response_body["jobs"] = jobs_with_required_fields
-        return response_body, status
+        return response_body, status.HTTP_200_OK
     
 @ns.route("/jobs/<string:job_id>/metrics")
 class Metrics(Resource):

@@ -643,6 +643,9 @@ def get_mozart_jobs_from_query_params(query_params, user):
         job_list = response.get("result")
         logging.info("Found Jobs: {}".format(job_list))
 
+        print("graceal1 job list and get job details are")
+        print(job_list)
+        print(get_job_details)
         if get_job_details:
             # Get job info per job
             job_list = get_jobs_info(x.get("id") for x in job_list)
