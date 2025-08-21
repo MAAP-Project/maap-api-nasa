@@ -813,7 +813,7 @@ class TestOGCEndpoints(unittest.TestCase):
             
             with patch('api.utils.hysds_util.get_mozart_jobs_from_query_params') as mock_jobs:
                 with patch('api.utils.ogc_translate.get_hysds_status_from_ogc') as mock_translate:
-                    mock_translate.return_value = 'job-completed'
+                    mock_translate.return_value = ('job-completed', None)  # Returns tuple (status, error)
                     mock_jobs.return_value = (
                         {
                             'jobs': [
@@ -1059,7 +1059,8 @@ class TestOGCEndpoints(unittest.TestCase):
                 args, kwargs = mock_jobs.call_args
                 params = args[0]
                 self.assertIn('page_size', params)
-                self.assertIn('get_job_details', params)
+                # get_job_details is excluded from params passed to HySDS
+                self.assertNotIn('get_job_details', params)
                 self.assertNotIn('pageSize', params)
                 self.assertNotIn('getJobDetails', params)
 
