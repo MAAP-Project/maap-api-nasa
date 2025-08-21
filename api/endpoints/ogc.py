@@ -803,7 +803,7 @@ class Jobs(Resource):
     parser.add_argument("tag", type=str, help="User-defined job tag", required=False)
     parser.add_argument("queue", type=str, help="Submitted job queue", required=False)
     parser.add_argument("priority", type=int, help="Job priority, 0-9", required=False)
-    parser.add_argument("getJobDetails", type=bool, help="Return full details if True. "
+    parser.add_argument("getJobDetails", type=str, help="Return full details if True. "
                                                            "List of job id's if false. Default True.", required=False)
 
     @api.doc(security="ApiKeyAuth")
@@ -921,12 +921,12 @@ class Jobs(Resource):
                 # Filter out most job details if user did not request them, default is to have all details
                 print("graceal1 getJobDetails param is ")
                 print(request.args.get("getJobDetails"))
-                if request.args.get("getJobDetails") is None or request.args.get("getJobDetails"):
-                    print("graceal1 in the wrong if statement")
-                    job_with_required_fields = job
-                else:
+                if request.args.get("getJobDetails").lower() == "false":
                     print("graceal1 in if statement i sould be in making job_with_required_fields an empty dict")
                     job_with_required_fields = {}
+                else:
+                    print("graceal1 in the wrong if statement")
+                    job_with_required_fields = job
                 job_with_required_fields["id"] = next(iter(job))
                 # TODO graceal should this be hard coded in if the example options are process, wps, openeo?
                 job_with_required_fields["type"] = "process"
