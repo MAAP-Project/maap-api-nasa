@@ -652,7 +652,6 @@ def get_mozart_jobs_from_query_params(query_params, user):
 
         response_body["status"] = status.HTTP_200_OK
         response_body["jobs"] = job_list
-        response_body["message"] = "success"
         return response_body, status.HTTP_200_OK
     except Exception as ex:
         response_body["message"] = "Failed to get jobs for user {}. please contact administrator " \

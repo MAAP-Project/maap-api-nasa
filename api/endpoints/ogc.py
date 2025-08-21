@@ -839,7 +839,9 @@ class Jobs(Resource):
             if existing_process is not None:
                 params["jobType"]="job-"+existing_process.process_name_hysds
             else:
+                response_body["status"] = status.HTTP_200_OK
                 response_body["jobs"] = []
+                response_body["links"] = []
                 return response_body, status.HTTP_200_OK
             
         # If status is provided, make sure it is HySDS-compliant
@@ -851,7 +853,10 @@ class Jobs(Resource):
         
         # Change OGC camelcase to snakecase for HySDS
         params = {camel_to_snake(key): value for key, value in params.items()}
-        response_body, status_code = hysds.get_mozart_jobs_from_query_params(params, user)
+        # Exclude certain parameters that are filtered out in this function and not HySDS
+        exclude_list = ["get_job_details", "min_duration", "max_duration", "datetime"]
+        filtered_query_params = {k: v for k, v in params.items() if k not in exclude_list and v is not None}
+        response_body, status_code = hysds.get_mozart_jobs_from_query_params(filtered_query_params, user)
         if status_code != status.HTTP_200_OK:
             return response_body, status_code
         
@@ -915,7 +920,11 @@ class Jobs(Resource):
         # Need to get the CWLs to return as links with the jobs 
         for job in response_body["jobs"]:
             try:
-                job_with_required_fields = job
+                # Filter out most job details if user did not request them, default is to have all details
+                if request.args.get("getJobDetails") is None or request.args.get("getJobDetails"):
+                    job_with_required_fields = job
+                else:
+                    job_with_required_fields = {}
                 job_with_required_fields["id"] = next(iter(job))
                 # TODO graceal should this be hard coded in if the example options are process, wps, openeo?
                 job_with_required_fields["type"] = "process"
