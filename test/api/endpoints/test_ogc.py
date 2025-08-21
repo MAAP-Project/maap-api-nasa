@@ -170,8 +170,8 @@ class TestOGCEndpoints(unittest.TestCase):
             # Then authentication should be required
             self.assertEqual(response.status_code, 401)
 
-    @patch('api.endpoints.ogc._trigger_gitlab_pipeline')
-    @patch('api.endpoints.ogc._get_cwl_metadata')
+    @patch('api.utils.ogc_process_util.trigger_gitlab_pipeline')
+    @patch('api.utils.ogc_process_util.get_cwl_metadata')
     @patch('api.auth.security.get_authorized_user')
     def test_processes_post_creates_new_process_deployment(self, mock_get_user, mock_metadata, mock_pipeline):
         """Test: POST /ogc/processes creates new process deployment"""
@@ -230,7 +230,7 @@ class TestOGCEndpoints(unittest.TestCase):
                 self.assertIn('processPipelineLink', data)
 
     @patch('api.auth.security.get_authorized_user')
-    @patch('api.endpoints.ogc._get_cwl_metadata')
+    @patch('api.utils.ogc_process_util.get_cwl_metadata')
     def test_processes_post_returns_409_for_duplicate_process(self, mock_metadata, mock_get_user):
         """Test: POST /ogc/processes returns 409 for duplicate process"""
         with app.app_context():

@@ -1,15 +1,16 @@
 import logging
 import os
-from collections import namedtuple
-import tempfile
+import traceback
+from datetime import datetime, timedelta
 
+import gitlab
+import json
+import requests
 from flask import request
 from flask_restx import Resource
 from flask_api import status
 
 from api.restplus import api
-import re
-import traceback
 import api.utils.hysds_util as hysds
 import api.settings as settings
 import api.utils.ogc_translate as ogc
@@ -19,14 +20,13 @@ from api.models.process import Process as Process_db
 from api.models.deployment import Deployment as Deployment_db
 from api.models.process_job import ProcessJob as ProcessJob_db
 from api.models.member import Member as Member_db
-from datetime import datetime, timedelta
-import json
-import requests
-import gitlab
-from cwl_utils.parser import load_document_by_uri, cwl_v1_2
-import urllib.parse
 
 from api.utils import job_queue
+from api.utils.ogc_process_util import (
+    create_process_deployment, get_cwl_metadata, CWL_METADATA,
+    trigger_gitlab_pipeline, create_and_commit_deployment, generate_error,
+    DEPLOYED_PROCESS_STATUS, INITIAL_JOB_STATUS, UNDEPLOYED_PROCESS_STATUS, HREF_LANG
+)
 
 log = logging.getLogger(__name__)
 
@@ -35,22 +35,6 @@ ns = api.namespace("ogc", description="OGC compliant endpoints")
 OGC_FINISHED_STATUSES = ["successful", "failed", "dismisssed", "deduped"]
 OGC_SUCCESS = "successful"
 PIPELINE_URL_TEMPLATE = settings.GITLAB_URL_POST_PROCESS + "/root/deploy-ogc-hysds/-/pipelines/{pipeline_id}"
-INITIAL_JOB_STATUS = "accepted"
-DEPLOYED_PROCESS_STATUS = "deployed"
-UNDEPLOYED_PROCESS_STATUS = "undeployed"
-CWL_METADATA = namedtuple("CWL_METADATA", ["id", "version", "title", "description", "keywords", "raw_text", "github_url", "git_commit_hash", "cwl_link", "ram_min", "cores_min", "base_command", "author"])
-HREF_LANG = "en"
-ERROR_TYPE_PREFIX="http://www.opengis.net/def/exceptions/"
-
-def _generate_error(detail, error_status, error_type=None):
-    """Generates a standardized error response body and status code."""
-    full_error_type = f"{ERROR_TYPE_PREFIX}{error_type}" if error_type is not None else None
-    response_body = {"type": full_error_type,
-                    "title": detail,
-                    "status": error_status,
-                    "detail": detail,
-                    "instance": ""} #TODO Description for this field: A URI reference that identifies the specific occurrence of the problem. Keep null for now 
-    return response_body, error_status
 
 
 def _get_deployed_process(process_id):
@@ -59,153 +43,8 @@ def _get_deployed_process(process_id):
     return db.session.query(Process_db).filter_by(process_id=process_id, status=DEPLOYED_PROCESS_STATUS).first()
 
 
-def _get_cwl_metadata(cwl_link):
-    """
-    Fetches, parses, and extracts metadata from a CWL file. This approach avoid making 
-    two separate web requests for the same file
-    """
-    try:
-        # 1. Fetch the CWL content once using requests.
-        # 2. Save the content to a temporary file.
-        # 3. Use the local file URI with cwl_utils to parse the object model.
-        # 4. Use the in-memory text for regex-based metadata extraction.
-        # This is wrapped in a try/finally block to ensure the temp file is cleaned up.
-        response = requests.get(cwl_link)
-        response.raise_for_status()
-        cwl_text = response.text
-
-        with tempfile.NamedTemporaryFile(mode='w', suffix=".cwl", delete=False) as tmp:
-            tmp.write(cwl_text)
-            tmp_path = tmp.name
-        
-        cwl_obj = load_document_by_uri(urllib.parse.urlparse(tmp_path).geturl(), load_all=True)
-
-    except requests.exceptions.RequestException:
-        raise ValueError("Unable to access CWL from the provided href.")
-    except Exception as e:
-        log.error(f"Failed to parse CWL: {e}")
-        raise ValueError("CWL file is not in the right format or is invalid.")
-    finally:
-        if 'tmp_path' in locals() and os.path.exists(tmp_path):
-            os.remove(tmp_path)
-
-    workflow = next((obj for obj in cwl_obj if isinstance(obj, cwl_v1_2.Workflow)), None)
-    if not workflow:
-        raise ValueError("A valid Workflow object must be defined in the CWL file.")
-
-    cwl_id = workflow.id
-    version_match = re.search(r"s:version:\s*(\S+)", cwl_text, re.IGNORECASE)
-    
-    if not version_match or not cwl_id:
-        raise ValueError("Required metadata missing: s:version and a top-level id are required.")
-
-    fragment = urllib.parse.urlparse(cwl_id).fragment
-    cwl_id = os.path.basename(fragment)
-    process_version = version_match.group(1)
-
-    # Get git information
-    github_url = re.search(r"s:codeRepository:\s*(\S+)", cwl_text, re.IGNORECASE)
-    github_url = github_url.group(1) if github_url else None
-    git_commit_hash = re.search(r"s:commitHash:\s*(\S+)", cwl_text, re.IGNORECASE)
-    git_commit_hash = git_commit_hash.group(1) if git_commit_hash else None
-
-    keywords_match = re.search(r"s:keywords:\s*(.*)", cwl_text, re.IGNORECASE)
-    keywords = keywords_match.group(1).replace(" ", "") if keywords_match else None
-
-    try:
-        author_match = re.search(
-            r"s:author:.*?s:name:\s*(\S+)",
-            cwl_text,
-            re.DOTALL | re.IGNORECASE
-        )
-        author = author_match.group(1) if author_match else None
-    except Exception as e:
-        author = None
-        log.error(f"Failed to get author name: {e}")
-
-    # Find the CommandLineTool run by the first step of the workflow
-    if workflow.steps:
-        # Get the ID of the tool to run (e.g., '#main')
-        tool_id_ref = workflow.steps[0].run
-        # The actual ID is the part after the '#'
-        tool_id = os.path.basename(tool_id_ref)
-
-        #Find the CommandLineTool object in the parsed CWL graph
-        command_line_tool = next((obj for obj in cwl_obj if isinstance(obj, cwl_v1_2.CommandLineTool) and obj.id.endswith(tool_id)), None)
-    
-        if command_line_tool:
-            # Extract the baseCommand directly
-            base_command = command_line_tool.baseCommand
-    
-            # Find the ResourceRequirement to extract ramMin and coresMin
-            if command_line_tool.requirements:
-                for req in command_line_tool.requirements:
-                    if isinstance(req, cwl_v1_2.ResourceRequirement):
-                        ram_min = req.ramMin if req.ramMin else ram_min
-                        cores_min = req.coresMin if req.coresMin else cores_min
-                        break # Stop after finding the first ResourceRequirement
-
-    return CWL_METADATA(
-        id=cwl_id,
-        version=process_version,
-        title=workflow.label,
-        description=workflow.doc,
-        keywords=keywords,
-        raw_text=cwl_text,
-        github_url=github_url,
-        git_commit_hash=git_commit_hash,
-        cwl_link=cwl_link,
-        ram_min=ram_min,
-        cores_min=cores_min,
-        base_command=base_command,
-        author=author
-    )
 
 
-def _trigger_gitlab_pipeline(cwl_link, version):
-    """Triggers the CI/CD pipeline in GitLab to deploy a process."""
-    try:
-        # random process name to allow algorithms later having the same id/version if the deployer is different 
-        process_name_hysds = datetime.now().isoformat(timespec='seconds')+os.urandom(5).hex()
-        gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token=settings.GITLAB_POST_PROCESS_TOKEN)
-        project = gl.projects.get(settings.GITLAB_PROJECT_ID_POST_PROCESS)
-        pipeline = project.pipelines.create({
-            "ref": settings.VERSION,
-            "variables": [{"key": "CWL_URL", "value": cwl_link}, {"key": "PROCESS_NAME_HYSDS", "value": process_name_hysds}]
-        })
-        process_name_hysds = process_name_hysds+":"+version
-        log.info(f"Triggered pipeline ID: {pipeline.id}")
-        return pipeline, process_name_hysds
-    except Exception as e:
-        log.error(f"GitLab pipeline trigger failed: {e}")
-        raise RuntimeError("Failed to start CI/CD to deploy process. The deployment venue is likely down.")
-
-
-def _create_and_commit_deployment(metadata, pipeline, user, process_name_hysds, existing_process=None):
-    """Creates a new deployment record in the database."""
-    deployment = Deployment_db(
-        created=datetime.now(),
-        process_name_hysds=process_name_hysds,
-        execution_venue=settings.DEPLOY_PROCESS_EXECUTION_VENUE,
-        status=INITIAL_JOB_STATUS,
-        cwl_link=metadata.cwl_link, 
-        title=metadata.title,
-        description=metadata.description,
-        keywords=metadata.keywords,
-        deployer=user.id,
-        author=metadata.author,
-        pipeline_id=pipeline.id,
-        github_url=metadata.github_url,
-        git_commit_hash=metadata.git_commit_hash,
-        id=metadata.id if not existing_process else existing_process.id,
-        version=metadata.version if not existing_process else existing_process.version,
-        ram_min = metadata.ram_min,
-        cores_min = metadata.cores_min,
-        base_command = metadata.base_command
-    )
-    db.session.add(deployment)
-    db.session.commit()
-    return deployment
 
 @ns.route("/processes")
 class Processes(Resource):
@@ -261,66 +100,26 @@ class Processes(Resource):
         """
         req_data_string = request.data.decode("utf-8")
         if not req_data_string:
-            return _generate_error("Body expected in request", status.HTTP_400_BAD_REQUEST)
+            return generate_error("Body expected in request", status.HTTP_400_BAD_REQUEST)
         
         req_data = json.loads(req_data_string)
         
         try:
             cwl_link = req_data.get("executionUnit", {}).get("href")
             if not cwl_link:
-                return _generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
-
-            metadata = _get_cwl_metadata(cwl_link)
-
-            existing_process = db.session.query(Process_db).filter_by(
-                id=metadata.id, version=metadata.version, status=DEPLOYED_PROCESS_STATUS
-            ).first()
+                return generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
 
             user = get_authorized_user()
-            if existing_process and existing_process.deployer == user.id:
-                response_body, code = _generate_error("Duplicate process. Use PUT to modify existing process if you originally published it.", status.HTTP_409_CONFLICT, "ogcapi-processes-2/1.0/duplicated-process")
-                response_body["additionalProperties"] = {"processID": existing_process.process_id}
-                return response_body, code
-
-            pipeline, process_name_hysds = _trigger_gitlab_pipeline(cwl_link, metadata.version)
-            deployment = _create_and_commit_deployment(metadata, pipeline, user, process_name_hysds)
-            
-            # Re-query to get the auto-incremented job_id
-            deployment = db.session.query(Deployment_db).filter_by(id=metadata.id, version=metadata.version, status=INITIAL_JOB_STATUS).first()
-            deployment_job_id = deployment.job_id
+            response_body, status_code = create_process_deployment(cwl_link, user.id)
+            return response_body, status_code
 
         except ValueError as e:
-            return _generate_error(str(e), status.HTTP_400_BAD_REQUEST)
+            return generate_error(str(e), status.HTTP_400_BAD_REQUEST)
         except RuntimeError as e:
-            return _generate_error(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return generate_error(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception as e:
             print(f"Unexpected error during process POST: {traceback.format_exc()}")
-            return _generate_error("An unexpected error occurred.", status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        response_body = {
-            "title": metadata.title,
-            "description": metadata.description,
-            "keywords": metadata.keywords.split(",") if metadata.keywords else [],
-            "metadata": [],
-            "id": metadata.id,
-            "version": metadata.version,
-            "jobControlOptions": [],
-            "links": [{
-                "href": f"/{ns.name}/deploymentJobs/{deployment_job_id}",
-                "rel": "monitor",
-                "type": "application/json",
-                "hreflang": HREF_LANG,
-                "title": "Deploying process status link"
-            }],
-            "processPipelineLink": {
-                "href": pipeline.web_url,
-                "rel": "monitor",
-                "type": "text/html",
-                "hreflang": HREF_LANG,
-                "title": "Link to process pipeline"
-            }
-        }
-        return response_body, status.HTTP_202_ACCEPTED
+            return generate_error("An unexpected error occurred.", status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 """
 Updates the status of the deployment if the deployment was previously in a pending state
@@ -335,7 +134,7 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
     status_code = status.HTTP_200_OK
 
     if deployment is None:
-        return _generate_error("No deployment with that deployment ID found", status.HTTP_404_NOT_FOUND)
+        return generate_error("No deployment with that deployment ID found", status.HTTP_404_NOT_FOUND)
 
     current_status = deployment.status
     # Only query pipeline link if status is not finished 
@@ -353,7 +152,7 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
             try:
                 updated_status = req_data["object_attributes"]["status"]
             except (TypeError, KeyError):
-                return _generate_error('Payload from 3rd party should have status at ["object_attributes"]["status"]', status.HTTP_400_BAD_REQUEST)
+                return generate_error('Payload from 3rd party should have status at ["object_attributes"]["status"]', status.HTTP_400_BAD_REQUEST)
         
         ogc_status = ogc.get_ogc_status_from_gitlab(updated_status)
         current_status = ogc_status if ogc_status else updated_status
@@ -466,12 +265,12 @@ class Deployment(Resource):
         try:
             req_data_string = request.data.decode("utf-8")
             if not req_data_string:
-                return _generate_error("Body expected in request", status.HTTP_400_BAD_REQUEST)
+                return generate_error("Body expected in request", status.HTTP_400_BAD_REQUEST)
             
             req_data = json.loads(req_data_string)
             pipeline_id = req_data["object_attributes"]["id"]
         except:
-            return _generate_error('Expected request body to include job_id at ["object_attributes"]["id"]]', status.HTTP_400_BAD_REQUEST)
+            return generate_error('Expected request body to include job_id at ["object_attributes"]["id"]]', status.HTTP_400_BAD_REQUEST)
         
         # Filtering by current execution venue because pipeline id not guaranteed to be unique across different
         # deployment venues, so check for the current one 
@@ -489,12 +288,12 @@ class Describe(Resource):
         """
         existing_process = _get_deployed_process(process_id)
         if not existing_process:
-            return _generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
+            return generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
 
         hysdsio_type = f"hysds-io-{existing_process.process_name_hysds}"
         response = hysds.get_hysds_io(hysdsio_type)
         if not response or not response.get("success"):
-            return _generate_error("No process with that process ID found on HySDS", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
+            return generate_error("No process with that process ID found on HySDS", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
         
         hysds_io_result = response.get("result")
 
@@ -549,41 +348,41 @@ class Describe(Resource):
         existing_process = _get_deployed_process(process_id)
         
         if not existing_process:
-            return _generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
+            return generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
         
         if user.id != existing_process.deployer:
-            return _generate_error("You can only modify processes that you posted originally", status.HTTP_403_FORBIDDEN, "ogcapi-processes-2/1.0/immutable-process")
+            return generate_error("You can only modify processes that you posted originally", status.HTTP_403_FORBIDDEN, "ogcapi-processes-2/1.0/immutable-process")
         
         req_data_string = request.data.decode("utf-8")
         if not req_data_string:
-            return _generate_error("Body expected in request", status.HTTP_400_BAD_REQUEST)
+            return generate_error("Body expected in request", status.HTTP_400_BAD_REQUEST)
         
         req_data = json.loads(req_data_string)
 
         try:
             cwl_link = req_data.get("executionUnit", {}).get("href")
             if not cwl_link:
-                 return _generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
+                 return generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
 
-            metadata = _get_cwl_metadata(cwl_link)
+            metadata = get_cwl_metadata(cwl_link)
 
             if metadata.id != existing_process.id or metadata.version != existing_process.version:
                 detail = f"Need to provide same id and version as previous process which is {existing_process.id}:{existing_process.version}"
-                return _generate_error(detail, status.HTTP_400_BAD_REQUEST)
+                return generate_error(detail, status.HTTP_400_BAD_REQUEST)
 
-            pipeline, process_name_hysds = _trigger_gitlab_pipeline(cwl_link, metadata.version)
-            deployment = _create_and_commit_deployment(metadata, pipeline, user, process_name_hysds, existing_process)
+            pipeline, process_name_hysds = trigger_gitlab_pipeline(cwl_link, metadata.version, metadata.id, user.id)
+            deployment = create_and_commit_deployment(metadata, pipeline, user, process_name_hysds, existing_process)
             
             deployment = db.session.query(Deployment_db).filter_by(pipeline_id=pipeline.id).first()
             deployment_job_id = deployment.job_id
 
         except ValueError as e:
-            return _generate_error(str(e), status.HTTP_400_BAD_REQUEST)
+            return generate_error(str(e), status.HTTP_400_BAD_REQUEST)
         except RuntimeError as e:
-            return _generate_error(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return generate_error(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception as e:
             log.error(f"Unexpected error during process PUT: {traceback.format_exc()}")
-            return _generate_error("An unexpected error occurred.", status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return generate_error("An unexpected error occurred.", status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         response_body = {
             "id": existing_process.id,
@@ -614,10 +413,10 @@ class Describe(Resource):
         existing_process = _get_deployed_process(process_id)
         
         if not existing_process:
-            return _generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
+            return generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
 
         if user.id != existing_process.deployer:
-            return _generate_error("You can only modify processes that you posted originally", status.HTTP_403_FORBIDDEN, "ogcapi-processes-2/1.0/immutable-process")
+            return generate_error("You can only modify processes that you posted originally", status.HTTP_403_FORBIDDEN, "ogcapi-processes-2/1.0/immutable-process")
         
         try:
             # Currently not deleting the process from HySDS, that might change later 
@@ -629,7 +428,7 @@ class Describe(Resource):
             return {"detail": "Deleted process"}, status.HTTP_200_OK 
         except Exception as e:
             log.error(f"Failed to delete process {process_id}: {traceback.format_exc()}")
-            return _generate_error(f"Failed to process request to delete {process_id}", status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return generate_error(f"Failed to process request to delete {process_id}", status.HTTP_500_INTERNAL_SERVER_ERROR)
         
 @ns.route("/processes/<string:process_id>/package")
 class Package(Resource):
@@ -643,7 +442,7 @@ class Package(Resource):
             
         existing_process = _get_deployed_process(process_id)
         if not existing_process:
-            return _generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
+            return generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
         
         response_body["processDescription"] = existing_process.description
         response_body["executionUnit"] = {
@@ -671,18 +470,18 @@ class ExecuteJob(Resource):
         """
         req_data_string = request.data.decode("utf-8")
         if not req_data_string:
-            return _generate_error("Body expected in request", status.HTTP_400_BAD_REQUEST)
+            return generate_error("Body expected in request", status.HTTP_400_BAD_REQUEST)
         
         req_data = json.loads(req_data_string)
         
         existing_process = _get_deployed_process(process_id)
         if not existing_process:
-            return _generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
+            return generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
         
         inputs = req_data.get("inputs")
         queue = req_data.get("queue")
         if not queue:
-            return _generate_error("Need to specify a queue to run this job on MAAP", status.HTTP_400_BAD_REQUEST)
+            return generate_error("Need to specify a queue to run this job on MAAP", status.HTTP_400_BAD_REQUEST)
 
         dedup = req_data.get("dedup")
         tag = req_data.get("tag")
@@ -757,14 +556,14 @@ class ExecuteJob(Resource):
                 }
                 return response_body, status.HTTP_202_ACCEPTED
             else:
-                return _generate_error(response.get("message"), status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return generate_error(response.get("message"), status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         except ValueError as ex:
             log.error(traceback.format_exc())
-            return _generate_error(f"FailedJobSubmit: {ex}", status.HTTP_400_BAD_REQUEST)
+            return generate_error(f"FailedJobSubmit: {ex}", status.HTTP_400_BAD_REQUEST)
         except Exception as ex:
             log.error(f"Error submitting job: {traceback.format_exc()}")
-            return _generate_error(f"FailedJobSubmit: {ex}", status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return generate_error(f"FailedJobSubmit: {ex}", status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @ns.route("/jobs/<string:job_id>/results")
 class Result(Resource):
@@ -788,7 +587,7 @@ class Result(Resource):
                 .filter_by(id=job_id) \
                 .first()
             if existing_job is None:
-                return _generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
+                return generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
 
             response = hysds.get_mozart_job(existing_job.id)
             job_info = response.get("job").get("job_info").get("metrics").get("products_staged")
@@ -843,7 +642,7 @@ class Status(Resource):
             .filter_by(id=job_id) \
             .first()
         if existing_job is None:
-            return _generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
+            return generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
         
         # For now, leave this so it can access all deployed and undeployed processes 
         existing_process = db.session \
@@ -936,7 +735,7 @@ class Status(Resource):
             .filter_by(id=job_id) \
             .first()
         if existing_job is None:
-            return _generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
+            return generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
 
         try:
             # check if job is non-running
@@ -944,7 +743,7 @@ class Status(Resource):
             logging.info("current job status: {}".format(current_status))
 
             if current_status is None:
-                return _generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
+                return generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
             
             # This is for the case when user did not wait for a previous dismissal of a job but it was successful
             elif current_status == hysds.STATUS_JOB_REVOKED and existing_job.status != "dismissed":
@@ -966,7 +765,7 @@ class Status(Resource):
                 response = ogc.status_response(job_id=job_id, job_status=hysds.STATUS_JOB_QUEUED)
             # For all other statuses, we cannot cancel
             else:
-                return _generate_error("Not allowed to cancel job with status {}".format(current_status), status.HTTP_400_BAD_REQUEST)
+                return generate_error("Not allowed to cancel job with status {}".format(current_status), status.HTTP_400_BAD_REQUEST)
 
             response_body["id"] = job_id
             response_body["type"] = "process"
@@ -978,7 +777,7 @@ class Status(Resource):
                 cancel_job_status = res.get("status")
                 response = ogc.status_response(job_id=job_id, job_status=res.get("status"))
                 if not cancel_job_status == hysds.STATUS_JOB_COMPLETED:
-                    return _generate_error(response.decode("utf-8"), status.HTTP_500_INTERNAL_SERVER_ERROR)
+                    return generate_error(response.decode("utf-8"), status.HTTP_500_INTERNAL_SERVER_ERROR)
                 else:
                     response_body["status"] = "dismissed"
                     response_body["detail"] = response.decode("utf-8")
@@ -986,7 +785,7 @@ class Status(Resource):
                     db.session.commit()
                     return response_body, status.HTTP_202_ACCEPTED 
         except Exception as ex:
-            return _generate_error("Failed to dismiss job {}. Please try again or contact DPS administrator. {}".format(job_id, ex), status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return generate_error("Failed to dismiss job {}. Please try again or contact DPS administrator. {}".format(job_id, ex), status.HTTP_500_INTERNAL_SERVER_ERROR)
         
 @ns.route("/jobs")
 class Jobs(Resource):
@@ -1128,7 +927,7 @@ class Metrics(Resource):
             .filter_by(id=job_id) \
             .first()
         if existing_job is None:
-            return _generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
+            return generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
 
         try:
             logging.info("Finding result of job with id {}".format(job_id))
@@ -1136,7 +935,7 @@ class Metrics(Resource):
             try:
                 mozart_response = hysds.get_mozart_job(job_id)
             except Exception as ex:
-                return _generate_error("Failed to get job information found for {}. Reason: {}".format(job_id, ex), status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return generate_error("Failed to get job information found for {}. Reason: {}".format(job_id, ex), status.HTTP_500_INTERNAL_SERVER_ERROR)
 
             # get all the relevant metrics information
             job_info = mozart_response.get("job").get("job_info")
@@ -1201,4 +1000,4 @@ class Metrics(Resource):
         except Exception as ex:
             print("Metrics Exception: {}".format(ex))
             print(ex)
-            return _generate_error("Failed to get job metrics. {}. Please contact administrator of DPS for clarification if needed".format(ex), status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return generate_error("Failed to get job metrics. {}. Please contact administrator of DPS for clarification if needed".format(ex), status.HTTP_500_INTERNAL_SERVER_ERROR)
