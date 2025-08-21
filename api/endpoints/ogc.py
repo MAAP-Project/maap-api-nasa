@@ -861,8 +861,6 @@ class Jobs(Resource):
             return response_body, status_code
         
         jobs_list = response_body["jobs"]
-        print("graceal return list from call is ")
-        print(jobs_list)
         # Filter based on start and end times if min/ max duration was passed as a parameter 
         if (request.args.get("minDuration") or request.args.get("maxDuration") or request.args.get("datetime")):
             jobs_in_duration_range = []
@@ -924,6 +922,7 @@ class Jobs(Resource):
                 print("graceal1 getJobDetails param is ")
                 print(request.args.get("getJobDetails"))
                 if request.args.get("getJobDetails") is None or request.args.get("getJobDetails"):
+                    print("graceal1 in the wrong if statement")
                     job_with_required_fields = job
                 else:
                     print("graceal1 in if statement i sould be in making job_with_required_fields an empty dict")
