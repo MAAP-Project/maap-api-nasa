@@ -890,10 +890,6 @@ class Jobs(Resource):
                         else:
                             job_end = parse_rfc3339_datetime(time_end)
 
-                        print("graceal1 trying to find job duration so substracting")
-                        print(job_end)
-                        print(job_start)
-                        print((job_end - job_start).total_seconds())
                         duration = (job_end - job_start).total_seconds()
                         
                         if ((min_duration is None or duration >= min_duration) and
@@ -919,13 +915,9 @@ class Jobs(Resource):
         for job in response_body["jobs"]:
             try:
                 # Filter out most job details if user did not request them, default is to have all details
-                print("graceal1 getJobDetails param is ")
-                print(request.args.get("getJobDetails"))
                 if request.args.get("getJobDetails") and request.args.get("getJobDetails").lower() == "false":
-                    print("graceal1 in if statement i sould be in making job_with_required_fields an empty dict")
                     job_with_required_fields = {}
                 else:
-                    print("graceal1 in the wrong if statement")
                     job_with_required_fields = job
                 job_with_required_fields["id"] = next(iter(job))
                 # TODO graceal should this be hard coded in if the example options are process, wps, openeo?
