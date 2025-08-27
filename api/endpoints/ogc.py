@@ -478,7 +478,7 @@ class ExecuteJob(Resource):
         if not existing_process:
             return generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
         
-        inputs = req_data.get("inputs")
+        inputs = req_data.get("inputs") or dict()
         queue = req_data.get("queue")
         if not queue:
             return generate_error("Need to specify a queue to run this job on MAAP", status.HTTP_400_BAD_REQUEST)
