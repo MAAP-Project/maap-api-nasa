@@ -171,6 +171,14 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
                 existing_process.github_url=deployment.github_url
                 existing_process.git_commit_hash=deployment.git_commit_hash
                 existing_process.last_modified_time=datetime.now()
+                existing_process.process_name_hysds=deployment.process_name_hysds
+                existing_process.title=deployment.title
+                existing_process.description=deployment.description
+                existing_process.keywords=deployment.keywords
+                existing_process.author=deployment.author
+                existing_process.ram_min=deployment.ram_min,
+                existing_process.cores_min=deployment.cores_min,
+                existing_process.base_command=deployment.base_command
             else:
                 process = Process_db(id=deployment.id,
                                 version=deployment.version,
@@ -362,7 +370,7 @@ class Describe(Resource):
         try:
             cwl_link = req_data.get("executionUnit", {}).get("href")
             if not cwl_link:
-                 return generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
+                return generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
 
             metadata = get_cwl_metadata(cwl_link)
 
