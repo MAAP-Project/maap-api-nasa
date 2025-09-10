@@ -9,7 +9,7 @@ import re
 import tempfile
 import urllib.parse
 from collections import namedtuple
-from datetime import datetime
+from datetime import datetime, timezone
 
 import gitlab
 import requests
@@ -319,3 +319,94 @@ def create_process_deployment(cwl_link, user_id, ignore_existing=False):
     except Exception as e:
         current_app.logger.error(f"Unexpected error in OGC process deployment: {e}")
         raise RuntimeError(f"Failed to create OGC process deployment: {e}")
+    
+def parse_rfc3339_datetime(dt_string):
+    """Parse RFC 3339 datetime string to datetime object"""
+    # Handle Z timezone indicator
+    if dt_string.endswith('Z'):
+        dt_string = dt_string[:-1] + '+00:00'
+    
+    # Try different datetime formats
+    formats = [
+        "%Y-%m-%dT%H:%M:%S.%f%z",  # With microseconds and timezone
+        "%Y-%m-%dT%H:%M:%S%z",     # Without microseconds but with timezone
+        "%Y-%m-%dT%H:%M:%S.%f",    # With microseconds, no timezone
+        "%Y-%m-%dT%H:%M:%S",       # Basic format, no timezone
+    ]
+    
+    for fmt in formats:
+        try:
+            dt = datetime.strptime(dt_string, fmt)
+            # If no timezone info, assume UTC
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+        except ValueError:
+            continue
+    
+    raise ValueError(f"Unable to parse datetime: {dt_string}")
+
+def job_intersects_datetime_range(job_start, job_end, filter_start, filter_end):
+    """
+    Check if a job's time range intersects with the filter datetime range.
+    Returns True if there's an intersection, False otherwise.
+    """
+    try:
+        # Handle intersection logic
+        # Two ranges intersect if: start1 <= end2 and start2 <= end1
+        
+        # Handle half-bounded intervals
+        if filter_start is None:  # "../end_time" case
+            return job_start <= filter_end
+        elif filter_end is None:  # "start_time/.." case  
+            return filter_start <= job_end
+        elif filter_start == filter_end:  # Single datetime case
+            return job_start <= filter_start <= job_end
+        else:  # Bounded interval case
+            return filter_start <= job_end and job_start <= filter_end
+            
+    except Exception as e:
+        print(f"Error checking job intersection: {e}")
+        return False
+    
+def parse_datetime_parameter(datetime):
+    """
+    Parse the datetime parameter and return (start_time, end_time) tuple.
+    Returns (None, None) if parameter is invalid.
+    """
+    
+    try:
+        # Check if it's an interval (contains '/')
+        if '/' in datetime:
+            start_str, end_str = datetime.split('/', 1)
+            
+            # Handle half-bounded intervals
+            if start_str == '..':
+                start_time = None
+                end_time = parse_rfc3339_datetime(end_str)
+            elif end_str == '..':
+                start_time = parse_rfc3339_datetime(start_str)
+                end_time = None
+            else:
+                # Bounded interval
+                start_time = parse_rfc3339_datetime(start_str)
+                end_time = parse_rfc3339_datetime(end_str)
+            
+            return start_time, end_time
+        
+        else:
+            # Single date-time - treat as exact match or you might want to define a small window
+            single_time = parse_rfc3339_datetime(datetime)
+            return single_time, single_time
+    
+    except Exception as e:
+        print(f"Error parsing datetime parameter: {e}")
+        return None, None
+
+def determineDatetimeInRange(datetime, job_start, job_end):
+    filter_start, filter_end = parse_datetime_parameter(datetime)
+    if filter_start is None and filter_end is None:
+        print("Invalid datetime parameter format")
+        return False
+    
+    return job_intersects_datetime_range(job_start, job_end, filter_start, filter_end)
