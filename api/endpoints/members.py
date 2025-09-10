@@ -1,9 +1,10 @@
 import logging
 from cachetools import TLRUCache, cached
 from flask_restx import Resource, reqparse
-from flask import request, jsonify, Response
+from flask import request, jsonify, Response, current_app as app
 from flask_api import status
 from sqlalchemy.exc import SQLAlchemyError
+from werkzeug.exceptions import BadRequest, RequestEntityTooLarge, Unauthorized, ServiceUnavailable
 from api.utils.organization import get_member_organizations
 from api.models.role import Role
 from api.restplus import api
@@ -17,6 +18,7 @@ from api.models.member_session import MemberSession as MemberSession_db
 from api.models.member_secret import MemberSecret as MemberSecret_db
 from api.schemas.member_schema import MemberSchema
 from api.schemas.member_session_schema import MemberSessionSchema
+from api.utils.security_utils import validate_ssh_key_file, sanitize_filename, InvalidFileTypeError, FileSizeTooLargeError, EmptyFileError
 from api.utils.email_util import send_user_status_update_active_user_email, \
     send_user_status_update_suspended_user_email, send_user_status_change_email, \
     send_welcome_to_maap_active_user_email, send_welcome_to_maap_suspended_user_email
@@ -97,7 +99,9 @@ class Member(Resource):
         member_schema = MemberSchema()
         result = json.loads(member_schema.dumps(member))
 
-        if valid_dps_request():
+        # If the request originates from the logged-in user or DPS worker,
+        # include additional profile information belonging to the user
+        if valid_dps_request() or member.username == key:
             pgt_ticket = db.session \
                 .query(MemberSession_db) \
                 .with_entities(MemberSession_db.session_key) \
@@ -105,13 +109,6 @@ class Member(Resource):
                 .order_by(MemberSession_db.id.desc()) \
                 .first()
 
-            member_session_schema = MemberSessionSchema()
-            pgt_result = json.loads(member_session_schema.dumps(pgt_ticket))
-            result = json.loads(json.dumps(dict(result.items() | pgt_result.items())))
-
-        # If the requested user info belongs to the logged-in user,
-        # also include additional ssh key information belonging to the user
-        if member.username == key:
             cols = [
                 Member_db.public_ssh_key_name,
                 Member_db.public_ssh_key_modified_date
@@ -123,9 +120,10 @@ class Member(Resource):
                 .filter_by(username=member.username) \
                 .first()
 
-            member_schema = MemberSchema()
+            member_session_schema = MemberSessionSchema()
+            pgt_result = json.loads(member_session_schema.dumps(pgt_ticket))
             member_ssh_info_result = json.loads(member_schema.dumps(member))
-            result = json.loads(json.dumps(dict(result.items() | member_ssh_info_result.items())))
+            result = json.loads(json.dumps(dict(result.items() | pgt_result.items() | member_ssh_info_result.items())))
 
         result['organizations'] = get_member_organizations(member_id)
 
@@ -206,8 +204,13 @@ class Member(Resource):
                           status=member_status,
                           creation_date=datetime.utcnow())
 
-        db.session.add(guest)
-        db.session.commit()
+        try:
+            db.session.add(guest)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Failed to create member: {e}")
+            raise
 
         # Send Email Notifications based on member status
         if member_status == MEMBER_STATUS_ACTIVE:
@@ -276,7 +279,12 @@ class Member(Resource):
         member.public_ssh_key = req_data.get("public_ssh_key", member.public_ssh_key)
         member.public_ssh_key_name = req_data.get("public_ssh_key_name", member.public_ssh_key_name)
         member.role_id = req_data.get("role_id", member.role_id)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Failed to update member {member.id}: {e}")
+            raise
 
         member_schema = MemberSchema()
         return json.loads(member_schema.dumps(member))
@@ -324,7 +332,12 @@ class MemberStatus(Resource):
 
         if activated or deactivated:
             member.status = member_status
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"Failed to update member status {member.id}: {e}")
+                raise
             gitlab_account = github_util.sync_gitlab_account(
                 activated,
                 member.username,
@@ -337,7 +350,12 @@ class MemberStatus(Resource):
                 member.gitlab_id = gitlab_account["gitlab_id"]
                 member.gitlab_token = gitlab_account["gitlab_token"]
                 member.gitlab_username = member.username
-                db.session.commit()
+                try:
+                    db.session.commit()
+                except Exception as e:
+                    db.session.rollback()
+                    app.logger.error(f"Failed to update member gitlab info {member.id}: {e}")
+                    raise
 
         # Send "Account Activated" email notification to Member & Admins
         if activated:
@@ -380,12 +398,21 @@ class Self(Resource):
             .filter_by(username=authorized_user.username) \
             .first()
 
-        member_id = member.id
+        pgt_ticket = db.session \
+            .query(MemberSession_db) \
+            .with_entities(MemberSession_db.session_key) \
+            .filter_by(member_id=member.id) \
+            .order_by(MemberSession_db.id.desc()) \
+            .first()
+
+        member_session_schema = MemberSessionSchema()
+        member_schema = MemberSchema()
+        pgt_result = json.loads(member_session_schema.dumps(pgt_ticket))
+        member_result = json.loads(member_schema.dumps(member))
+        result = json.loads(json.dumps(dict(member_result.items() | pgt_result.items())))
 
         if 'proxy-ticket' in request.headers:
-            member_schema = MemberSchema()
-            result = json.loads(member_schema.dumps(member))
-            result['organizations'] = get_member_organizations(member_id)
+            result['organizations'] = get_member_organizations(member.id)
             return result
 
         if 'Authorization' in request.headers:
@@ -400,35 +427,68 @@ class PublicSshKeyUpload(Resource):
     def post(self):
         if 'file' not in request.files:
             log.error('Upload attempt with no file')
-            raise Exception('No file uploaded')
+            # Use a more specific error from werkzeug.exceptions or our custom ones
+            raise BadRequest('No file uploaded.')
 
         member = get_authorized_user()
-
         f = request.files['file']
 
-        file_lines = f.read().decode("utf-8")
+        # Sanitize filename first
+        safe_filename = sanitize_filename(f.filename)
 
-        db.session.query(Member_db).filter(Member_db.id == member.id). \
-            update({Member_db.public_ssh_key: file_lines,
-                    Member_db.public_ssh_key_name: f.filename,
-                    Member_db.public_ssh_key_modified_date: datetime.utcnow()})
+        try:
+            # Validate the file (type, size, content)
+            validate_ssh_key_file(f, settings.MAX_SSH_KEY_SIZE_BYTES, settings.ALLOWED_SSH_KEY_EXTENSIONS)
+            # f.seek(0) # validate_ssh_key_file should reset seek(0) if it reads
 
-        db.session.commit()
+            file_content = f.read().decode("utf-8") # Read after validation
 
-        member_schema = MemberSchema()
-        return json.loads(member_schema.dumps(member))
+            db.session.query(Member_db).filter(Member_db.id == member.id). \
+                update({Member_db.public_ssh_key: file_content,
+                        Member_db.public_ssh_key_name: safe_filename, # Use sanitized filename
+                        Member_db.public_ssh_key_modified_date: datetime.utcnow()})
+            db.session.commit()
+
+            # Re-fetch member to get updated data for the response
+            updated_member = db.session.query(Member_db).filter_by(id=member.id).first()
+            member_schema = MemberSchema()
+            return json.loads(member_schema.dumps(updated_member))
+
+        except (InvalidFileTypeError, FileSizeTooLargeError, EmptyFileError) as e:
+            log.error(f"SSH key upload validation failed for member {member.id}: {e.description}")
+            # These exceptions are already werkzeug HTTPExceptions, so they will be handled by Flask/RestX
+            raise e
+        except UnicodeDecodeError:
+            log.error(f"SSH key for member {member.id} is not valid UTF-8 text.")
+            raise BadRequest("File content is not valid UTF-8 text.")
+        except SQLAlchemyError as e:
+            db.session.rollback()
+            log.error(f"Database error updating SSH key for member {member.id}: {e}")
+            # For database errors, we might want a more generic server error
+            # Or a specific error if api.restplus handles SQLAlchemyError specifically
+            raise ServiceUnavailable("Could not save SSH key due to a database error.")
+        except Exception as e:
+            db.session.rollback() # Ensure rollback for any other unexpected error
+            log.error(f"Unexpected error updating SSH key for member {member.id}: {e}")
+            # Fallback for truly unexpected errors
+            raise ServiceUnavailable("An unexpected error occurred while saving the SSH key.")
+
 
     @api.doc(security='ApiKeyAuth')
     @login_required()
     def delete(self):
         member = get_authorized_user()
 
-        db.session.query(Member_db).filter(Member_db.id == member.id). \
-            update({Member_db.public_ssh_key: '',
-                    Member_db.public_ssh_key_name: '',
-                    Member_db.public_ssh_key_modified_date: datetime.utcnow()})
-
-        db.session.commit()
+        try:
+            db.session.query(Member_db).filter(Member_db.id == member.id). \
+                update({Member_db.public_ssh_key: '',
+                        Member_db.public_ssh_key_name: '',
+                        Member_db.public_ssh_key_modified_date: datetime.utcnow()})
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Failed to delete SSH key for member {member.id}: {e}")
+            raise
 
         member_schema = MemberSchema()
         return json.loads(member_schema.dumps(member))

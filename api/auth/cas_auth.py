@@ -18,11 +18,17 @@ from Crypto.Hash import SHA
 from base64 import b64decode
 from api.utils.url_util import proxied_url
 import ast
+import socket # For socket.timeout
+from xml.parsers.expat import ExpatError # For XML parsing errors
+
+from api.utils.security_utils import AuthenticationError, ExternalServiceError
+
 
 try:
-    from urllib import urlopen
+    from urllib import urlopen, URLError # URLError for network issues
 except ImportError:
-    from urllib.request import urlopen
+    from urllib.request import urlopen, URLError # URLError for network issues
+
 
 blueprint = flask.Blueprint('cas', __name__)
 
@@ -44,23 +50,45 @@ def validate(service, ticket):
         service,
         ticket) + '&pgtUrl=' + current_app.config['CAS_SERVER']
 
-    current_app.logger.debug("Making GET request to {}".format(
-        cas_validate_url))
+    current_app.logger.debug("Making GET request to {}".format(cas_validate_url))
 
     try:
-        xmldump = urlopen(cas_validate_url).read().strip().decode('utf8', 'ignore')
-        xml_from_dict = parse(xmldump)
-        isValid = True if "cas:authenticationSuccess" in xml_from_dict["cas:serviceResponse"] or \
-                           "cas:proxySuccess" in xml_from_dict["cas:serviceResponse"] else False
+        response = urlopen(cas_validate_url, timeout=settings.REQUESTS_TIMEOUT_SECONDS)
+        xmldump = response.read().strip().decode('utf8', 'ignore')
+        xml_from_dict = parse(xmldump) # This can raise ExpatError
 
-        if isValid:
-            attributes = xml_from_dict["cas:serviceResponse"]["cas:authenticationSuccess"]["cas:attributes"]
-            return validate_proxy(get_cas_attribute_value(attributes, 'proxyGrantingTicket'), True)
+        success_auth = xml_from_dict.get("cas:serviceResponse", {}).get("cas:authenticationSuccess")
+        success_proxy = xml_from_dict.get("cas:serviceResponse", {}).get("cas:proxySuccess")
 
-    except ValueError:
-        current_app.logger.error("CAS returned unexpected result")
+        is_valid = bool(success_auth or success_proxy)
 
-    return None
+        if is_valid:
+            attributes_parent = success_auth or success_proxy # Get the one that exists
+            attributes = attributes_parent.get("cas:attributes", {})
+            pg_ticket = get_cas_attribute_value(attributes, 'proxyGrantingTicket')
+            if not pg_ticket:
+                 current_app.logger.warning("No proxyGrantingTicket found in CAS response.")
+                 raise AuthenticationError("Missing proxyGrantingTicket from CAS.")
+            return validate_proxy(pg_ticket, True)
+        else:
+            failure_message = xml_from_dict.get("cas:serviceResponse", {}).get("cas:authenticationFailure", {}).get("#text", "Unknown CAS validation error")
+            current_app.logger.warning(f"CAS validation failed: {failure_message}")
+            raise AuthenticationError(f"CAS ticket validation failed: {failure_message}")
+
+    except (URLError, socket.timeout) as e:
+        current_app.logger.error(f"CAS server connection failed or timed out: {e}")
+        raise ExternalServiceError("CAS server connection failed or timed out.")
+    except ExpatError as e:
+        current_app.logger.error(f"Failed to parse XML response from CAS: {e}")
+        raise AuthenticationError("Invalid XML response from CAS server.")
+    except ValueError as e: # Catching if decode fails or parse has other issues
+        current_app.logger.error(f"CAS returned unexpected result or malformed XML: {e}")
+        raise AuthenticationError("CAS returned unexpected or malformed response.")
+    except AuthenticationError: # Re-raise our own specific auth errors
+        raise
+    except Exception as e: # Catch-all for other unexpected errors during validation
+        current_app.logger.error(f"Unexpected error during CAS ticket validation: {e}")
+        raise ExternalServiceError("An unexpected error occurred during CAS ticket validation.")
 
 
 def validate_proxy(ticket, auto_create_member=False):
@@ -117,15 +145,35 @@ def validate_bearer(token):
     """
 
     current_app.logger.debug("validating token {0}".format(token))
+    url = current_app.config['CAS_SERVER'] + '/oauth2.0/profile'
+    headers = {'Authorization': 'Bearer ' + token}
 
-    resp = requests.get(current_app.config['CAS_SERVER'] + '/oauth2.0/profile',
-                        headers={'Authorization': 'Bearer ' + token})
+    try:
+        resp = requests.get(url, headers=headers, timeout=settings.REQUESTS_TIMEOUT_SECONDS)
+        resp.raise_for_status()  # Raises HTTPError for 4xx/5xx responses
 
-    if resp.status_code == status.HTTP_200_OK:
-        return json.loads(resp.text)
+        return resp.json() # This can raise json.JSONDecodeError
 
-    current_app.logger.debug("invalid bearer token")
-    return None
+    except requests.exceptions.Timeout:
+        current_app.logger.error(f"Timeout connecting to CAS server for bearer token validation at {url}")
+        raise ExternalServiceError("Authentication service timed out.")
+    except requests.exceptions.ConnectionError:
+        current_app.logger.error(f"Connection error to CAS server for bearer token validation at {url}")
+        raise ExternalServiceError("Could not connect to authentication service.")
+    except requests.exceptions.HTTPError as e:
+        # This catches 4xx and 5xx errors from resp.raise_for_status()
+        if e.response.status_code == status.HTTP_401_UNAUTHORIZED or e.response.status_code == status.HTTP_403_FORBIDDEN:
+            current_app.logger.warning(f"Invalid bearer token. CAS server responded with {e.response.status_code}.")
+            raise AuthenticationError("Invalid bearer token.")
+        else:
+            current_app.logger.error(f"CAS server returned HTTP {e.response.status_code} for bearer token validation.")
+            raise ExternalServiceError(f"Authentication service returned an error: {e.response.status_code}")
+    except json.JSONDecodeError:
+        current_app.logger.error("Failed to decode JSON response from CAS server during bearer token validation.")
+        raise AuthenticationError("Invalid response from authentication service.")
+    except Exception as e: # Catch-all for other unexpected errors
+        current_app.logger.error(f"Unexpected error during bearer token validation: {e}")
+        raise ExternalServiceError("An unexpected error occurred during token validation.")
 
 
 def validate_cas_request(cas_url):
@@ -133,18 +181,46 @@ def validate_cas_request(cas_url):
     xml_from_dict = {}
     is_valid = False
 
-    current_app.logger.debug("Making GET request to {0}".format(
-        cas_url))
+    current_app.logger.debug(f"Making GET request to {cas_url}")
 
     try:
-        xmldump = urlopen(cas_url).read().strip().decode('utf8', 'ignore')
-        xml_from_dict = parse(xmldump)
-        is_valid = True if "cas:authenticationSuccess" in xml_from_dict["cas:serviceResponse"] or \
-                           "cas:proxySuccess" in xml_from_dict["cas:serviceResponse"] else False
-    except ValueError:
-        current_app.logger.error("CAS returned unexpected result")
+        response = urlopen(cas_url, timeout=settings.REQUESTS_TIMEOUT_SECONDS)
+        xmldump = response.read().strip().decode('utf8', 'ignore')
+        xml_from_dict = parse(xmldump) # Can raise ExpatError
 
-    return is_valid, xml_from_dict
+        # Check for successful authentication or proxy success
+        auth_success = xml_from_dict.get("cas:serviceResponse", {}).get("cas:authenticationSuccess")
+        proxy_success = xml_from_dict.get("cas:serviceResponse", {}).get("cas:proxySuccess")
+
+        is_valid = bool(auth_success or proxy_success)
+
+        if not is_valid:
+            failure_node = xml_from_dict.get("cas:serviceResponse", {}).get("cas:authenticationFailure")
+            if failure_node:
+                error_code = failure_node.get("@code", "UNKNOWN_ERROR")
+                error_message = failure_node.get("#text", "CAS request failed without detailed message.")
+                current_app.logger.warning(f"CAS request failed. Code: {error_code}. Message: {error_message}. URL: {cas_url}")
+                # Do not raise AuthenticationError here, let the caller decide.
+                # This function's contract is to return (is_valid, xml_dict)
+            else: # Should not happen if CAS is behaving, but good to log
+                current_app.logger.warning(f"CAS request to {cas_url} was not successful and no failure node found in response.")
+
+        return is_valid, xml_from_dict
+
+    except (URLError, socket.timeout) as e:
+        current_app.logger.error(f"CAS server connection failed or timed out for URL {cas_url}: {e}")
+        raise ExternalServiceError(f"CAS server connection failed or timed out: {e}")
+    except ExpatError as e:
+        current_app.logger.error(f"Failed to parse XML response from CAS for URL {cas_url}: {e}")
+        # Potentially return is_valid = False and an empty dict or specific error structure in xml_from_dict
+        # For now, let's raise to indicate a severe issue with the response.
+        raise AuthenticationError(f"Invalid XML response from CAS server: {e}")
+    except ValueError as e: # Catching if decode fails
+        current_app.logger.error(f"CAS returned unexpected result (e.g. decode error) for URL {cas_url}: {e}")
+        raise AuthenticationError(f"CAS returned unexpected or malformed response: {e}")
+    except Exception as e: # Catch-all for other unexpected errors
+        current_app.logger.error(f"Unexpected error during CAS request to {cas_url}: {e}")
+        raise ExternalServiceError(f"An unexpected error occurred during CAS request: {e}")
 
 
 def start_member_session(cas_response, ticket, auto_create_member=False):
@@ -163,15 +239,30 @@ def start_member_session(cas_response, ticket, auto_create_member=False):
                         email=get_cas_attribute_value(attributes, 'email'),
                         organization=get_cas_attribute_value(attributes, 'organization'),
                         urs_token=urs_access_token)
-        db.session.add(member)
+        try:
+            db.session.add(member)
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Failed to add new member {usr}: {e}")
+            raise
     else:
         member.urs_token = urs_access_token
 
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Failed to update member {usr}: {e}")
+        raise
 
     member_session = MemberSession(member_id=member.id, session_key=ticket, creation_date=datetime.utcnow())
-    db.session.add(member_session)
-    db.session.commit()
+    try:
+        db.session.add(member_session)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Failed to create member session for {usr}: {e}")
+        raise
 
     return member_session
 

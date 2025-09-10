@@ -5,6 +5,7 @@ from datetime import datetime
 
 import sqlalchemy
 from sqlalchemy.exc import SQLAlchemyError
+from flask import current_app as app
 from api.maap_database import db
 from api.models import job_queue
 from api.models.job_queue import JobQueue
@@ -116,8 +117,13 @@ def create_queue(queue_name, queue_description, guest_tier, is_default, time_lim
         new_queue = JobQueue(queue_name=queue_name, queue_description=queue_description, guest_tier=guest_tier,
                              is_default=is_default, time_limit_minutes=time_limit_minutes, creation_date=datetime.utcnow())
 
-        db.session.add(new_queue)
-        db.session.commit()
+        try:
+            db.session.add(new_queue)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Failed to create job queue {queue_name}: {e}")
+            raise
 
         if is_default:
             _reset_queue_default(new_queue.id)
@@ -128,8 +134,13 @@ def create_queue(queue_name, queue_description, guest_tier, is_default, time_lim
                                                    creation_date=datetime.utcnow()))
 
         if len(queue_orgs) > 0:
-            db.session.add_all(queue_orgs)
-            db.session.commit()
+            try:
+                db.session.add_all(queue_orgs)
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"Failed to add organization assignments to queue {new_queue.id}: {e}")
+                raise
 
         org_schema = JobQueueSchema()
         return json.loads(org_schema.dumps(new_queue))
@@ -141,16 +152,26 @@ def create_queue(queue_name, queue_description, guest_tier, is_default, time_lim
 def update_queue(queue, orgs):
     try:
         # Update queue
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Failed to update job queue {queue.id}: {e}")
+            raise
 
         if queue.is_default:
             _reset_queue_default(queue.id)
 
         # Update org assignments
-        db.session.execute(
-            db.delete(OrganizationJobQueue).filter_by(job_queue_id=queue.id)
-        )
-        db.session.commit()
+        try:
+            db.session.execute(
+                db.delete(OrganizationJobQueue).filter_by(job_queue_id=queue.id)
+            )
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Failed to clear organization assignments for queue {queue.id}: {e}")
+            raise
 
         queue_orgs = []
         for queue_org in orgs:
@@ -159,8 +180,13 @@ def update_queue(queue, orgs):
                                      creation_date=datetime.utcnow()))
 
         if len(queue_orgs) > 0:
-            db.session.add_all(queue_orgs)
-            db.session.commit()
+            try:
+                db.session.add_all(queue_orgs)
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"Failed to add new organization assignments to queue {queue.id}: {e}")
+                raise
 
         queue_schema = JobQueueSchema()
         return json.loads(queue_schema.dumps(queue))
@@ -172,13 +198,23 @@ def update_queue(queue, orgs):
 def delete_queue(queue_id):
     try:
         # Clear orgs
-        db.session.execute(
-            db.delete(OrganizationJobQueue).filter_by(job_queue_id=queue_id)
-        )
-        db.session.commit()
+        try:
+            db.session.execute(
+                db.delete(OrganizationJobQueue).filter_by(job_queue_id=queue_id)
+            )
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Failed to clear organization assignments for queue {queue_id}: {e}")
+            raise
 
-        db.session.query(JobQueue).filter_by(id=queue_id).delete()
-        db.session.commit()
+        try:
+            db.session.query(JobQueue).filter_by(id=queue_id).delete()
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Failed to delete job queue {queue_id}: {e}")
+            raise
     except SQLAlchemyError as ex:
         raise ex
 
@@ -197,8 +233,13 @@ def get_default_queue():
 
 def _reset_queue_default(default_id):
     query = "update job_queue set is_default = False where id != {}".format(default_id)
-    db.session.execute(sqlalchemy.text(query))
-    db.session.commit()
+    try:
+        db.session.execute(sqlalchemy.text(query))
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Failed to reset default queue flags for queue {default_id}: {e}")
+        raise
 
 
 def validate_or_get_queue(queue: str, job_type: str, user_id: int):

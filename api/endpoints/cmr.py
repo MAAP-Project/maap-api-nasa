@@ -8,11 +8,15 @@ import tempfile
 from flask import request, json, Response, stream_with_context
 from flask_restx import Resource
 from flask_api import status
+from werkzeug.exceptions import BadRequest, RequestEntityTooLarge, ServiceUnavailable
 from api.restplus import api
 from api.auth.security import get_authorized_user, edl_federated_request
 from api.maap_database import db
 from api.models.member import Member
 from urllib import parse
+from api.utils.security_utils import validate_shapefile_upload, sanitize_filename, InvalidFileTypeError, FileSizeTooLargeError, InvalidRequestError
+import zipfile # Already imported, ensure it's available for specific exceptions
+import shapefile as shp_validator # Alias to avoid confusion if shapefile is also a var name
 
 try:
     import urllib.parse as urlparse
@@ -58,36 +62,116 @@ class ShapefileUpload(Resource):
         CMR collections search by shape file
             File input expected: .zip including .shp, .dbf, and .shx file
         """
-
         if 'file' not in request.files:
-            log.error('Upload attempt with no file')
-            raise Exception('No file uploaded')
+            log.error('Shapefile upload attempt with no file')
+            raise BadRequest('No file uploaded.')
 
         f = request.files['file']
 
-        dst = tempfile.NamedTemporaryFile()
-        f.save(dst)
-        dst.flush()
-        zipfile = ZipFile(dst.name)
+        # It's good practice to sanitize the filename, even if not directly used for storage here,
+        # in case logs or temporary file creation uses it.
+        _ = sanitize_filename(f.filename) # Result not directly used, but good to run
 
-        filenames = [y for y in sorted(zipfile.namelist()) for ending in ['dbf', 'prj', 'shp', 'shx'] if
-                     y.endswith(ending)][:4]
+        temp_dir = None # For extracting files if needed by shapefile.Reader with paths
+        dst_path = None
 
-        dbf, prj, shp, shx = [filename for filename in filenames]
+        try:
+            # Validate the uploaded file (type, size, content)
+            # The validate_shapefile_upload function handles ZIP checks, member presence, and size limits.
+            # It expects a file-like object, so f (FileStorage) is fine.
+            validate_shapefile_upload(
+                f,
+                settings.MAX_SHAPEFILE_ZIP_SIZE_BYTES,
+                settings.MAX_SHAPEFILE_UNCOMPRESSED_SIZE_BYTES
+            )
+            # f.seek(0) should be handled by validate_shapefile_upload if it reads the file
 
-        r = shapefile.Reader(
-            shp=zipfile.open(shp),
-            hx=zipfile.open(shx),
-            dbf=zipfile.open(dbf))
+            # The shapefile.Reader can often read from file-like objects directly from the zip.
+            # To do this robustly, we might need to extract to a temporary location if Reader
+            # doesn't handle in-memory zip file members well for all its needs (e.g. .dbf, .shx access).
+            # Let's try with a temporary file for the ZIP first.
 
-        dst.close()
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp_zip_file:
+                f.save(tmp_zip_file) # Save FileStorage to a temporary file path
+                dst_path = tmp_zip_file.name
 
-        bbox = ','.join(map(str, r.bbox))
+            # Now use the path with ZipFile and shapefile.Reader
+            # This ensures shapefile.Reader can access related files (.shx, .dbf) correctly.
+            with ZipFile(dst_path, 'r') as zf:
+                shp_filename = None
+                # Find the .shp file, assuming one primary shapefile per ZIP for this use case
+                for member_name in zf.namelist():
+                    if member_name.lower().endswith('.shp'):
+                        shp_filename = member_name
+                        break
 
+                if not shp_filename:
+                    # This should have been caught by validate_shapefile_upload if it checks namelist
+                    raise InvalidFileTypeError("No .shp file found in the archive.")
+
+                # shapefile.Reader needs to access .shp, .shx, .dbf.
+                # It can take BytesIO for shp, shx, dbf.
+                # Let's extract them to BytesIO objects.
+                shp_io = None
+                shx_io = None
+                dbf_io = None
+
+                # Construct expected .shx and .dbf names from .shp name
+                base_name, _ = os.path.splitext(shp_filename)
+                shx_expected_name = base_name + ".shx"
+                dbf_expected_name = base_name + ".dbf"
+
+                # Search for case-insensitive matches in the zip file
+                for member_name_in_zip in zf.namelist():
+                    if member_name_in_zip.lower() == shp_filename.lower():
+                         shp_io = zf.open(member_name_in_zip)
+                    elif member_name_in_zip.lower() == shx_expected_name.lower():
+                         shx_io = zf.open(member_name_in_zip)
+                    elif member_name_in_zip.lower() == dbf_expected_name.lower():
+                         dbf_io = zf.open(member_name_in_zip)
+
+                if not all([shp_io, shx_io, dbf_io]):
+                    # This should also be caught by validate_shapefile_upload
+                    raise InvalidFileTypeError("Required shapefile components (.shp, .shx, .dbf) not found or accessible with the same base name.")
+
+                r = shp_validator.Reader(shp=shp_io, shx=shx_io, dbf=dbf_io)
+                bbox = ','.join(map(str, r.bbox))
+
+                # Close BytesIO objects
+                if shp_io: shp_io.close()
+                if shx_io: shx_io.close()
+                if dbf_io: dbf_io.close()
+
+        except (InvalidFileTypeError, FileSizeTooLargeError, InvalidRequestError) as e:
+            log.error(f"Shapefile upload validation failed: {e.description}")
+            raise e # Re-raise to be handled by Flask/RestX
+        except shp_validator.ShapefileException as e:
+            log.error(f"Error reading shapefile: {e}")
+            raise InvalidRequestError(f"Invalid shapefile content: {e}")
+        except zipfile.BadZipFile:
+            log.error("Uploaded file is not a valid ZIP archive.")
+            raise InvalidFileTypeError("Uploaded file is not a valid ZIP archive.")
+        except Exception as e:
+            log.error(f"Unexpected error processing shapefile: {e}")
+            raise ServiceUnavailable("An unexpected error occurred while processing the shapefile.")
+        finally:
+            if dst_path and os.path.exists(dst_path):
+                os.remove(dst_path) # Clean up the temporary file
+            f.seek(0) # Reset original FileStorage stream just in case
+
+        # Proceed with CMR search using bbox
         url = os.path.join(settings.CMR_URL, 'search', 'collections')
-        resp = requests.get(url, headers=get_search_headers(), params={'bounding_box': bbox})
+        try:
+            cmr_resp = requests.get(url, headers=get_search_headers(), params={'bounding_box': bbox}, timeout=settings.REQUESTS_TIMEOUT_SECONDS)
+            cmr_resp.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
+        except requests.exceptions.Timeout:
+            log.error("Timeout connecting to CMR for shapefile search.")
+            raise ServiceUnavailable("CMR service timed out.")
+        except requests.exceptions.RequestException as e:
+            log.error(f"CMR request failed for shapefile search: {e}")
+            raise ServiceUnavailable(f"Could not connect to CMR service: {e}")
 
-        return respond(resp)
+        return respond(cmr_resp)
 
 
 @ns.route('/granules')

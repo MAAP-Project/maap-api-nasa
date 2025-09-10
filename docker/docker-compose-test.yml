@@ -1,0 +1,49 @@
+services:
+  test:
+    container_name: 'maap-api-test'
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile.test
+      target: test-runtime
+    depends_on:
+      test-db:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://testuser:testpass@test-db:5432/maap_test
+      - MOCK_RESPONSES=true
+      - FLASK_ENV=testing
+      - FERNET_KEY=ZmRhZjUzNTQxZmNiZTQxN2M1YjI1NTk0NzM2MzY1NDg=
+      - SECRET_KEY=test-secret-key-for-testing-only
+      - CMR_API_TOKEN=test-cmr-token
+      - GITLAB_TOKEN=test-gitlab-token
+    volumes:
+      - ../test:/maap-api-nasa/test
+      - ./test-results:/maap-api-nasa/test-results
+    command: pytest -v --tb=short --junitxml=test-results/results.xml --cov=api --cov-report=html:test-results/coverage
+    networks:
+      - test-network
+
+  test-db:
+    image: postgres:14.5
+    container_name: 'maap-test-db'
+    environment:
+      POSTGRES_DB: maap_test
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpass
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - test-db-data:/var/lib/postgresql/data
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d postgresql://testuser:testpass@test-db/maap_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  test-db-data:
+
+networks:
+  test-network:
+    driver: bridge

@@ -1,0 +1,44 @@
+FROM python:3.9 as test-builder
+
+# Install Poetry
+RUN curl -sSL https://install.python-poetry.org | python3 -
+
+ENV PATH="${PATH}:/root/.local/bin" \
+    POETRY_NO_INTERACTION=1 \
+    POETRY_VIRTUALENVS_IN_PROJECT=1 \
+    POETRY_VIRTUALENVS_CREATE=1 \
+    POETRY_CACHE_DIR=/tmp/poetry_cache
+
+WORKDIR /maap-api-nasa
+
+COPY pyproject.toml poetry.lock ./
+RUN touch README.md
+
+# Install with dev dependencies for testing
+RUN poetry install --with dev --no-root && rm -rf $POETRY_CACHE_DIR
+
+FROM python:3.9-slim as test-runtime
+
+ENV VIRTUAL_ENV=/maap-api-nasa/.venv \
+    PATH="/maap-api-nasa/.venv/bin:$PATH" \
+    PYTHONPATH="/maap-api-nasa:$PYTHONPATH"
+
+COPY --from=test-builder ${VIRTUAL_ENV} ${VIRTUAL_ENV}
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git python3-psycopg2 \
+    && apt-get purge -y --auto-remove \
+    && rm -rf /var/lib/apt/lists/*
+
+# COPY api /maap-api-nasa/api
+# COPY test /maap-api-nasa/test
+COPY logging.conf /maap-api-nasa/logging.conf
+
+WORKDIR /maap-api-nasa
+
+# Create logs directory for application
+RUN mkdir -p /maap-api-nasa/logs
+
+# Set test environment variables
+ENV FLASK_ENV=testing \
+    MOCK_RESPONSES=true

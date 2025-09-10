@@ -15,3 +15,7 @@ local
 docker/logs/
 /logs/
 /dist/
+.claude
+.serena
+.vscode/
+docker/test-results/
