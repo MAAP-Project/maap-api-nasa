@@ -147,7 +147,13 @@ def _generate_error(detail, error_status, error_type=None):
 
 
 def _validate_build_payload(payload):
-    current_app.logger.debug(f"Validating build payload with keys: {list(payload.keys()) if payload else 'None'}")
+    # Validate that payload is a dictionary
+    if payload is None:
+        raise ValueError("Request payload is required")
+    if not isinstance(payload, dict):
+        raise ValueError("Request payload must be a JSON object")
+    
+    current_app.logger.debug(f"Validating build payload with keys: {list(payload.keys())}")
     
     # Required variables
     if payload.get("code_repository") is None:
@@ -585,8 +591,20 @@ class BuildList(Resource):
         }
         """
         current_app.logger.debug("POST /build - Creating new build request")
-        req_data = request.get_json()
-        current_app.logger.debug(f"Request payload keys: {list(req_data.keys()) if req_data else 'None'}")
+        
+        try:
+            req_data = request.get_json()
+        except Exception as e:
+            current_app.logger.error(f"Failed to parse JSON from request: {e}")
+            return _generate_error("Invalid JSON in request body", status.HTTP_400_BAD_REQUEST)
+        
+        # Validate that the request data is a dictionary
+        if req_data is None:
+            return _generate_error("Request body must contain valid JSON", status.HTTP_400_BAD_REQUEST)
+        if not isinstance(req_data, dict):
+            return _generate_error("Request body must be a JSON object, not a string, array, or primitive value", status.HTTP_400_BAD_REQUEST)
+        
+        current_app.logger.debug(f"Request payload keys: {list(req_data.keys())}")
         
         try:
             current_app.logger.debug("Validating build payload")
@@ -709,6 +727,12 @@ class BuildWebhook(Resource):
                 return _generate_error("Body expected in request", status.HTTP_400_BAD_REQUEST)
             
             req_data = json.loads(req_data_string)
+            
+            # Validate that the parsed data is a dictionary
+            if not isinstance(req_data, dict):
+                current_app.logger.debug(f"Webhook payload is not a JSON object, got: {type(req_data).__name__}")
+                return _generate_error("Webhook payload must be a JSON object", status.HTTP_400_BAD_REQUEST)
+            
             current_app.logger.debug(f"Parsed webhook JSON with keys: {list(req_data.keys())}")
             
             # Check if this is a pipeline event
