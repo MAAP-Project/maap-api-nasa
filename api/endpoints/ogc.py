@@ -664,13 +664,15 @@ class Status(Resource):
                 "description": existing_process.description,
                 "keywords": existing_process.keywords.split(",") if existing_process.keywords is not None else [], 
             }
+        current_status = submitted_time = time_start = time_end = None
         try:
             current_status = response["status"]
             current_status = ogc.hysds_to_ogc_status(current_status)
             submitted_time = response_body["job"]["job_info"]["time_queued"]
             time_start = response_body["job"]["job_info"]["time_start"]
             time_end = response_body["job"]["job_info"]["time_end"]
-        except:
+        except Exception as ex:
+            print(ex)
             print(f"ERROR getting times or status for job {job_id}")
         response_body.update({
             "id": job_id,
@@ -678,7 +680,7 @@ class Status(Resource):
             # TODO graceal should this be hard coded in if the example options are process, wps, openeo?
             "type": None,
             "request": None,
-            "status": status,
+            "status": current_status,
             "message": None,
             "created": submitted_time,
             "started": time_start,
