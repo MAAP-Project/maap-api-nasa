@@ -23,7 +23,8 @@ from api.models.member import Member as Member_db
 from api.utils import job_queue
 from api.utils.ogc_process_util import (
     create_process_deployment, get_cwl_metadata, CWL_METADATA,
-    trigger_gitlab_pipeline, create_and_commit_deployment, generate_error,
+    trigger_gitlab_pipeline, create_and_commit_deployment, generate_error, get_hysds_process_name, 
+    get_process_id_from_hysds_name, 
     DEPLOYED_PROCESS_STATUS, INITIAL_JOB_STATUS, UNDEPLOYED_PROCESS_STATUS, HREF_LANG
 )
 
@@ -173,7 +174,6 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
             else:
                 process = Process_db(id=deployment.id,
                                 version=deployment.version,
-                                process_name_hysds=deployment.process_name_hysds,
                                 cwl_link=deployment.cwl_link,
                                 title=deployment.title,
                                 description=deployment.description,
@@ -289,7 +289,8 @@ class Describe(Resource):
         if not existing_process:
             return generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
 
-        hysdsio_type = f"hysds-io-{existing_process.process_name_hysds}"
+        process_name_hysds = get_hysds_process_name(existing_process.id, existing_process.deployer, existing_process.version)
+        hysdsio_type = f"hysds-io-{process_name_hysds}"
         response = hysds.get_hysds_io(hysdsio_type)
         if not response or not response.get("success"):
             return generate_error("No process with that process ID found on HySDS", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
@@ -369,8 +370,8 @@ class Describe(Resource):
                 detail = f"Need to provide same id and version as previous process which is {existing_process.id}:{existing_process.version}"
                 return generate_error(detail, status.HTTP_400_BAD_REQUEST)
 
-            pipeline, process_name_hysds = trigger_gitlab_pipeline(cwl_link, metadata.version, metadata.id, user.id)
-            deployment = create_and_commit_deployment(metadata, pipeline, user, process_name_hysds, existing_process)
+            pipeline = trigger_gitlab_pipeline(cwl_link, metadata.version, metadata.id, user.id)
+            deployment = create_and_commit_deployment(metadata, pipeline, user, existing_process)
             
             deployment = db.session.query(Deployment_db).filter_by(pipeline_id=pipeline.id).first()
             deployment_job_id = deployment.job_id
@@ -484,7 +485,8 @@ class ExecuteJob(Resource):
 
         dedup = req_data.get("dedup")
         tag = req_data.get("tag")
-        job_type = f"job-{existing_process.process_name_hysds}"
+        process_name_hysds = get_hysds_process_name(existing_process.id, existing_process.deployer, existing_process.version)
+        job_type = f"job-{process_name_hysds}"
 
         try:
             user = get_authorized_user()
@@ -624,20 +626,31 @@ class Status(Resource):
         """
         response_body = dict()
 
-        # Find the process for that job from HySDS
-        # Also get job submitted time from HySDS and STATUS
-        # How can I do this??
-        response = hysds.get_mozart_job(job_id)
-        print("graceal1 response from getting the mozart job- I want to find the process ID")
-        print(response)
-
-        # graceal update this when I can find from HySDS
-        process_id = 1
-
-        existing_process = _get_deployed_process(process_id)
-
-        if response is None:
+        # Need to check status first - not actually to see if null??
+        # status = hysds.mozart_job_status(job_id).get("status")
+        # if status is None:
+        #     return generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
+        
+        # graceal test this works 
+        try:
+            response = hysds.get_mozart_job(job_id)
+            if response and response["type"]:
+                job_type = response["type"]
+                existing_process = get_process_id_from_hysds_name(job_type)
+            else:
+                return generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
+        except Exception as ex:
+            print("graceal printign exception to see if difference hysds not working and job just not being found")
+            print(ex)
+            print(type(ex))
             return generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
+            response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
+            response_body["detail"] = "Failed to get job status of job with id: {}. " \
+                                            "Please check back a little later for " \
+                                            "job execution status. If still not found," \
+                                            " please contact administrator " \
+                                            "of DPS".format(job_id)
+            return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
         
         if not existing_process:
             response_body = {
@@ -651,17 +664,25 @@ class Status(Resource):
                 "description": existing_process.description,
                 "keywords": existing_process.keywords.split(",") if existing_process.keywords is not None else [], 
             }
+        try:
+            current_status = response["status"]
+            current_status = ogc.hysds_to_ogc_status(current_status)
+            submitted_time = response_body["job"]["job_info"]["time_queued"]
+            time_start = response_body["job"]["job_info"]["time_start"]
+            time_end = response_body["job"]["job_info"]["time_end"]
+        except:
+            print(f"ERROR getting times or status for job {job_id}")
         response_body.update({
             "id": job_id,
-            "processID": process_id,
+            "processID": existing_process.process_id,
             # TODO graceal should this be hard coded in if the example options are process, wps, openeo?
             "type": None,
             "request": None,
-            "status": None,
+            "status": status,
             "message": None,
-            "created": None,
-            "started": None,
-            "finished": None,
+            "created": submitted_time,
+            "started": time_start,
+            "finished": time_end,
             "updated": None,
             "progress": None,
             "links": [
@@ -675,20 +696,7 @@ class Status(Resource):
             ]
         })
 
-        try:
-            response = hysds.mozart_job_status(job_id=job_id)
-            current_status = response.get("status")
-            current_status = ogc.hysds_to_ogc_status(current_status)
-            response_body["status"] = current_status
-            return response_body, status.HTTP_200_OK 
-        except: 
-            response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
-            response_body["detail"] = "Failed to get job status of job with id: {}. " \
-                                            "Please check back a little later for " \
-                                            "job execution status. If still not found," \
-                                            " please contact administrator " \
-                                            "of DPS".format(job_id)
-            return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
+        return response_body, status.HTTP_200_OK 
     
     @api.doc(security="ApiKeyAuth")
     @login_required() 
@@ -796,7 +804,8 @@ class Jobs(Resource):
                 .filter_by(process_id=request.args.get("process_id"), status=DEPLOYED_PROCESS_STATUS) \
                 .first()
             if existing_process is not None:
-                params["job_type"]="job-"+existing_process.process_name_hysds
+                process_name_hysds = get_hysds_process_name(existing_process.id, existing_process.deployer, existing_process.version)
+                params["job_type"]=f"job-{process_name_hysds}"
             else:
                 response_body["jobs"] = []
                 return response_body, status.HTTP_200_OK
