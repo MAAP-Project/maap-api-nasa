@@ -713,9 +713,12 @@ class Status(Resource):
 
         try:
             # check if job is non-running
+            print("graceal1 about to check current status for the job")
             current_status = hysds.mozart_job_status(job_id).get("status")
             # TODO graceal if this returns none if the jbo doesnt exist then keep the below if statement 
             # graceal need better way to check if the job exists 
+            print("graceal1 current status is ")
+            print(current_status)
             if current_status is None:
                 return generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
 
@@ -819,35 +822,35 @@ class Jobs(Resource):
         
         jobs_list = response_body["jobs"]
         # Filter based on start and end times if min/ max duration was passed as a parameter 
-        # if (request.args.get("min_duration") or request.args.get("max_duration")):
-        #     jobs_in_duration_range = []
-        #     try:
-        #         min_duration = float(request.args.get("min_duration")) if request.args.get("min_duration") else None
-        #         max_duration = float(request.args.get("max_duration")) if request.args.get("max_duration") else None  
-        #     except:
-        #         response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
-        #         response_body["detail"] = "Min/ max duration must be able to be converted to integers or floats"
-        #         return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
+        if (request.args.get("min_duration") or request.args.get("max_duration")):
+            jobs_in_duration_range = []
+            try:
+                min_duration = float(request.args.get("min_duration")) if request.args.get("min_duration") else None
+                max_duration = float(request.args.get("max_duration")) if request.args.get("max_duration") else None  
+            except:
+                response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
+                response_body["detail"] = "Min/ max duration must be able to be converted to integers or floats"
+                return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
 
-        #     for job in jobs_list:
-        #         try:
-        #             time_start = job[next(iter(job))]["job"]["job_info"]["time_start"]
-        #             time_end = job[next(iter(job))]["job"]["job_info"]["time_end"]
-        #             if time_start and time_end:
-        #                 fmt = "%Y-%m-%dT%H:%M:%S.%f"
-        #                 # Remove the Z and format 
-        #                 start_dt = datetime.strptime(time_start[:-1], fmt)
-        #                 end_dt = datetime.strptime(time_end[:-1], fmt)
+            for job in jobs_list:
+                try:
+                    time_start = job[next(iter(job))]["job"]["job_info"]["time_start"]
+                    time_end = job[next(iter(job))]["job"]["job_info"]["time_end"]
+                    if time_start and time_end:
+                        fmt = "%Y-%m-%dT%H:%M:%S.%f"
+                        # Remove the Z and format 
+                        start_dt = datetime.strptime(time_start[:-1], fmt)
+                        end_dt = datetime.strptime(time_end[:-1], fmt)
 
-        #                 duration = (end_dt - start_dt).total_seconds()
+                        duration = (end_dt - start_dt).total_seconds()
                         
-        #                 if ((min_duration is None or duration >= min_duration) and
-        #                     (max_duration is None or duration <= max_duration)):
-        #                     jobs_in_duration_range.append(job)
-        #         except Exception as ex:
-        #             print(ex)
-        #             print("Unable to determine if job falls in min/max duration range because not in correct format")
-        #     response_body["jobs"] = jobs_in_duration_range
+                        if ((min_duration is None or duration >= min_duration) and
+                            (max_duration is None or duration <= max_duration)):
+                            jobs_in_duration_range.append(job)
+                except Exception as ex:
+                    print(ex)
+                    print("Unable to determine if job falls in min/max duration range because not in correct format")
+            response_body["jobs"] = jobs_in_duration_range
                 
         
         # Apply the limit if it was passed as a param

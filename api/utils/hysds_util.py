@@ -616,9 +616,7 @@ def get_mozart_jobs_from_query_params(query_params, user):
         "priority": None,
         "queue": None,
         "tag": None,
-        "job_type": None,
-        "min_duration": None,
-        "max_duration": None
+        "job_type": None
     }
     response_body = dict()
 
