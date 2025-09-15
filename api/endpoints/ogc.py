@@ -574,6 +574,11 @@ class Result(Resource):
             prod_list = list()
             logging.info("Finding result of job with id {}".format(job_id))
             logging.info("Retrieved Mozart job id: {}".format(job_id))
+
+            # Need to check status first to confirm that the job exists 
+            current_status = hysds.mozart_job_status(job_id).get("status")
+            if current_status is None:
+                return generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
             
             response = hysds.get_mozart_job(job_id)
             if response is None:
@@ -626,24 +631,22 @@ class Status(Resource):
         """
         response_body = dict()
 
-        # Need to check status first - not actually to see if null??
-        # status = hysds.mozart_job_status(job_id).get("status")
-        # if status is None:
-        #     return generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
-        
-        # graceal test this works 
         try:
+            # Need to check status first to confirm that the job exists 
+            current_status = hysds.mozart_job_status(job_id).get("status")
+            if current_status is None:
+                return generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
+
             response = hysds.get_mozart_job(job_id)
+            print("graceal printing response and type")
+            print(response)
+            print(response["type"])
             if response and response["type"]:
                 job_type = response["type"]
                 existing_process = get_process_id_from_hysds_name(job_type)
             else:
                 return generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
         except Exception as ex:
-            print("graceal printign exception to see if difference hysds not working and job just not being found")
-            print(ex)
-            print(type(ex))
-            return generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
             response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
             response_body["detail"] = "Failed to get job status of job with id: {}. " \
                                             "Please check back a little later for " \
@@ -712,13 +715,8 @@ class Status(Resource):
         wait_for_completion = request.args.get("wait_for_completion", False)
 
         try:
-            # check if job is non-running
-            print("graceal1 about to check current status for the job")
+            # check if job is non-running and exists
             current_status = hysds.mozart_job_status(job_id).get("status")
-            # TODO graceal if this returns none if the jbo doesnt exist then keep the below if statement 
-            # graceal need better way to check if the job exists 
-            print("graceal1 current status is ")
-            print(current_status)
             if current_status is None:
                 return generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
 
@@ -897,11 +895,13 @@ class Metrics(Resource):
 
         
         try:
-            logging.info("Finding result of job with id {}".format(job_id))
-            logging.info("Retrieved Mozart job id: {}".format(job_id))
+            # check if job exists
+            current_status = hysds.mozart_job_status(job_id).get("status")
+            if current_status is None:
+                return generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
+            
             try:
                 mozart_response = hysds.get_mozart_job(job_id)
-                # TODO graceal if this is None if no job then keep the below if statement
                 if mozart_response is None:
                     return generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
 

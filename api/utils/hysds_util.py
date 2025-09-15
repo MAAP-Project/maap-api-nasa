@@ -635,8 +635,6 @@ def get_mozart_jobs_from_query_params(query_params, user):
     # Filter out the non-query params for the Mozart request
     exclude_list = ["username", "get_job_details"]
     filtered_query_params = {k: v for k, v in params.items() if k not in exclude_list and v is not None}
-    print("graceal1 filtered_query_params")
-    print(filtered_query_params)
 
     try:
         logging.info("Finding jobs for user: {}".format(username))
