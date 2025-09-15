@@ -23,8 +23,9 @@ from api.models.member import Member as Member_db
 
 from api.utils import job_queue
 from api.utils.ogc_process_util import (
-    create_process_deployment, get_cwl_metadata, CWL_METADATA,
+    create_process_deployment, get_cwl_metadata,
     trigger_gitlab_pipeline, create_and_commit_deployment, generate_error,
+    extract_process_description_into_process,
     DEPLOYED_PROCESS_STATUS, INITIAL_JOB_STATUS, UNDEPLOYED_PROCESS_STATUS, HREF_LANG
 )
 
@@ -106,12 +107,20 @@ class Processes(Resource):
         
         try:
             cwl_link = req_data.get("executionUnit", {}).get("href")
-            if not cwl_link:
-                return generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
+            process_description = req_data.get("processDescription", {})
+            if not cwl_link or not process_description:
+                return generate_error("Request body must contain executionUnit with an href or a processDescription.", status.HTTP_400_BAD_REQUEST)
+
+            if cwl_link and process_description:
+                return generate_error("Request body cannot contain executionUnit and a processDescription- choose one.", status.HTTP_400_BAD_REQUEST)
 
             user = get_authorized_user()
-            response_body, status_code = create_process_deployment(cwl_link, user.id)
-            return response_body, status_code
+            if cwl_link:
+                response_body, status_code = create_process_deployment(cwl_link, user.id)
+                return response_body, status_code
+            elif process_description:
+                response_body, status_code = extract_process_description_into_process(process_description, user.id)
+                return response_body, status_code
 
         except ValueError as e:
             return generate_error(str(e), status.HTTP_400_BAD_REQUEST)

@@ -319,3 +319,34 @@ def create_process_deployment(cwl_link, user_id, ignore_existing=False):
     except Exception as e:
         current_app.logger.error(f"Unexpected error in OGC process deployment: {e}")
         raise RuntimeError(f"Failed to create OGC process deployment: {e}")
+    
+def extract_process_description_into_process(process_description, user_id):
+    id = version = title = description = keywords = cwl_link = None
+    try:
+        process = process_description.get("process", {})
+        
+        if process:
+            id = process.get("id")
+            version = process.get("version")
+            title = process.get("title")
+            description = process.get("description")
+            keywords = process.get("keywords")
+
+            return CWL_METADATA(
+                id=id,
+                version=version,
+                title=title,
+                description=description,
+                keywords=keywords,
+                github_url=github_url,
+                git_commit_hash=git_commit_hash,
+                cwl_link=None,
+                ram_min=ram_min,
+                cores_min=cores_min,
+                base_command=base_command,
+                author=author
+            )
+            # Need to also get inputs and outputs 
+            
+    except ValueError as e:
+        return generate_error(str(e), status.HTTP_400_BAD_REQUEST)
