@@ -24,7 +24,7 @@ from api.utils import job_queue
 from api.utils.ogc_process_util import (
     create_process_deployment, get_cwl_metadata, CWL_METADATA,
     trigger_gitlab_pipeline, create_and_commit_deployment, generate_error, get_hysds_process_name, 
-    get_process_id_from_hysds_name, 
+    get_process_from_hysds_name, 
     DEPLOYED_PROCESS_STATUS, INITIAL_JOB_STATUS, UNDEPLOYED_PROCESS_STATUS, HREF_LANG
 )
 
@@ -630,23 +630,15 @@ class Status(Resource):
         :return:
         """
         response_body = dict()
+        existing_process = None
 
         try:
             # Need to check status first to confirm that the job exists 
             current_status = hysds.mozart_job_status(job_id).get("status")
             if current_status is None:
                 return generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
-
-            response = hysds.get_mozart_job(job_id)
-            print("graceal printing response and type")
-            print(response)
-            print(response["type"])
-            if response and response["type"]:
-                job_type = response["type"]
-                existing_process = get_process_id_from_hysds_name(job_type)
-            else:
-                return generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
         except Exception as ex:
+            print(ex)
             response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
             response_body["detail"] = "Failed to get job status of job with id: {}. " \
                                             "Please check back a little later for " \
@@ -654,6 +646,17 @@ class Status(Resource):
                                             " please contact administrator " \
                                             "of DPS".format(job_id)
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
+
+        try:
+            response = hysds.get_mozart_job(job_id)
+            print("graceal printing response and type")
+            print(response)
+            print(response["type"])
+            if response and response["type"]:
+                job_type = response["type"]
+                existing_process = get_process_from_hysds_name(job_type)
+        except Exception as ex:
+            print(ex)
         
         if not existing_process:
             response_body = {
@@ -679,7 +682,7 @@ class Status(Resource):
             print(f"ERROR getting times or status for job {job_id}")
         response_body.update({
             "id": job_id,
-            "processID": existing_process.process_id,
+            "processID": existing_process.process_id if existing_process else None,
             # TODO graceal should this be hard coded in if the example options are process, wps, openeo?
             "type": None,
             "request": None,

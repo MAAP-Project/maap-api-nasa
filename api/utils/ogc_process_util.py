@@ -36,7 +36,7 @@ ERROR_TYPE_PREFIX = "http://www.opengis.net/def/exceptions/"
 def get_hysds_process_name(id, user_id, version):
     return f"{id}_{user_id}:{version}"
 
-def get_process_id_from_hysds_name(hysds_name):
+def get_process_from_hysds_name(hysds_name):
     main_part, version = hysds_name.rsplit(':', 1)
     id_part, user_id = main_part.rsplit('_', 1)
     id = id_part.replace('job-', '', 1)
