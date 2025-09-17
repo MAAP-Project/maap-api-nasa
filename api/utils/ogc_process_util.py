@@ -321,7 +321,7 @@ def create_process_deployment(cwl_link, user_id, ignore_existing=False):
         raise RuntimeError(f"Failed to create OGC process deployment: {e}")
     
 def extract_process_description_into_process(process_description, user_id):
-    id = version = title = description = keywords = cwl_link = None
+    id = version = title = description = keywords = None
     try:
         process = process_description.get("process", {})
         
@@ -331,8 +331,15 @@ def extract_process_description_into_process(process_description, user_id):
             title = process.get("title")
             description = process.get("description")
             keywords = process.get("keywords")
+            author = process.get("author")
+            github_url = process.get("github_url")
+            # TODO graceal can I find this myself and remove from specs?
+            git_commit_hash = process.get("gitCommitHash")
+            ram_min = process.get("ramMin")
+            cores_min = process.get("coresMin")
+            base_command = process.get("baseCommand")
 
-            return CWL_METADATA(
+            metadata = CWL_METADATA(
                 id=id,
                 version=version,
                 title=title,
@@ -346,6 +353,11 @@ def extract_process_description_into_process(process_description, user_id):
                 base_command=base_command,
                 author=author
             )
+            # Extract the inputs 
+            inputs = process.get("inputs")
+            if inputs:
+                for input in inputs:
+                    input.get("title")
             # Need to also get inputs and outputs 
             
     except ValueError as e:
