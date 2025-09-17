@@ -33,6 +33,15 @@ HREF_LANG = "en"
 ERROR_TYPE_PREFIX = "http://www.opengis.net/def/exceptions/"
 
 
+def get_hysds_process_name(id, user_id, version):
+    return f"{id}_{user_id}:{version}"
+
+def get_process_from_hysds_name(hysds_name):
+    main_part, version = hysds_name.rsplit(':', 1)
+    id_part, user_id = main_part.rsplit('_', 1)
+    id = id_part.replace('job-', '', 1)
+    return db.session.query(Process_db).filter_by(id=id,version=version,deployer=user_id,status=DEPLOYED_PROCESS_STATUS).first()
+
 def generate_error(detail, error_status, error_type=None):
     """Generates a standardized error response body and status code."""
     full_error_type = f"{ERROR_TYPE_PREFIX}{error_type}" if error_type is not None else None
@@ -57,19 +66,17 @@ def trigger_gitlab_pipeline(cwl_link, version, metadata_id, uuid):
             "ref": settings.VERSION,
             "variables": [{"key": "CWL_URL", "value": cwl_link}, {"key": "PROCESS_NAME_HYSDS", "value": process_name_hysds}]
         })
-        process_name_hysds = f"{process_name_hysds}:{version}"
         log.info(f"Triggered pipeline ID: {pipeline.id}")
-        return pipeline, process_name_hysds
+        return pipeline
     except Exception as e:
         log.error(f"GitLab pipeline trigger failed: {e}")
         raise RuntimeError("Failed to start CI/CD to deploy process. The deployment venue is likely down.")
 
 
-def create_and_commit_deployment(metadata, pipeline, user, process_name_hysds, existing_process=None):
+def create_and_commit_deployment(metadata, pipeline, user, existing_process=None):
     """Creates a new deployment record in the database."""
     deployment = Deployment_db(
         created=datetime.now(),
-        process_name_hysds=process_name_hysds,
         execution_venue=settings.DEPLOY_PROCESS_EXECUTION_VENUE,
         status=INITIAL_JOB_STATUS,
         cwl_link=metadata.cwl_link, 
@@ -156,6 +163,9 @@ def get_cwl_metadata(cwl_link):
     fragment = urllib.parse.urlparse(cwl_id).fragment
     cwl_id = os.path.basename(fragment)
     process_version = version_match.group(1)
+
+    if ":" in process_version:
+        raise ValueError("Process version cannot contain a :")
 
     # Get git information
     github_url = re.search(r"s:codeRepository:\s*(\S+)", cwl_text, re.IGNORECASE)
@@ -268,12 +278,12 @@ def create_process_deployment(cwl_link, user_id, ignore_existing=False):
         
         # Trigger GitLab pipeline for deployment
         current_app.logger.debug(f"Triggering GitLab pipeline for deployment")
-        pipeline, process_name_hysds = trigger_gitlab_pipeline(cwl_link, metadata.version, metadata.id, user.id)
+        pipeline = trigger_gitlab_pipeline(cwl_link, metadata.version, metadata.id, user.id)
         current_app.logger.debug(f"Pipeline created with ID: {pipeline.id}")
         
         # Create deployment record
         current_app.logger.debug(f"Creating deployment record")
-        deployment = create_and_commit_deployment(metadata, pipeline, user, process_name_hysds)
+        deployment = create_and_commit_deployment(metadata, pipeline, user)
         
         # Re-query to get the auto-incremented job_id
         deployment = db.session.query(Deployment_db).filter_by(
