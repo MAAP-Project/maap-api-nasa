@@ -18,13 +18,13 @@ from api.auth.security import get_authorized_user, login_required, authenticate_
 from api.maap_database import db
 from api.models.process import Process as Process_db
 from api.models.deployment import Deployment as Deployment_db
-from api.models.process_job import ProcessJob as ProcessJob_db
 from api.models.member import Member as Member_db
 
 from api.utils import job_queue
 from api.utils.ogc_process_util import (
     create_process_deployment, get_cwl_metadata, CWL_METADATA,
-    trigger_gitlab_pipeline, create_and_commit_deployment, generate_error,
+    trigger_gitlab_pipeline, create_and_commit_deployment, generate_error, get_hysds_process_name, 
+    get_process_from_hysds_name, 
     DEPLOYED_PROCESS_STATUS, INITIAL_JOB_STATUS, UNDEPLOYED_PROCESS_STATUS, HREF_LANG
 )
 
@@ -79,7 +79,7 @@ class Processes(Resource):
                 "jobControlOptions": [], # TODO Unsure what we want this to be yet
                 "author": process.author,
                 "deployedBy": deployer.username,
-                "lastModifiedTime": process.last_modified_time.isoformat(),
+                "lastModifiedTime": process.last_modified_time and process.last_modified_time.isoformat(),
                 "cwlLink": process.cwl_link,
                 "links": [link_obj_process]
             })
@@ -174,7 +174,6 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
             else:
                 process = Process_db(id=deployment.id,
                                 version=deployment.version,
-                                process_name_hysds=deployment.process_name_hysds,
                                 cwl_link=deployment.cwl_link,
                                 title=deployment.title,
                                 description=deployment.description,
@@ -290,7 +289,8 @@ class Describe(Resource):
         if not existing_process:
             return generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
 
-        hysdsio_type = f"hysds-io-{existing_process.process_name_hysds}"
+        process_name_hysds = get_hysds_process_name(existing_process.id, existing_process.deployer, existing_process.version)
+        hysdsio_type = f"hysds-io-{process_name_hysds}"
         response = hysds.get_hysds_io(hysdsio_type)
         if not response or not response.get("success"):
             return generate_error("No process with that process ID found on HySDS", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
@@ -370,8 +370,8 @@ class Describe(Resource):
                 detail = f"Need to provide same id and version as previous process which is {existing_process.id}:{existing_process.version}"
                 return generate_error(detail, status.HTTP_400_BAD_REQUEST)
 
-            pipeline, process_name_hysds = trigger_gitlab_pipeline(cwl_link, metadata.version, metadata.id, user.id)
-            deployment = create_and_commit_deployment(metadata, pipeline, user, process_name_hysds, existing_process)
+            pipeline = trigger_gitlab_pipeline(cwl_link, metadata.version, metadata.id, user.id)
+            deployment = create_and_commit_deployment(metadata, pipeline, user, existing_process)
             
             deployment = db.session.query(Deployment_db).filter_by(pipeline_id=pipeline.id).first()
             deployment_job_id = deployment.job_id
@@ -485,7 +485,8 @@ class ExecuteJob(Resource):
 
         dedup = req_data.get("dedup")
         tag = req_data.get("tag")
-        job_type = f"job-{existing_process.process_name_hysds}"
+        process_name_hysds = get_hysds_process_name(existing_process.id, existing_process.deployer, existing_process.version)
+        job_type = f"job-{process_name_hysds}"
 
         try:
             user = get_authorized_user()
@@ -515,15 +516,6 @@ class ExecuteJob(Resource):
             if job_id:
                 logging.info(f"Submitted Job with HySDS ID: {job_id}")
                 submitted_time = datetime.now()
-                process_job = ProcessJob_db(
-                    user=user.id,
-                    id=job_id, 
-                    submitted_time=submitted_time, 
-                    process_id=existing_process.process_id,
-                    status=INITIAL_JOB_STATUS
-                )
-                db.session.add(process_job)
-                db.session.commit()
                 response_body = {
                     "title": existing_process.title,
                     "description": existing_process.description,
@@ -582,14 +574,16 @@ class Result(Resource):
             prod_list = list()
             logging.info("Finding result of job with id {}".format(job_id))
             logging.info("Retrieved Mozart job id: {}".format(job_id))
-            existing_job = db.session \
-                .query(ProcessJob_db) \
-                .filter_by(id=job_id) \
-                .first()
-            if existing_job is None:
+
+            # Need to check status first to confirm that the job exists 
+            current_status = hysds.mozart_job_status(job_id).get("status")
+            if current_status is None:
+                return generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
+            
+            response = hysds.get_mozart_job(job_id)
+            if response is None:
                 return generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
 
-            response = hysds.get_mozart_job(existing_job.id)
             job_info = response.get("job").get("job_info").get("metrics").get("products_staged")
             traceback = response.get("traceback")
             if job_info is not None:
@@ -636,19 +630,30 @@ class Status(Resource):
         :return:
         """
         response_body = dict()
+        existing_process = None
 
-        existing_job = db.session \
-            .query(ProcessJob_db) \
-            .filter_by(id=job_id) \
-            .first()
-        if existing_job is None:
-            return generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
-        
-        # For now, leave this so it can access all deployed and undeployed processes 
-        existing_process = db.session \
-            .query(Process_db) \
-            .filter_by(process_id=existing_job.process_id) \
-            .first()
+        try:
+            # Need to check status first to confirm that the job exists 
+            current_status = hysds.mozart_job_status(job_id).get("status")
+            if current_status is None:
+                return generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
+        except Exception as ex:
+            print(ex)
+            response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
+            response_body["detail"] = "Failed to get job status of job with id: {}. " \
+                                            "Please check back a little later for " \
+                                            "job execution status. If still not found," \
+                                            " please contact administrator " \
+                                            "of DPS".format(job_id)
+            return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
+
+        try:
+            response = hysds.get_mozart_job(job_id)
+            if response and response["type"]:
+                job_type = response["type"]
+                existing_process = get_process_from_hysds_name(job_type)
+        except Exception as ex:
+            print(ex)
         
         if not existing_process:
             response_body = {
@@ -662,17 +667,27 @@ class Status(Resource):
                 "description": existing_process.description,
                 "keywords": existing_process.keywords.split(",") if existing_process.keywords is not None else [], 
             }
+        current_status = submitted_time = time_start = time_end = None
+        try:
+            current_status = response["status"]
+            current_status = ogc.hysds_to_ogc_status(current_status)
+            submitted_time = response_body["job"]["job_info"]["time_queued"]
+            time_start = response_body["job"]["job_info"]["time_start"]
+            time_end = response_body["job"]["job_info"]["time_end"]
+        except Exception as ex:
+            print(ex)
+            print(f"ERROR getting times or status for job {job_id}")
         response_body.update({
             "id": job_id,
-            "processID": existing_job.process_id,
+            "processID": existing_process.process_id if existing_process else None,
             # TODO graceal should this be hard coded in if the example options are process, wps, openeo?
             "type": None,
             "request": None,
-            "status": None,
+            "status": current_status,
             "message": None,
-            "created": existing_job.submitted_time.isoformat(),
-            "started": None,
-            "finished": None,
+            "created": submitted_time,
+            "started": time_start,
+            "finished": time_end,
             "updated": None,
             "progress": None,
             "links": [
@@ -685,39 +700,8 @@ class Status(Resource):
                 }
             ]
         })
-        
-        # Dont update if status is already finished
-        # Also if I could get more information from hysds about the job like time to complete, etc. 
-        # that would be useful for the client, right now can copy the way that jobs list is doing it 
-        if existing_job.status in OGC_FINISHED_STATUSES:
-            response_body["status"] = existing_job.status
-            # response_body["finished"] = existing_job.completed_time.isoformat()
-            return response_body, status.HTTP_200_OK 
-        else:
-            try:
-                # Request to HySDS to check the current status if last checked the job hadnt finished 
-                response = hysds.mozart_job_status(job_id=job_id)
-                current_status = response.get("status")
-                # If the current job status is still the INITIAL_JOB_STATUS and the mozart status is None
-                # but the job was submitted less than 10 seconds ago, then 
-                # status probably just hasn't updated in mozart yet 
-                if existing_job.status == INITIAL_JOB_STATUS and current_status is None and datetime.now() < existing_job.submitted_time + timedelta(seconds=10): 
-                    current_status = "job-queued"
-                current_status = ogc.hysds_to_ogc_status(current_status)
-                response_body["status"] = current_status
-                # Only update the current status in the database if it is complete 
-                if current_status in OGC_FINISHED_STATUSES:
-                    existing_job.status = current_status
-                    db.session.commit()
-                return response_body, status.HTTP_200_OK 
-            except: 
-                response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
-                response_body["detail"] = "Failed to get job status of job with id: {}. " \
-                                              "Please check back a little later for " \
-                                              "job execution status. If still not found," \
-                                              " please contact administrator " \
-                                              "of DPS".format(job_id)
-                return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
+
+        return response_body, status.HTTP_200_OK 
     
     @api.doc(security="ApiKeyAuth")
     @login_required() 
@@ -730,28 +714,16 @@ class Status(Resource):
         # Since this can take a long time, we dont wait by default.
         wait_for_completion = request.args.get("wait_for_completion", False)
 
-        existing_job = db.session \
-            .query(ProcessJob_db) \
-            .filter_by(id=job_id) \
-            .first()
-        if existing_job is None:
-            return generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
-
         try:
-            # check if job is non-running
+            # check if job is non-running and exists
             current_status = hysds.mozart_job_status(job_id).get("status")
-            logging.info("current job status: {}".format(current_status))
-
             if current_status is None:
                 return generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
-            
-            # This is for the case when user did not wait for a previous dismissal of a job but it was successful
-            elif current_status == hysds.STATUS_JOB_REVOKED and existing_job.status != "dismissed":
-                existing_job.status = "dismissed"
-                db.session.commit()
+
+            logging.info("current job status: {}".format(current_status))
 
             # Revoke if job started
-            elif current_status == hysds.STATUS_JOB_STARTED:
+            if current_status == hysds.STATUS_JOB_STARTED:
                 logging.info("Submitting Revoke job for Job {}".format(job_id))
                 purge_id, res = hysds.revoke_mozart_job(job_id=job_id, wait_for_completion=wait_for_completion)
                 logging.info("Revoke Job Submission Response: {} {}".format(purge_id, res))
@@ -781,8 +753,6 @@ class Status(Resource):
                 else:
                     response_body["status"] = "dismissed"
                     response_body["detail"] = response.decode("utf-8")
-                    existing_job.status = "dismissed"
-                    db.session.commit()
                     return response_body, status.HTTP_202_ACCEPTED 
         except Exception as ex:
             return generate_error("Failed to dismiss job {}. Please try again or contact DPS administrator. {}".format(job_id, ex), status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -837,7 +807,8 @@ class Jobs(Resource):
                 .filter_by(process_id=request.args.get("process_id"), status=DEPLOYED_PROCESS_STATUS) \
                 .first()
             if existing_process is not None:
-                params["job_type"]="job-"+existing_process.process_name_hysds
+                process_name_hysds = get_hysds_process_name(existing_process.id, existing_process.deployer, existing_process.version)
+                params["job_type"]=f"job-{process_name_hysds}"
             else:
                 response_body["jobs"] = []
                 return response_body, status.HTTP_200_OK
@@ -922,18 +893,18 @@ class Metrics(Resource):
         response_body = dict()
         docker_metrics = None
 
-        existing_job = db.session \
-            .query(ProcessJob_db) \
-            .filter_by(id=job_id) \
-            .first()
-        if existing_job is None:
-            return generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
-
+        
         try:
-            logging.info("Finding result of job with id {}".format(job_id))
-            logging.info("Retrieved Mozart job id: {}".format(job_id))
+            # check if job exists
+            current_status = hysds.mozart_job_status(job_id).get("status")
+            if current_status is None:
+                return generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
+            
             try:
                 mozart_response = hysds.get_mozart_job(job_id)
+                if mozart_response is None:
+                    return generate_error("No job with that job ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-job")
+
             except Exception as ex:
                 return generate_error("Failed to get job information found for {}. Reason: {}".format(job_id, ex), status.HTTP_500_INTERNAL_SERVER_ERROR)
 
