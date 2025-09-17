@@ -58,10 +58,11 @@ def get_hysds_status_from_ogc(ogc_status):
     :param status: (str) WPS job status
     :return status: (str) HySDS job status
     """
+    ogc_status = ogc_status.lower()
     if ogc_status not in OGC_TO_HYSDS_JOB_STATUS_MAP:
         statuses = ", ".join(str(status) for status in list(OGC_TO_HYSDS_JOB_STATUS_MAP.keys()))
-        raise ValueError("Invalid WPS status: {}. Valid values are: {}".format(ogc_status, statuses))
-    return WPS_TO_HYSDS_JOB_STATUS_MAP.get(ogc_status)
+        return None, "Invalid WPS status: {}. Valid values are: {}".format(ogc_status, statuses)
+    return OGC_TO_HYSDS_JOB_STATUS_MAP.get(ogc_status), None
 
 def hysds_to_wps_status(hysds_status):
     for status in WPS_TO_HYSDS_JOB_STATUS_MAP:
