@@ -171,7 +171,6 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
                 existing_process.github_url=deployment.github_url
                 existing_process.git_commit_hash=deployment.git_commit_hash
                 existing_process.last_modified_time=datetime.now()
-                existing_process.process_name_hysds=deployment.process_name_hysds
                 existing_process.title=deployment.title
                 existing_process.description=deployment.description
                 existing_process.keywords=deployment.keywords
