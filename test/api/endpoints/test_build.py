@@ -586,7 +586,7 @@ class TestBuildEndpoints(unittest.TestCase):
         mock_pipeline = MagicMock()
         mock_pipeline.id = 12345
         mock_pipeline.web_url = 'https://gitlab.com/pipeline/12345'
-        mock_trigger_pipeline.return_value = (mock_pipeline, 'test-process-hysds')
+        mock_trigger_pipeline.return_value = mock_pipeline
         
         # Mock deployment creation
         mock_deployment = MagicMock()

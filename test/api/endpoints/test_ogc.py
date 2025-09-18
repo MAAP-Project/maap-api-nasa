@@ -9,7 +9,6 @@ from api.models.member import Member
 from api.models.role import Role
 from api.models.process import Process
 from api.models.deployment import Deployment
-from api.models.process_job import ProcessJob
 
 
 class TestOGCEndpoints(unittest.TestCase):
@@ -23,7 +22,6 @@ class TestOGCEndpoints(unittest.TestCase):
         with app.app_context():
             initialize_sql(db.engine)
             # Clear any existing test data
-            db.session.query(ProcessJob).delete()
             db.session.query(Process).delete()
             db.session.query(Deployment).delete()
             db.session.query(Member).delete()
@@ -39,7 +37,6 @@ class TestOGCEndpoints(unittest.TestCase):
     def tearDown(self):
         """Clean up after each test."""
         with app.app_context():
-            db.session.query(ProcessJob).delete()
             db.session.query(Process).delete()
             db.session.query(Deployment).delete()
             db.session.query(Member).delete()
@@ -86,8 +83,7 @@ class TestOGCEndpoints(unittest.TestCase):
             deployer=member.id,
             author=author,
             status="deployed",
-            last_modified_time=datetime.now(),
-            process_name_hysds="test-process-hysds"
+            last_modified_time=datetime.now()
         )
         db.session.add(process)
         db.session.commit()
@@ -208,7 +204,7 @@ class TestOGCEndpoints(unittest.TestCase):
                 mock_pipeline_obj = MagicMock()
                 mock_pipeline_obj.id = 12345
                 mock_pipeline_obj.web_url = "https://gitlab.com/pipeline/12345"
-                mock_pipeline.return_value = (mock_pipeline_obj, "random-process-name:1.0")
+                mock_pipeline.return_value = mock_pipeline_obj
                 
                 # When posting a new process
                 process_data = {
@@ -571,30 +567,32 @@ class TestOGCEndpoints(unittest.TestCase):
             member = self._create_test_member()
             process = self._create_test_process(member)
             
-            process_job = ProcessJob(
-                id="job-12345",
-                user=member.id,
-                submitted_time=datetime.now(),
-                process_id=process.process_id,
-                status="accepted"
-            )
-            db.session.add(process_job)
-            db.session.commit()
-            
             with patch('api.utils.hysds_util.mozart_job_status') as mock_status:
-                with patch('api.utils.ogc_translate.hysds_to_ogc_status') as mock_translate:
-                    mock_status.return_value = {"status": "job-running"}
-                    mock_translate.return_value = "running"
-                    
-                    # When querying job status
-                    response = self._make_authenticated_request('GET', '/api/ogc/jobs/job-12345', None, member)
-                    
-                    # Then job status should be returned
-                    self.assertEqual(response.status_code, 200)
-                    data = response.get_json()
-                    self.assertEqual(data['id'], 'job-12345')
-                    self.assertEqual(data['status'], 'running')
-                    self.assertEqual(data['processID'], process.process_id)
+                with patch('api.utils.hysds_util.get_mozart_job') as mock_get_job:
+                    with patch('api.utils.ogc_translate.hysds_to_ogc_status') as mock_translate:
+                        mock_status.return_value = {"status": "job-running"}
+                        mock_get_job.return_value = {
+                            "status": "job-running",
+                            "type": f"job-test-process_{member.id}:1.0",
+                            "job": {
+                                "job_info": {
+                                    "time_queued": "2023-01-01T12:00:00Z",
+                                    "time_start": "2023-01-01T12:01:00Z",
+                                    "time_end": "2023-01-01T13:00:00Z"
+                                }
+                            }
+                        }
+                        mock_translate.return_value = "running"
+
+                        # When querying job status
+                        response = self._make_authenticated_request('GET', '/api/ogc/jobs/job-12345', None, member)
+
+                        # Then job status should be returned
+                        self.assertEqual(response.status_code, 200)
+                        data = response.get_json()
+                        self.assertEqual(data['id'], 'job-12345')
+                        self.assertEqual(data['status'], 'running')
+                        self.assertEqual(data['processID'], process.process_id)
 
     def test_job_results_can_be_retrieved(self):
         """Test: GET /ogc/jobs/{job_id}/results returns job results"""
@@ -602,41 +600,33 @@ class TestOGCEndpoints(unittest.TestCase):
             # Given a completed job and authenticated user
             member = self._create_test_member()
             process = self._create_test_process(member)
-            
-            process_job = ProcessJob(
-                id="job-12345",
-                user=member.id,
-                submitted_time=datetime.now(),
-                process_id=process.process_id,
-                status="successful"
-            )
-            db.session.add(process_job)
-            db.session.commit()
-            
-            with patch('api.utils.hysds_util.get_mozart_job') as mock_get_job:
-                mock_get_job.return_value = {
-                    'job': {
-                        'job_info': {
-                            'metrics': {
-                                'products_staged': [
-                                    {
-                                        'id': 'output-product-123',
-                                        'urls': ['s3://bucket:80/output/product-123.tif']
-                                    }
-                                ]
+
+            with patch('api.utils.hysds_util.mozart_job_status') as mock_status:
+                with patch('api.utils.hysds_util.get_mozart_job') as mock_get_job:
+                    mock_status.return_value = {"status": "job-completed"}
+                    mock_get_job.return_value = {
+                        'job': {
+                            'job_info': {
+                                'metrics': {
+                                    'products_staged': [
+                                        {
+                                            'id': 'output-product-123',
+                                            'urls': ['s3://bucket:80/output/product-123.tif']
+                                        }
+                                    ]
+                                }
                             }
-                        }
-                    },
-                    'traceback': None
-                }
-                
-                # When requesting job results
-                response = self._make_authenticated_request('GET', '/api/ogc/jobs/job-12345/results', None, member)
-                
-                # Then job results should be returned
-                self.assertEqual(response.status_code, 200)
-                data = response.get_json()
-                self.assertIn('additionalProp1', data)
+                        },
+                        'traceback': None
+                    }
+
+                    # When requesting job results
+                    response = self._make_authenticated_request('GET', '/api/ogc/jobs/job-12345/results', None, member)
+
+                    # Then job results should be returned
+                    self.assertEqual(response.status_code, 200)
+                    data = response.get_json()
+                    self.assertIn('additionalProp1', data)
 
     def test_job_can_be_cancelled(self):
         """Test: DELETE /ogc/jobs/{job_id} cancels running job"""
@@ -644,16 +634,6 @@ class TestOGCEndpoints(unittest.TestCase):
             # Given a running job and authenticated user
             member = self._create_test_member()
             process = self._create_test_process(member)
-            
-            process_job = ProcessJob(
-                id="job-12345",
-                user=member.id,
-                submitted_time=datetime.now(),
-                process_id=process.process_id,
-                status="running"
-            )
-            db.session.add(process_job)
-            db.session.commit()
             
             with patch('api.utils.hysds_util.mozart_job_status') as mock_status:
                 with patch('api.utils.hysds_util.revoke_mozart_job') as mock_revoke:
@@ -677,63 +657,55 @@ class TestOGCEndpoints(unittest.TestCase):
             # Given a completed job and authenticated user
             member = self._create_test_member()
             process = self._create_test_process(member)
-            
-            process_job = ProcessJob(
-                id="job-12345",
-                user=member.id,
-                submitted_time=datetime.now(),
-                process_id=process.process_id,
-                status="successful"
-            )
-            db.session.add(process_job)
-            db.session.commit()
-            
-            with patch('api.utils.hysds_util.get_mozart_job') as mock_get_job:
-                mock_get_job.return_value = {
-                    'job': {
-                        'job_info': {
-                            'metrics': {
-                                'job_dir_size': 2048,
-                                'usage_stats': [{
-                                    'cgroups': {
-                                        'cpu_stats': {'cpu_usage': {'total_usage': 54321}},
-                                        'memory_stats': {
-                                            'cache': 1024,
-                                            'usage': {'usage': 2048, 'max_usage': 4096},
-                                            'stats': {'swap': 0}
-                                        },
-                                        'blkio_stats': {'io_service_bytes_recursive': [
-                                            {'op': 'Read', 'value': 2000},
-                                            {'op': 'Write', 'value': 4000},
-                                            {'op': 'Sync', 'value': 1000},
-                                            {'op': 'Async', 'value': 1000},
-                                            {'op': 'Total', 'value': 6000}
-                                        ]}
-                                    }
-                                }]
-                            },
-                            'cmd_start': '2023-01-01T12:00:00Z',
-                            'cmd_end': '2023-01-01T13:00:00Z',
-                            'cmd_duration': 3600,
-                            'facts': {
-                                'architecture': 'amd64',
-                                'operatingsystem': 'CentOS',
-                                'memorysize': '16 GB',
-                                'ec2_instance_type': 'c5.large'
+
+            with patch('api.utils.hysds_util.mozart_job_status') as mock_status:
+                with patch('api.utils.hysds_util.get_mozart_job') as mock_get_job:
+                    mock_status.return_value = {"status": "job-completed"}
+                    mock_get_job.return_value = {
+                        'job': {
+                            'job_info': {
+                                'metrics': {
+                                    'job_dir_size': 2048,
+                                    'usage_stats': [{
+                                        'cgroups': {
+                                            'cpu_stats': {'cpu_usage': {'total_usage': 54321}},
+                                            'memory_stats': {
+                                                'cache': 1024,
+                                                'usage': {'usage': 2048, 'max_usage': 4096},
+                                                'stats': {'swap': 0}
+                                            },
+                                            'blkio_stats': {'io_service_bytes_recursive': [
+                                                {'op': 'Read', 'value': 2000},
+                                                {'op': 'Write', 'value': 4000},
+                                                {'op': 'Sync', 'value': 1000},
+                                                {'op': 'Async', 'value': 1000},
+                                                {'op': 'Total', 'value': 6000}
+                                            ]}
+                                        }
+                                    }]
+                                },
+                                'cmd_start': '2023-01-01T12:00:00Z',
+                                'cmd_end': '2023-01-01T13:00:00Z',
+                                'cmd_duration': 3600,
+                                'facts': {
+                                    'architecture': 'amd64',
+                                    'operatingsystem': 'CentOS',
+                                    'memorysize': '16 GB',
+                                    'ec2_instance_type': 'c5.large'
+                                }
                             }
                         }
                     }
-                }
-                
-                # When requesting job metrics
-                response = self._make_authenticated_request('GET', '/api/ogc/jobs/job-12345/metrics', None, member)
-                
-                # Then job metrics should be returned
-                self.assertEqual(response.status_code, 200)
-                data = response.get_json()
-                self.assertEqual(data['machine_type'], 'c5.large')
-                self.assertEqual(data['architecture'], 'amd64')
-                self.assertEqual(data['directory_size'], 2048)
+
+                    # When requesting job metrics
+                    response = self._make_authenticated_request('GET', '/api/ogc/jobs/job-12345/metrics', None, member)
+
+                    # Then job metrics should be returned
+                    self.assertEqual(response.status_code, 200)
+                    data = response.get_json()
+                    self.assertEqual(data['machine_type'], 'c5.large')
+                    self.assertEqual(data['architecture'], 'amd64')
+                    self.assertEqual(data['directory_size'], 2048)
 
     @patch('api.auth.security.get_authorized_user')
     def test_jobs_list_returns_user_jobs(self, mock_get_user):
@@ -801,7 +773,7 @@ class TestOGCEndpoints(unittest.TestCase):
                 args, kwargs = mock_jobs.call_args
                 params = args[0]  # First argument is params dict
                 self.assertIn('job_type', params)
-                self.assertEqual(params['job_type'], "job-test-process-hysds")
+                self.assertEqual(params['job_type'], f"job-{process.id}_{process.deployer}:{process.version}")
 
     @patch('api.auth.security.get_authorized_user')
     def test_jobs_list_filters_by_status(self, mock_get_user):
