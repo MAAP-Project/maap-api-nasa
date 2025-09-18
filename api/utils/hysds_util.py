@@ -213,7 +213,7 @@ def create_job_spec(run_command, inputs, disk_usage, queue_name, verified=False)
     :param run_command:
     :param inputs:
     :param disk_usage: minimum free disk usage required to run job specified as
-    "\d+(GB|MB|KB)", e.g. "100GB", "20MB", "10KB"
+    "(GB|MB|KB)", e.g. "100GB", "20MB", "10KB"
     :param queue_name: set the recommended queue to run the algorithm on
     :param verified: indicated whether algorithm is EcoSML verified
     :return:
