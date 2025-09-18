@@ -126,6 +126,10 @@ EMAIL_JPL_ADMINS = os.getenv('EMAIL_JPL_ADMINS', "")  # Use a comma to delimit e
 # PORTAL PATHS
 PORTAL_ADMIN_DASHBOARD_PATH = os.getenv('PORTAL_ADMIN_DASHBOARD_PATH', '')
 
+# ESA Interoperability
+ESA_ISS_HOST = os.getenv('ESA_ISS_HOST', "")
+ESA_EDL_SYS_ACCOUNT = os.getenv('ESA_EDL_SYS_ACCOUNT', "")
+
 CLIENT_SETTINGS = {
     "maap_endpoint": {
         "search_granule_url": "cmr/granules",
