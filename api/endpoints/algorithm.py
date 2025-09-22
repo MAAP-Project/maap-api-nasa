@@ -112,7 +112,7 @@ class Register(Resource):
             "code_version": "master",
             "docker_container_url": "http://url/to/container",
             "ecosml_verified": True/False,
-            "disk_space": "minimum free disk usage required to run job specified as "\d+(GB|MB|KB)", e.g. "100GB", "20MB", "10KB"",
+            "disk_space": "minimum free disk usage required to run job specified as "(GB|MB|KB)", e.g. "100GB", "20MB", "10KB"",
             "queue": "name of worker based on required memory for algorithm",
             "ade_webhook_url": "url to send algo registration updates to",
             "inputs": {

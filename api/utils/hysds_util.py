@@ -213,7 +213,7 @@ def create_job_spec(run_command, inputs, disk_usage, queue_name, verified=False)
     :param run_command:
     :param inputs:
     :param disk_usage: minimum free disk usage required to run job specified as
-    "\d+(GB|MB|KB)", e.g. "100GB", "20MB", "10KB"
+    "(GB|MB|KB)", e.g. "100GB", "20MB", "10KB"
     :param queue_name: set the recommended queue to run the algorithm on
     :param verified: indicated whether algorithm is EcoSML verified
     :return:
@@ -649,7 +649,6 @@ def get_mozart_jobs_from_query_params(query_params, user):
 
         response_body["status"] = status.HTTP_200_OK
         response_body["jobs"] = job_list
-        response_body["message"] = "success"
         return response_body, status.HTTP_200_OK
     except Exception as ex:
         response_body["message"] = "Failed to get jobs for user {}. please contact administrator " \
