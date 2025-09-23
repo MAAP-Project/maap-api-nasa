@@ -1,4 +1,5 @@
 import unittest
+import responses
 from unittest.mock import patch, MagicMock
 from datetime import datetime, timedelta
 from api.maapapp import app
@@ -196,14 +197,16 @@ class TestCASAuthentication(unittest.TestCase):
             # Then None should be returned (session expired)
             assert result is None
 
-    @patch('api.auth.cas_auth.urlopen')
-    def test_validate_bearer_with_valid_token(self, mock_urlopen):
+    @responses.activate
+    def test_validate_bearer_with_valid_token(self):
         """Test: validate_bearer works with valid bearer token"""
         with app.app_context():
             # Given a valid bearer token
-            mock_response = MagicMock()
-            mock_response.read.return_value = b'{"preferred_username": "testuser", "email": "test@example.com"}'
-            mock_urlopen.return_value = mock_response
+            responses.add(
+                responses.GET,
+                app.config.get('CAS_SERVER', 'http://localhost') + '/oauth2.0/profile',
+                status=401
+            )
             
             # When validate_bearer is called
             result = validate_bearer('valid-bearer-token')
@@ -213,8 +216,8 @@ class TestCASAuthentication(unittest.TestCase):
             assert result['preferred_username'] == 'testuser'
             assert result['email'] == 'test@example.com'
 
-    @patch('api.auth.cas_auth.urlopen')
-    def test_validate_bearer_with_invalid_token(self, mock_urlopen):
+    @responses.activate
+    def test_validate_bearer_with_invalid_token(self):
         """Test: validate_bearer fails with invalid bearer token"""
         with app.app_context():
             # Given an invalid bearer token
