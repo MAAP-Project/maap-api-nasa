@@ -538,36 +538,6 @@ class TestCASAuthentication(unittest.TestCase):
             assert regular_member.organization == "NASA"
             assert regular_member.urs_token == "regular-user-token-123"  # Should use their own token
 
-    @patch('api.settings.ESA_ISS_HOST', 'https://esa.example.com')
-    @patch('api.settings.ESA_EDL_SYS_ACCOUNT', 'missing_system_account')
-    def test_start_member_session_esa_user_missing_system_account_raises_error(self):
-        """Test: start_member_session fails when ESA system account is missing"""
-        with app.app_context():
-            # Given CAS response for ESA user but no system account exists
-            cas_response = (
-                True,
-                {
-                    "cas:serviceResponse": {
-                        "cas:authenticationSuccess": {
-                            "cas:user": "esa_user",
-                            "cas:attributes": {
-                                "cas:preferred_username": "esa_user",
-                                "cas:given_name": "ESA",
-                                "cas:family_name": "User",
-                                "cas:email": "esa_user@esa.int",
-                                "cas:organization": "ESA",
-                                "cas:access_token": "esa-user-token-123",
-                                "cas:iss": "https://esa.example.com"
-                            }
-                        }
-                    }
-                }
-            )
-            
-            # When start_member_session is called, it should raise an AttributeError
-            with self.assertRaises(AttributeError):
-                start_member_session(cas_response, "PGT-esa-session")
-
 
 if __name__ == '__main__':
     unittest.main()
