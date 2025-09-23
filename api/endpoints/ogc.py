@@ -35,7 +35,7 @@ ns = api.namespace("ogc", description="OGC compliant endpoints")
 
 OGC_FINISHED_STATUSES = ["successful", "failed", "dismissed", "deduped"]
 OGC_SUCCESS = "successful"
-PIPELINE_URL_TEMPLATE = settings.GITLAB_URL_POST_PROCESS + "/root/deploy-ogc-hysds/-/pipelines/{pipeline_id}"
+PIPELINE_URL_TEMPLATE = settings.GITLAB_URL + "/root/deploy-ogc-hysds/-/pipelines/{pipeline_id}"
 
 
 def _get_deployed_process(process_id):
@@ -142,7 +142,7 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
     if deployment.status not in OGC_FINISHED_STATUSES:
         if query_pipeline:
             try:
-                gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token=settings.GITLAB_POST_PROCESS_TOKEN)
+                gl = gitlab.Gitlab(settings.GITLAB_URL, private_token=settings.GITLAB_TOKEN)
                 project = gl.projects.get(settings.GITLAB_PROJECT_ID_POST_PROCESS)
                 pipeline = project.pipelines.get(deployment.pipeline_id)
                 updated_status = pipeline.status
