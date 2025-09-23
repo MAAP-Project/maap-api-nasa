@@ -60,10 +60,10 @@ def trigger_gitlab_pipeline(cwl_link, version, metadata_id, uuid):
     try:
         # random process name to allow algorithms later having the same id/version if the deployer is different 
         process_name_hysds = f"{metadata_id}_{uuid}"
-        gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token=settings.GITLAB_POST_PROCESS_TOKEN)
+        gl = gitlab.Gitlab(settings.GITLAB_URL, private_token=settings.GITLAB_TOKEN)
         project = gl.projects.get(settings.GITLAB_PROJECT_ID_POST_PROCESS)
         pipeline = project.pipelines.create({
-            "ref": settings.VERSION,
+            "ref": settings.GITLAB_POST_PROCESS_PIPELINE_REF,
             "variables": [{"key": "CWL_URL", "value": cwl_link}, {"key": "PROCESS_NAME_HYSDS", "value": process_name_hysds}]
         })
         log.info(f"Triggered pipeline ID: {pipeline.id}")
