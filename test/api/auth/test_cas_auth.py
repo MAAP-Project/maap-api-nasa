@@ -221,7 +221,11 @@ class TestCASAuthentication(unittest.TestCase):
         """Test: validate_bearer fails with invalid bearer token"""
         with app.app_context():
             # Given an invalid bearer token
-            mock_urlopen.side_effect = Exception("HTTP 401 Unauthorized")
+            responses.add(
+                responses.GET,
+                app.config.get('CAS_SERVER', 'http://localhost') + '/oauth2.0/profile',
+                status=401
+            )
             
             with self.assertRaises(AuthenticationError):
                 # When validate_bearer is called, raise error
