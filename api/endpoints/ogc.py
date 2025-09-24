@@ -752,7 +752,7 @@ class Status(Resource):
             else:
                 cancel_job_status = res.get("status")
                 if not cancel_job_status == hysds.STATUS_JOB_COMPLETED:
-                    return generate_error(f"Failed to cancel job, status was {res.get("status")}", status.HTTP_500_INTERNAL_SERVER_ERROR)
+                    return generate_error(f"Failed to cancel job, status was {res.get('status')}", status.HTTP_500_INTERNAL_SERVER_ERROR)
                 else:
                     response_body["status"] = "dismissed"
                     return response_body, status.HTTP_202_ACCEPTED 
