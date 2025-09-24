@@ -729,31 +729,17 @@ class Status(Resource):
 
             logging.info("current job status: {}".format(current_status))
 
-            # Checking if I can revoke a job even if it is done 
-            logging.info("Submitting Purge job for Job {}".format(job_id))
-            purge_id, res = hysds.delete_mozart_job(job_id=job_id, wait_for_completion=wait_for_completion)
-            logging.info("Purge Job Submission Response: {} {}".format(purge_id, res))
-            return response_body, status.HTTP_202_ACCEPTED
-
             # Revoke if job started
             if current_status == hysds.STATUS_JOB_STARTED:
                 logging.info("Submitting Revoke job for Job {}".format(job_id))
                 purge_id, res = hysds.revoke_mozart_job(job_id=job_id, wait_for_completion=wait_for_completion)
                 logging.info("Revoke Job Submission Response: {} {}".format(purge_id, res))
-                response = ogc.status_response(job_id=job_id, job_status=hysds.STATUS_JOB_QUEUED)
 
             # Purge if job queued
             elif current_status == hysds.STATUS_JOB_QUEUED:
                 logging.info("Submitting Purge job for Job {}".format(job_id))
                 purge_id, res = hysds.delete_mozart_job(job_id=job_id, wait_for_completion=wait_for_completion)
                 logging.info("Purge Job Submission Response: {} {}".format(purge_id, res))
-                response = ogc.status_response(job_id=job_id, job_status=hysds.STATUS_JOB_QUEUED)
-            # Right after a job is submitted, its status is still None 
-            elif current_status is None:
-                logging.info("Submitting Purge job for Job {}".format(job_id))
-                purge_id, res = hysds.delete_mozart_job(job_id=job_id, wait_for_completion=wait_for_completion)
-                logging.info("Purge Job Submission Response: {} {}".format(purge_id, res))
-                response = ogc.status_response(job_id=job_id, job_status=hysds.STATUS_JOB_QUEUED)
             # For all other statuses, we cannot cancel
             else:
                 return generate_error("Not allowed to cancel job with status {}".format(current_status), status.HTTP_400_BAD_REQUEST)
@@ -761,17 +747,14 @@ class Status(Resource):
             response_body["id"] = job_id
             response_body["type"] = "process"
             if not wait_for_completion:
-                response_body["detail"] = response.decode("utf-8")
                 response_body["status"] = "dismissed"
                 return response_body, status.HTTP_202_ACCEPTED
             else:
                 cancel_job_status = res.get("status")
-                response = ogc.status_response(job_id=job_id, job_status=res.get("status"))
                 if not cancel_job_status == hysds.STATUS_JOB_COMPLETED:
-                    return generate_error(response.decode("utf-8"), status.HTTP_500_INTERNAL_SERVER_ERROR)
+                    return generate_error(f"Failed to cancel job, status was {res.get("status")}", status.HTTP_500_INTERNAL_SERVER_ERROR)
                 else:
                     response_body["status"] = "dismissed"
-                    response_body["detail"] = response.decode("utf-8")
                     return response_body, status.HTTP_202_ACCEPTED 
         except Exception as ex:
             return generate_error("Failed to dismiss job {}. Please try again or contact DPS administrator. {}".format(job_id, ex), status.HTTP_500_INTERNAL_SERVER_ERROR)
