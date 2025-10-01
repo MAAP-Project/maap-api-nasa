@@ -897,7 +897,6 @@ class Jobs(Resource):
         job_list = []
         fields_to_specify = request.args.get("fields", "").split(",")
         print("graceal1 printing")
-        print(response_body["jobs"])
         print(fields_to_specify)
         # Need to get the CWLs to return as links with the jobs 
         for job in response_body["jobs"]:
