@@ -912,7 +912,7 @@ class Jobs(Resource):
                 hysds_status = job[next(iter(job))]["status"]
                 ogc_status = ogc.hysds_to_ogc_status(hysds_status)
                 job_with_fields["status"] = ogc_status
-                job_with_fields["processID"]= job["processID"]
+                job_with_fields["processID"] = existing_process.process_id if existing_process else None
                 links.append({
                         "href": "/"+ns.name+"/job/"+job_with_fields["jobID"],
                         "rel": "self",
