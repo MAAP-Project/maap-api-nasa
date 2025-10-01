@@ -16,8 +16,6 @@ HEADER_CP_TICKET = "cpticket"
 HEADER_AUTHORIZATION = "Authorization"
 HEADER_CAS_AUTHORIZATION = "cas-authorization"
 HEADER_DPS_TOKEN = "dps-token"
-MEMBER_STATUS_ACTIVE = "active"
-MEMBER_STATUS_SUSPENDED = "suspended"
 
 
 def get_authorized_user():
