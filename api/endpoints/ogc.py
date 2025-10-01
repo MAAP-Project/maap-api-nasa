@@ -629,6 +629,9 @@ class Status(Resource):
     parser = api.parser()
     parser.add_argument("wait_for_completion", default=False, required=False, type=bool,
                         help="Wait for Cancel job to finish")
+    parser.add_argument("fields", type=str,
+                        help="Fields separated by commas that you want this response to also return. Options are request, message, created, started, finished, updated, progress, links",
+                        required=False)
 
     @api.doc(security="ApiKeyAuth")
     @login_required()
@@ -689,8 +692,11 @@ class Status(Resource):
             "processID": existing_process.process_id if existing_process else None,
             # TODO graceal should this be hard coded in if the example options are process, wps, openeo?
             "type": None,
+            "status": current_status
+        })
+        fields_to_specify = request.args.get("fields", "").split(",")
+        additional_arguments_response_body = {
             "request": None,
-            "status": current_status,
             "message": None,
             "created": submitted_time,
             "started": time_start,
@@ -706,7 +712,10 @@ class Status(Resource):
                     "title": "Job Status"
                 }
             ]
-        })
+        }
+        for field in fields_to_specify:
+            if field in additional_arguments_response_body:
+                response_body[field] = additional_arguments_response_body[field]
 
         return response_body, status.HTTP_200_OK 
     
@@ -776,6 +785,7 @@ class Jobs(Resource):
     parser.add_argument("priority", type=int, help="Job priority, 0-9", required=False)
     parser.add_argument("getJobDetails", type=str, help="Return full details if True. "
                                                            "List of job id's if false. Default True.", required=False)
+    parser.add_argument("fields", type=int, help="Fields to specify in the job response", required=False)
 
     @api.doc(security="ApiKeyAuth")
     @login_required()
@@ -882,33 +892,39 @@ class Jobs(Resource):
                 response_body["jobs"] = response_body["jobs"][:limit]
 
         links = []
-        jobs_with_required_fields = []
+        job_list = []
+        fields_to_specify = request.args.get("fields", "").split(",")
         # Need to get the CWLs to return as links with the jobs 
         for job in response_body["jobs"]:
             try:
                 # Filter out most job details if user did not request them, default is to have all details
                 if request.args.get("getJobDetails") and request.args.get("getJobDetails").lower() == "false":
-                    job_with_required_fields = {}
+                    job_with_fields = {}
                 else:
-                    job_with_required_fields = job
-                job_with_required_fields["id"] = next(iter(job))
+                    job_with_fields = job
+                job_with_fields["id"] = next(iter(job))
                 # TODO graceal should this be hard coded in if the example options are process, wps, openeo?
-                job_with_required_fields["type"] = "process"
+                job_with_fields["type"] = "process"
                 hysds_status = job[next(iter(job))]["status"]
                 ogc_status = ogc.hysds_to_ogc_status(hysds_status)
-                job_with_required_fields["status"] = ogc_status
+                job_with_fields["status"] = ogc_status
+                job_with_fields["processID"]= job["processID"]
                 links.append({
-                        "href": "/"+ns.name+"/job/"+job_with_required_fields["id"],
+                        "href": "/"+ns.name+"/job/"+job_with_fields["id"],
                         "rel": "self",
                         "type": "application/json",
                         "hreflang": HREF_LANG,
                         "title": "Job"
                     })
-                jobs_with_required_fields.append(job_with_required_fields)
+                for field in fields_to_specify:
+                    if field in job:
+                        job_with_fields[field] = job[field]
+
+                job_list.append(job_with_fields)
             except: 
                 print("Error getting job type to get CWLs")
         response_body["links"] = links
-        response_body["jobs"] = jobs_with_required_fields
+        response_body["jobs"] = job_list
         return response_body, status.HTTP_200_OK
     
 @ns.route("/jobs/<string:job_id>/metrics")
