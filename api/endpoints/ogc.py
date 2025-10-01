@@ -807,6 +807,7 @@ class Jobs(Resource):
         :param tag: User tag
         :return: List of jobs for a given user that matches query params provided
         """
+        print("graceal1 in /jobs function")
 
         user = get_authorized_user()
         params = dict(request.args)
@@ -821,6 +822,7 @@ class Jobs(Resource):
                 process_name_hysds = get_hysds_process_name(existing_process.id, existing_process.deployer, existing_process.version)
                 params["job_type"]=f"job-{process_name_hysds}"
             else:
+                # Return no jobs if the user passed an invalid process ID
                 response_body["status"] = status.HTTP_200_OK
                 response_body["jobs"] = []
                 response_body["links"] = []
@@ -894,14 +896,17 @@ class Jobs(Resource):
         links = []
         job_list = []
         fields_to_specify = request.args.get("fields", "").split(",")
+        print("graceal1 printing")
+        print(response_body["jobs"])
+        print(fields_to_specify)
         # Need to get the CWLs to return as links with the jobs 
         for job in response_body["jobs"]:
             try:
-                # Filter out most job details if user did not request them, default is to have all details
-                if request.args.get("getJobDetails") and request.args.get("getJobDetails").lower() == "false":
-                    job_with_fields = {}
-                else:
+                # Filter out most job details if user did not request them, default is to not have them
+                if request.args.get("getJobDetails") and request.args.get("getJobDetails").lower() == "true":
                     job_with_fields = job
+                else:
+                    job_with_fields = {}
                 job_with_fields["jobID"] = next(iter(job))
                 # TODO graceal should this be hard coded in if the example options are process, wps, openeo?
                 job_with_fields["type"] = "process"
@@ -921,8 +926,9 @@ class Jobs(Resource):
                         job_with_fields[field] = job[field]
 
                 job_list.append(job_with_fields)
-            except: 
+            except Exception as ex: 
                 print("Error getting job type to get CWLs")
+                print(ex)
         response_body["links"] = links
         response_body["jobs"] = job_list
         return response_body, status.HTTP_200_OK
