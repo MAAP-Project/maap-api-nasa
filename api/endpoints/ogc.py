@@ -529,7 +529,7 @@ class ExecuteJob(Resource):
                     "description": existing_process.description,
                     "keywords": existing_process.keywords.split(",") if existing_process.keywords else [],
                     "metadata": [],
-                    "id": job_id, 
+                    "jobID": job_id, 
                     "processID": existing_process.process_id, 
                     "type": None,
                     "request": None,
@@ -630,7 +630,7 @@ class Status(Resource):
     parser.add_argument("wait_for_completion", default=False, required=False, type=bool,
                         help="Wait for Cancel job to finish")
     parser.add_argument("fields", type=str,
-                        help="Fields separated by commas that you want this response to also return. Options are request, message, created, started, finished, updated, progress, links",
+                        help="Fields separated by commas that you want this response to also return. Options are request, message, created, started, finished, updated, progress, links, title, keywords, description",
                         required=False)
 
     @api.doc(security="ApiKeyAuth")
@@ -667,13 +667,13 @@ class Status(Resource):
             print(ex)
         
         if not existing_process:
-            response_body = {
+            job_info = {
                 "title": None,
                 "description": None,
                 "keywords": [],
             }
         else:
-            response_body = {
+            job_info = {
                 "title": existing_process.title,
                 "description": existing_process.description,
                 "keywords": existing_process.keywords.split(",") if existing_process.keywords is not None else [], 
@@ -681,21 +681,21 @@ class Status(Resource):
         submitted_time = time_start = time_end = None
         try:
             current_status = ogc.hysds_to_ogc_status(current_status)
-            submitted_time = response_body["job"]["job_info"]["time_queued"]
-            time_start = response_body["job"]["job_info"]["time_start"]
-            time_end = response_body["job"]["job_info"]["time_end"]
+            submitted_time = job_info["job"]["job_info"]["time_queued"]
+            time_start = job_info["job"]["job_info"]["time_start"]
+            time_end = job_info["job"]["job_info"]["time_end"]
         except Exception as ex:
             print(ex)
             print(f"ERROR getting times or status for job {job_id}")
-        response_body.update({
-            "id": job_id,
+        response_body = {
+            "jobID": job_id,
             "processID": existing_process.process_id if existing_process else None,
             # TODO graceal should this be hard coded in if the example options are process, wps, openeo?
             "type": None,
             "status": current_status
-        })
+        }
         fields_to_specify = request.args.get("fields", "").split(",")
-        additional_arguments_response_body = {
+        job_info.update({
             "request": None,
             "message": None,
             "created": submitted_time,
@@ -712,10 +712,10 @@ class Status(Resource):
                     "title": "Job Status"
                 }
             ]
-        }
+        })
         for field in fields_to_specify:
-            if field in additional_arguments_response_body:
-                response_body[field] = additional_arguments_response_body[field]
+            if field in job_info:
+                response_body[field] = job_info[field]
 
         return response_body, status.HTTP_200_OK 
     
@@ -753,7 +753,7 @@ class Status(Resource):
             else:
                 return generate_error("Not allowed to cancel job with status {}".format(current_status), status.HTTP_400_BAD_REQUEST)
 
-            response_body["id"] = job_id
+            response_body["jobID"] = job_id
             response_body["type"] = "process"
             if not wait_for_completion:
                 response_body["status"] = "dismissed"
@@ -902,7 +902,7 @@ class Jobs(Resource):
                     job_with_fields = {}
                 else:
                     job_with_fields = job
-                job_with_fields["id"] = next(iter(job))
+                job_with_fields["jobID"] = next(iter(job))
                 # TODO graceal should this be hard coded in if the example options are process, wps, openeo?
                 job_with_fields["type"] = "process"
                 hysds_status = job[next(iter(job))]["status"]
@@ -910,7 +910,7 @@ class Jobs(Resource):
                 job_with_fields["status"] = ogc_status
                 job_with_fields["processID"]= job["processID"]
                 links.append({
-                        "href": "/"+ns.name+"/job/"+job_with_fields["id"],
+                        "href": "/"+ns.name+"/job/"+job_with_fields["jobID"],
                         "rel": "self",
                         "type": "application/json",
                         "hreflang": HREF_LANG,
