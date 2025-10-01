@@ -20,7 +20,8 @@ from api.utils.url_util import proxied_url
 import ast
 import socket # For socket.timeout
 from xml.parsers.expat import ExpatError # For XML parsing errors
-
+from api.models.role import Role
+from api.auth.security import MEMBER_STATUS_ACTIVE, MEMBER_STATUS_SUSPENDED
 from api.utils.security_utils import AuthenticationError, ExternalServiceError
 
 
@@ -249,7 +250,10 @@ def start_member_session(cas_response, ticket, auto_create_member=False):
                         username=usr,
                         email=get_cas_attribute_value(attributes, 'email'),
                         organization=get_cas_attribute_value(attributes, 'organization'),
-                        urs_token=urs_access_token)
+                        urs_token=urs_access_token,
+                        role_id=Role.ROLE_MEMBER if is_esa_user else Role.ROLE_GUEST,
+                        status=MEMBER_STATUS_ACTIVE if is_esa_user else MEMBER_STATUS_SUSPENDED,
+                        creation_date=datetime.utcnow())
         try:
             db.session.add(member)
         except Exception as e:
