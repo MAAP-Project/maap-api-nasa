@@ -23,7 +23,7 @@ from api.models.member import Member as Member_db
 
 from api.utils import job_queue
 from api.utils.ogc_process_util import (
-    create_process_deployment, get_cwl_metadata, CWL_METADATA,
+    create_process_deployment, get_cwl_metadata,
     trigger_gitlab_pipeline, create_and_commit_deployment, generate_error, get_hysds_process_name, 
     get_process_from_hysds_name, determineDatetimeInRange, parse_rfc3339_datetime,
     DEPLOYED_PROCESS_STATUS, INITIAL_JOB_STATUS, UNDEPLOYED_PROCESS_STATUS, HREF_LANG
@@ -693,7 +693,7 @@ class Status(Resource):
             "type": None,
             "status": current_status
         }
-        fields_to_specify = request.args.get("fields", "").split(",")
+        fields_to_specify = request.args.get("fields").split(',') if request.args.get("fields") else []
         job_info.update({
             "request": None,
             "message": None,
@@ -896,7 +896,7 @@ class Jobs(Resource):
 
         links = []
         job_list = []
-        fields_to_specify = request.args.get("fields", "").split(",")
+        fields_to_specify = request.args.get("fields").split(',') if request.args.get("fields") else []
         print("graceal1 printing")
         print(fields_to_specify)
         # Need to get the CWLs to return as links with the jobs 
