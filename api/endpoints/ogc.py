@@ -686,7 +686,7 @@ class Status(Resource):
             time_end = response["job"]["job_info"]["time_end"]
         except Exception as ex:
             print(ex)
-            print(f"ERROR getting times or status for job {job_id}")
+            print(f"ERROR getting times status for job {job_id}")
         response_body = {
             "jobID": job_id,
             "processID": existing_process.process_id if existing_process else None,
@@ -721,6 +721,13 @@ class Status(Resource):
         for field in fields_to_specify:
             if field in job_info:
                 response_body[field] = job_info[field]
+            elif field == "inputs":
+                try:
+                    response_body[field] = response["context"]["job_specification"]["params"]
+                except Exception as ex:
+                    print("Error finding job inputs")
+                    print(ex)
+                    response_body[field] = None
             elif field not in ["jobID", "type", "status", "processID"]:
                 return generate_error(f"Invalid field requested {field}. Remember to separate fields with commas", status.HTTP_400_BAD_REQUEST)
         return response_body, status.HTTP_200_OK 
@@ -812,7 +819,7 @@ class Jobs(Resource):
         :param priority: Job priority
         :param queue: Queue
         :param tag: User tag
-        :param fields: Additional fields in response i.e. keywords,description,title,created,started,finished,processID
+        :param fields: Additional fields in response i.e. keywords,description,title,created,started,finished,processID,inputs
         :return: List of jobs for a given user that matches query params provided
         """
 
@@ -947,6 +954,13 @@ class Jobs(Resource):
                             job_with_fields[field] = job_info["job"]["job_info"]["time_start"]
                         elif field == "finished":
                             job_with_fields[field] = job_info["job"]["job_info"]["time_end"]
+                        elif field == "inputs":
+                            try:
+                                job_with_fields[field] = job_info["context"]["job_specification"]["params"]
+                            except Exception as ex:
+                                print("Error finding job inputs")
+                                print(ex)
+                                job_with_fields[field] = None
                         elif field not in ["type", "status", "jobID"]:
                             return generate_error(f"Invalid field requested {field}. Remember to separate fields with commas", status.HTTP_400_BAD_REQUEST)
                 except Exception as ex:
