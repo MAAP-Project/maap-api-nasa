@@ -922,7 +922,7 @@ class Jobs(Resource):
                 hysds_status = job_info["status"]
                 ogc_status = ogc.hysds_to_ogc_status(hysds_status)
                 job_with_fields["status"] = ogc_status
-                job_with_fields["job_type"] = job_info["job"]["job_info"]["job_payload"]["job_type"]
+                job_with_fields["job_type"] = job_info["type"]
                 links.append({
                         "href": "/"+ns.name+"/job/"+job_with_fields["jobID"],
                         "rel": "self",
@@ -939,15 +939,21 @@ class Jobs(Resource):
                         # Information where we need to look up the process to get
                         elif field in ["keywords", "description", "title", "processID"]:
                             if not existing_process:
+                                print("graceal process was not existing so checking for name")
+                                print(job_with_fields["job_type"])
                                 existing_process = get_process_from_hysds_name(job_with_fields["job_type"])
                             print("graceal1 getting the field from the existing process ")
                             print(existing_process)
-                            #print(getattr(existing_process, field))
-                            print(existing_process[field])
+                            try:
+                                print(getattr(existing_process, field))
+                            except Exception as ex:
+                                print("graceal1 error using getattr way")
+                                print(ex)
+                            #print(existing_process[field])
                             if field == "processID":
                                 job_with_fields[field] = existing_process.process_id
                             else:
-                                job_with_fields[field] = existing_process[field]
+                                job_with_fields[field] = getattr(existing_process, field)
                         elif field == "created":
                             job_with_fields[field] = job_info["job"]["job_info"]["time_queued"]
                         elif field == "started":
