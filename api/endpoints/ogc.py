@@ -717,7 +717,7 @@ class Status(Resource):
             if field in job_info:
                 response_body[field] = job_info[field]
             elif field not in ["jobID", "type", "status", "processID"]:
-                return generate_error(f"Invalid field requested {field}", status.HTTP_400_BAD_REQUEST)
+                return generate_error(f"Invalid field requested {field}. Remember to separate fields with commas", status.HTTP_400_BAD_REQUEST)
         return response_body, status.HTTP_200_OK 
     
     @api.doc(security="ApiKeyAuth")
@@ -914,7 +914,7 @@ class Jobs(Resource):
                 hysds_status = job[next(iter(job))]["status"]
                 ogc_status = ogc.hysds_to_ogc_status(hysds_status)
                 job_with_fields["status"] = ogc_status
-                job_with_fields["job_type"] = job["job"]["job_info"]["job_payload"]["job_type"]
+                job_with_fields["job_type"] = job[next(iter(job))]["job"]["job_info"]["job_payload"]["job_type"]
                 links.append({
                         "href": "/"+ns.name+"/job/"+job_with_fields["jobID"],
                         "rel": "self",
@@ -927,7 +927,7 @@ class Jobs(Resource):
                     if field in job:
                         job_with_fields[field] = job[field]
                     elif field not in ["type", "status", "jobID"]:
-                        return generate_error(f"Invalid field requested {field}", status.HTTP_400_BAD_REQUEST)
+                        return generate_error(f"Invalid field requested {field}. Remember to separate fields with commas", status.HTTP_400_BAD_REQUEST)
 
                 job_list.append(job_with_fields)
             except Exception as ex: 
