@@ -62,7 +62,6 @@ class Processes(Resource):
         existing_processes = db.session.query(Process_db).filter_by(status=DEPLOYED_PROCESS_STATUS).all()
 
         for process in existing_processes:
-            deployer = db.session.query(Member_db).filter_by(id=process.deployer).first()
             link_obj_process = {
                 "href": f"/{ns.name}/processes/{process.process_id}",
                 "rel": "self",
@@ -79,7 +78,7 @@ class Processes(Resource):
                 "version": process.version,
                 "jobControlOptions": [], # TODO Unsure what we want this to be yet
                 "author": process.author,
-                "deployedBy": deployer.username,
+                "deployedBy": process.deployer,
                 "lastModifiedTime": process.last_modified_time and process.last_modified_time.isoformat(),
                 "cwlLink": process.cwl_link,
                 "links": [link_obj_process]
@@ -297,15 +296,14 @@ class Describe(Resource):
         if not existing_process:
             return generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
 
-        process_name_hysds = get_hysds_process_name(existing_process.id, existing_process.deployer, existing_process.version)
+        deployer = db.session.query(Member_db).filter_by(username=existing_process.deployer).first()
+        process_name_hysds = get_hysds_process_name(existing_process.id, deployer.id, existing_process.version)
         hysdsio_type = f"hysds-io-{process_name_hysds}"
         response = hysds.get_hysds_io(hysdsio_type)
         if not response or not response.get("success"):
             return generate_error("No process with that process ID found on HySDS", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
         
         hysds_io_result = response.get("result")
-
-        deployer = db.session.query(Member_db).filter_by(id=existing_process.deployer).first()
 
         response_body = {
             "title": existing_process.title,
@@ -358,7 +356,7 @@ class Describe(Resource):
         if not existing_process:
             return generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
         
-        if user.id != existing_process.deployer:
+        if user.username != existing_process.deployer:
             return generate_error("You can only modify processes that you posted originally", status.HTTP_403_FORBIDDEN, "ogcapi-processes-2/1.0/immutable-process")
         
         req_data_string = request.data.decode("utf-8")
@@ -423,7 +421,7 @@ class Describe(Resource):
         if not existing_process:
             return generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
 
-        if user.id != existing_process.deployer:
+        if user.username != existing_process.deployer:
             return generate_error("You can only modify processes that you posted originally", status.HTTP_403_FORBIDDEN, "ogcapi-processes-2/1.0/immutable-process")
         
         try:
@@ -493,7 +491,8 @@ class ExecuteJob(Resource):
 
         dedup = req_data.get("dedup")
         tag = req_data.get("tag")
-        process_name_hysds = get_hysds_process_name(existing_process.id, existing_process.deployer, existing_process.version)
+        deployer = db.session.query(Member_db).filter_by(username=existing_process.deployer).first()
+        process_name_hysds = get_hysds_process_name(existing_process.id, deployer.id, existing_process.version)
         job_type = f"job-{process_name_hysds}"
 
         try:
@@ -716,7 +715,8 @@ class Status(Resource):
         for field in fields_to_specify:
             if field in job_info:
                 response_body[field] = job_info[field]
-
+            else:
+                return generate_error(f"Invalid field requested {field}", status.HTTP_400_BAD_REQUEST)
         return response_body, status.HTTP_200_OK 
     
     @api.doc(security="ApiKeyAuth")
@@ -819,7 +819,8 @@ class Jobs(Resource):
                 .filter_by(process_id=request.args.get("processID"), status=DEPLOYED_PROCESS_STATUS) \
                 .first()
             if existing_process is not None:
-                process_name_hysds = get_hysds_process_name(existing_process.id, existing_process.deployer, existing_process.version)
+                deployer = db.session.query(Member_db).filter_by(username=existing_process.deployer).first()
+                process_name_hysds = get_hysds_process_name(existing_process.id, deployer.id, existing_process.version)
                 params["job_type"]=f"job-{process_name_hysds}"
             else:
                 # Return no jobs if the user passed an invalid process ID
@@ -912,7 +913,7 @@ class Jobs(Resource):
                 hysds_status = job[next(iter(job))]["status"]
                 ogc_status = ogc.hysds_to_ogc_status(hysds_status)
                 job_with_fields["status"] = ogc_status
-                job_with_fields["processID"] = existing_process.process_id if existing_process else None
+                job_with_fields["job_type"] = job["job_type"]
                 links.append({
                         "href": "/"+ns.name+"/job/"+job_with_fields["jobID"],
                         "rel": "self",
@@ -920,9 +921,15 @@ class Jobs(Resource):
                         "hreflang": HREF_LANG,
                         "title": "Job"
                     })
+                # Set these fields so field in job doesnt fail with a valid argument
+                job["type"] = job_with_fields["type"]
+                job["status"] = job_with_fields["status"]
+                job["jobID"] = job_with_fields["jobID"]
                 for field in fields_to_specify:
                     if field in job:
                         job_with_fields[field] = job[field]
+                    else:
+                        return generate_error(f"Invalid field requested {field}", status.HTTP_400_BAD_REQUEST)
 
                 job_list.append(job_with_fields)
             except Exception as ex: 
