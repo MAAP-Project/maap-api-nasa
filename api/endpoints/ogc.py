@@ -681,9 +681,9 @@ class Status(Resource):
         submitted_time = time_start = time_end = None
         try:
             current_status = ogc.hysds_to_ogc_status(current_status)
-            submitted_time = job_info["job"]["job_info"]["time_queued"]
-            time_start = job_info["job"]["job_info"]["time_start"]
-            time_end = job_info["job"]["job_info"]["time_end"]
+            submitted_time = response["job"]["job_info"]["time_queued"]
+            time_start = response["job"]["job_info"]["time_start"]
+            time_end = response["job"]["job_info"]["time_end"]
         except Exception as ex:
             print(ex)
             print(f"ERROR getting times or status for job {job_id}")
@@ -716,7 +716,8 @@ class Status(Resource):
         })
         print("graceal1 printing ")
         print(request.args.get("getJobDetails"))
-        if request.args.get("getJobDetails", False):
+        get_job_details = request.args.get("getJobDetails", False)
+        if get_job_details and get_job_details.lower() == "true":
             print("graceal1 returning all job information")
             return job_info, status.HTTP_200_OK 
         # Add additional fields to the response that the user requested
@@ -737,6 +738,7 @@ class Status(Resource):
         response_body = dict()
         # Since this can take a long time, we dont wait by default.
         wait_for_completion = request.args.get("waitForCompletion", False)
+        wait_for_completion = wait_for_completion and wait_for_completion.lower() == "true"
 
         try:
             # check if job is non-running and exists
@@ -791,7 +793,7 @@ class Jobs(Resource):
     parser.add_argument("tag", type=str, help="User-defined job tag", required=False)
     parser.add_argument("queue", type=str, help="Submitted job queue", required=False)
     parser.add_argument("priority", type=int, help="Job priority, 0-9", required=False)
-    parser.add_argument("getJobDetails", type=str, help="Return full details if True. "
+    parser.add_argument("getJobDetails", type=bool, help="Return full details if True. "
                                                            "List of job id's if false. Default True.", required=False)
     parser.add_argument("fields", type=int, help="Fields to specify in the job response", required=False)
 
@@ -939,7 +941,8 @@ class Jobs(Resource):
                             if not existing_process:
                                 existing_process = get_process_from_hysds_name(job_with_fields["job_type"])
                             print("graceal1 getting the field from the existing process ")
-                            print(getattr(existing_process, field))
+                            print(existing_process)
+                            #print(getattr(existing_process, field))
                             print(existing_process[field])
                             if field == "processID":
                                 job_with_fields[field] = existing_process.process_id
