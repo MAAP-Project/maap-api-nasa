@@ -712,10 +712,11 @@ class Status(Resource):
                 }
             ]
         })
+        # Add additional fields to the response that the user requested
         for field in fields_to_specify:
             if field in job_info:
                 response_body[field] = job_info[field]
-            else:
+            elif field not in ["jobID", "type", "status", "processID"]:
                 return generate_error(f"Invalid field requested {field}", status.HTTP_400_BAD_REQUEST)
         return response_body, status.HTTP_200_OK 
     
@@ -899,7 +900,7 @@ class Jobs(Resource):
         fields_to_specify = request.args.get("fields").split(',') if request.args.get("fields") else []
         print("graceal1 printing")
         print(fields_to_specify)
-        # Need to get the CWLs to return as links with the jobs 
+        # Extract necessary information from jobs
         for job in response_body["jobs"]:
             try:
                 # Filter out most job details if user did not request them, default is to not have them
@@ -913,7 +914,7 @@ class Jobs(Resource):
                 hysds_status = job[next(iter(job))]["status"]
                 ogc_status = ogc.hysds_to_ogc_status(hysds_status)
                 job_with_fields["status"] = ogc_status
-                job_with_fields["job_type"] = job["job_type"]
+                job_with_fields["job_type"] = job["job"]["job_info"]["job_payload"]["job_type"]
                 links.append({
                         "href": "/"+ns.name+"/job/"+job_with_fields["jobID"],
                         "rel": "self",
@@ -921,20 +922,17 @@ class Jobs(Resource):
                         "hreflang": HREF_LANG,
                         "title": "Job"
                     })
-                # Set these fields so field in job doesnt fail with a valid argument
-                job["type"] = job_with_fields["type"]
-                job["status"] = job_with_fields["status"]
-                job["jobID"] = job_with_fields["jobID"]
+                # Add additional fields to the response that the user requested
                 for field in fields_to_specify:
                     if field in job:
                         job_with_fields[field] = job[field]
-                    else:
+                    elif field not in ["type", "status", "jobID"]:
                         return generate_error(f"Invalid field requested {field}", status.HTTP_400_BAD_REQUEST)
 
                 job_list.append(job_with_fields)
             except Exception as ex: 
-                print("Error getting job type to get CWLs")
-                print(ex)
+                print("Error getting job type or job status")
+                print(ex) # graceal delete this print statement
         response_body["links"] = links
         response_body["jobs"] = job_list
         return response_body, status.HTTP_200_OK
