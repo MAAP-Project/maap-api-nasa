@@ -626,11 +626,12 @@ class Result(Resource):
 @ns.route("/jobs/<string:job_id>")
 class Status(Resource):
     parser = api.parser()
-    parser.add_argument("wait_for_completion", default=False, required=False, type=bool,
+    parser.add_argument("waitForCompletion", default=False, required=False, type=bool,
                         help="Wait for Cancel job to finish")
     parser.add_argument("fields", type=str,
                         help="Fields separated by commas that you want this response to also return. Options are request, message, created, started, finished, updated, progress, links, title, keywords, description",
                         required=False)
+    parser.add_argument("getJobDetails",default=False, required=False, type=bool,help="Return all fields for the job")
 
     @api.doc(security="ApiKeyAuth")
     @login_required()
@@ -693,6 +694,7 @@ class Status(Resource):
             "type": None,
             "status": current_status
         }
+        job_info.update(response_body)
         fields_to_specify = request.args.get("fields").split(',') if request.args.get("fields") else []
         job_info.update({
             "request": None,
@@ -712,6 +714,11 @@ class Status(Resource):
                 }
             ]
         })
+        print("graceal1 printing ")
+        print(request.args.get("getJobDetails"))
+        if request.args.get("getJobDetails", False):
+            print("graceal1 returning all job information")
+            return job_info, status.HTTP_200_OK 
         # Add additional fields to the response that the user requested
         for field in fields_to_specify:
             if field in job_info:
@@ -729,7 +736,7 @@ class Status(Resource):
         """
         response_body = dict()
         # Since this can take a long time, we dont wait by default.
-        wait_for_completion = request.args.get("wait_for_completion", False)
+        wait_for_completion = request.args.get("waitForCompletion", False)
 
         try:
             # check if job is non-running and exists
@@ -806,9 +813,9 @@ class Jobs(Resource):
         :param priority: Job priority
         :param queue: Queue
         :param tag: User tag
+        :param fields: Additional fields in response i.e. keywords,description,title,created,started,finished,processID
         :return: List of jobs for a given user that matches query params provided
         """
-        print("graceal1 in /jobs function")
 
         user = get_authorized_user()
         params = dict(request.args)
@@ -898,23 +905,22 @@ class Jobs(Resource):
         links = []
         job_list = []
         fields_to_specify = request.args.get("fields").split(',') if request.args.get("fields") else []
-        print("graceal1 printing")
-        print(fields_to_specify)
         # Extract necessary information from jobs
         for job in response_body["jobs"]:
             try:
                 # Filter out most job details if user did not request them, default is to not have them
                 if request.args.get("getJobDetails") and request.args.get("getJobDetails").lower() == "true":
-                    job_with_fields = job
+                    job_with_fields = job[next(iter(job))]
                 else:
                     job_with_fields = {}
                 job_with_fields["jobID"] = next(iter(job))
+                job_info = job[next(iter(job))]
                 # TODO graceal should this be hard coded in if the example options are process, wps, openeo?
                 job_with_fields["type"] = "process"
-                hysds_status = job[next(iter(job))]["status"]
+                hysds_status = job_info["status"]
                 ogc_status = ogc.hysds_to_ogc_status(hysds_status)
                 job_with_fields["status"] = ogc_status
-                job_with_fields["job_type"] = job[next(iter(job))]["job"]["job_info"]["job_payload"]["job_type"]
+                job_with_fields["job_type"] = job_info["job"]["job_info"]["job_payload"]["job_type"]
                 links.append({
                         "href": "/"+ns.name+"/job/"+job_with_fields["jobID"],
                         "rel": "self",
@@ -923,11 +929,34 @@ class Jobs(Resource):
                         "title": "Job"
                     })
                 # Add additional fields to the response that the user requested
-                for field in fields_to_specify:
-                    if field in job:
-                        job_with_fields[field] = job[field]
-                    elif field not in ["type", "status", "jobID"]:
-                        return generate_error(f"Invalid field requested {field}. Remember to separate fields with commas", status.HTTP_400_BAD_REQUEST)
+                existing_process = None
+                try:
+                    for field in fields_to_specify:
+                        if field in job_info:
+                            job_with_fields[field] = job_info[field]
+                        # Information where we need to look up the process to get
+                        elif field in ["keywords", "description", "title", "processID"]:
+                            if not existing_process:
+                                existing_process = get_process_from_hysds_name(job_with_fields["job_type"])
+                            print("graceal1 getting the field from the existing process ")
+                            print(getattr(existing_process, field))
+                            print(existing_process[field])
+                            if field == "processID":
+                                job_with_fields[field] = existing_process.process_id
+                            else:
+                                job_with_fields[field] = existing_process[field]
+                        elif field == "created":
+                            job_with_fields[field] = job_info["job"]["job_info"]["time_queued"]
+                        elif field == "started":
+                            job_with_fields[field] = job_info["job"]["job_info"]["time_start"]
+                        elif field == "finished":
+                            job_with_fields[field] = job_info["job"]["job_info"]["time_end"]
+                        elif field not in ["type", "status", "jobID"]:
+                            return generate_error(f"Invalid field requested {field}. Remember to separate fields with commas", status.HTTP_400_BAD_REQUEST)
+                except Exception as ex:
+                    print("Error getting requested field from job")
+                    print(ex) # graceal delete this print statement 
+                existing_process = None
 
                 job_list.append(job_with_fields)
             except Exception as ex: 
