@@ -5,9 +5,6 @@ from api.models.role import Role
 class Member(Base):
     __tablename__ = 'member'
 
-    STATUS_ACTIVE = 'active'
-    STATUS_SUSPENDED = 'suspended'
-
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(), unique=True)
     email = db.Column(db.String(), unique=True)
