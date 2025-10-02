@@ -714,11 +714,8 @@ class Status(Resource):
                 }
             ]
         })
-        print("graceal1 printing ")
-        print(request.args.get("getJobDetails"))
         get_job_details = request.args.get("getJobDetails", False)
         if get_job_details and get_job_details.lower() == "true":
-            print("graceal1 returning all job information")
             return job_info, status.HTTP_200_OK 
         # Add additional fields to the response that the user requested
         for field in fields_to_specify:
@@ -939,17 +936,7 @@ class Jobs(Resource):
                         # Information where we need to look up the process to get
                         elif field in ["keywords", "description", "title", "processID"]:
                             if not existing_process:
-                                print("graceal process was not existing so checking for name")
-                                print(job_with_fields["job_type"])
                                 existing_process = get_process_from_hysds_name(job_with_fields["job_type"])
-                            print("graceal1 getting the field from the existing process ")
-                            print(existing_process)
-                            try:
-                                print(getattr(existing_process, field))
-                            except Exception as ex:
-                                print("graceal1 error using getattr way")
-                                print(ex)
-                            #print(existing_process[field])
                             if field == "processID":
                                 job_with_fields[field] = existing_process.process_id
                             else:
@@ -964,13 +951,11 @@ class Jobs(Resource):
                             return generate_error(f"Invalid field requested {field}. Remember to separate fields with commas", status.HTTP_400_BAD_REQUEST)
                 except Exception as ex:
                     print("Error getting requested field from job")
-                    print(ex) # graceal delete this print statement 
                 existing_process = None
 
                 job_list.append(job_with_fields)
             except Exception as ex: 
                 print("Error getting job type or job status")
-                print(ex) # graceal delete this print statement
         response_body["links"] = links
         response_body["jobs"] = job_list
         return response_body, status.HTTP_200_OK
