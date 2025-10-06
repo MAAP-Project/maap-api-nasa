@@ -303,7 +303,7 @@ def create_process_deployment(cwl_link, user_id, ignore_existing=False):
             "id": metadata.id,
             "version": metadata.version,
             "jobControlOptions": [],
-            "jobID": deployment_job_id,
+            "deploymentJobID": deployment_job_id,
             "status": deployment.status,
             "created": deployment.created if hasattr(deployment, 'created') else datetime.utcnow().isoformat(),
             "links": [{
