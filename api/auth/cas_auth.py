@@ -231,8 +231,17 @@ def start_member_session(cas_response, ticket, auto_create_member=False):
 
     member = db.session.query(Member).filter_by(username=usr).first()
     urs_access_token = get_cas_attribute_value(attributes, 'access_token')
+    is_esa_user = get_cas_attribute_value(attributes, 'iss') == settings.ESA_ISS_HOST
 
-    if member is None and auto_create_member:
+    if is_esa_user:
+        esa_system_account = db.session.query(Member).filter_by(username=settings.ESA_EDL_SYS_ACCOUNT).first()
+
+        if esa_system_account is None:
+            current_app.logger.warning(f"No ESA system account found for user {usr}.")
+        else:
+            urs_access_token = esa_system_account.urs_token 
+
+    if member is None and (auto_create_member or is_esa_user):
         member = Member(first_name=get_cas_attribute_value(attributes, 'given_name'),
                         last_name=get_cas_attribute_value(attributes, 'family_name'),
                         username=usr,
