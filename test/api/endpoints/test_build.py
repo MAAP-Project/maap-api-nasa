@@ -608,8 +608,8 @@ class TestBuildEndpoints(unittest.TestCase):
         
         # Assertions
         self.assertEqual(status_code, 202)
-        self.assertIn('jobID', response_body)
-        self.assertEqual(response_body['jobID'], 999)
+        self.assertIn('deploymentJobID', response_body)
+        self.assertEqual(response_body['deploymentJobID'], 999)
         self.assertIn('status', response_body)
         self.assertEqual(response_body['status'], 'accepted')
         self.assertIn('links', response_body)
