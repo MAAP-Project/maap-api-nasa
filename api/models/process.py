@@ -8,7 +8,7 @@ class Process(Base):
     id = db.Column(db.String(), nullable=False)
     version = db.Column(db.String(), nullable=False)
     cwl_link = db.Column(db.String(), nullable=False)
-    deployer = db.Column(db.Integer, db.ForeignKey('member.id'), nullable=False)
+    deployer = db.Column(db.String(), db.ForeignKey('member.username'), nullable=False)
     author = db.Column(db.String(), nullable=True)
     # Status is either deployed or undeployed 
     status = db.Column(db.String(), nullable=False)

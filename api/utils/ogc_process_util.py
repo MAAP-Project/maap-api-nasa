@@ -40,7 +40,8 @@ def get_process_from_hysds_name(hysds_name):
     main_part, version = hysds_name.rsplit(':', 1)
     id_part, user_id = main_part.rsplit('_', 1)
     id = id_part.replace('job-', '', 1)
-    return db.session.query(Process_db).filter_by(id=id,version=version,deployer=user_id,status=DEPLOYED_PROCESS_STATUS).first()
+    user = db.session.query(Member).filter_by(id=user_id).first()
+    return db.session.query(Process_db).filter_by(id=id,version=version,deployer=user.username,status=DEPLOYED_PROCESS_STATUS).first()
 
 def generate_error(detail, error_status, error_type=None):
     """Generates a standardized error response body and status code."""
@@ -60,10 +61,10 @@ def trigger_gitlab_pipeline(cwl_link, version, metadata_id, uuid):
     try:
         # random process name to allow algorithms later having the same id/version if the deployer is different 
         process_name_hysds = f"{metadata_id}_{uuid}"
-        gl = gitlab.Gitlab(settings.GITLAB_URL_POST_PROCESS, private_token=settings.GITLAB_POST_PROCESS_TOKEN)
+        gl = gitlab.Gitlab(settings.GITLAB_URL, private_token=settings.GITLAB_TOKEN)
         project = gl.projects.get(settings.GITLAB_PROJECT_ID_POST_PROCESS)
         pipeline = project.pipelines.create({
-            "ref": settings.VERSION,
+            "ref": settings.GITLAB_POST_PROCESS_PIPELINE_REF,
             "variables": [{"key": "CWL_URL", "value": cwl_link}, {"key": "PROCESS_NAME_HYSDS", "value": process_name_hysds}]
         })
         log.info(f"Triggered pipeline ID: {pipeline.id}")
@@ -83,7 +84,7 @@ def create_and_commit_deployment(metadata, pipeline, user, existing_process=None
         title=metadata.title,
         description=metadata.description,
         keywords=metadata.keywords,
-        deployer=user.id,
+        deployer=user.username,
         author=metadata.author,
         pipeline_id=pipeline.id,
         github_url=metadata.github_url,
@@ -266,7 +267,7 @@ def create_process_deployment(cwl_link, user_id, ignore_existing=False):
             id=metadata.id, version=metadata.version, status=DEPLOYED_PROCESS_STATUS
         ).first()
         
-        if not ignore_existing and existing_process and existing_process.deployer == user.id:
+        if not ignore_existing and existing_process and existing_process.deployer == user.username:
             current_app.logger.debug(f"Duplicate process found for user {user.id}")
             response_body, code = generate_error(
                 "Duplicate process. Use PUT to modify existing process if you originally published it.", 
@@ -302,7 +303,7 @@ def create_process_deployment(cwl_link, user_id, ignore_existing=False):
             "id": metadata.id,
             "version": metadata.version,
             "jobControlOptions": [],
-            "jobID": deployment_job_id,
+            "deploymentJobID": deployment_job_id,
             "status": deployment.status,
             "created": deployment.created if hasattr(deployment, 'created') else datetime.utcnow().isoformat(),
             "links": [{
