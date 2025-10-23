@@ -12,7 +12,7 @@ class Deployment(Base):
     cwl_link = db.Column(db.String(), nullable=False)
     id = db.Column(db.String(), nullable=False)
     version = db.Column(db.String(), nullable=False)
-    deployer = db.Column(db.Integer, db.ForeignKey('member.id'), nullable=False)
+    deployer = db.Column(db.String(), db.ForeignKey('member.username'), nullable=False)
     author = db.Column(db.String(), nullable=True)
     process_id= db.Column(db.String(), nullable=True)
     title = db.Column(db.String(), nullable=True)

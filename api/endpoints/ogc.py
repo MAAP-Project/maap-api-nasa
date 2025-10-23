@@ -23,7 +23,7 @@ from api.models.member import Member as Member_db
 
 from api.utils import job_queue
 from api.utils.ogc_process_util import (
-    create_process_deployment, get_cwl_metadata, CWL_METADATA,
+    create_process_deployment, get_cwl_metadata,
     trigger_gitlab_pipeline, create_and_commit_deployment, generate_error, get_hysds_process_name, 
     get_process_from_hysds_name, determineDatetimeInRange, parse_rfc3339_datetime,
     DEPLOYED_PROCESS_STATUS, INITIAL_JOB_STATUS, UNDEPLOYED_PROCESS_STATUS, HREF_LANG
@@ -62,7 +62,6 @@ class Processes(Resource):
         existing_processes = db.session.query(Process_db).filter_by(status=DEPLOYED_PROCESS_STATUS).all()
 
         for process in existing_processes:
-            deployer = db.session.query(Member_db).filter_by(id=process.deployer).first()
             link_obj_process = {
                 "href": f"/{ns.name}/processes/{process.process_id}",
                 "rel": "self",
@@ -79,7 +78,7 @@ class Processes(Resource):
                 "version": process.version,
                 "jobControlOptions": [], # TODO Unsure what we want this to be yet
                 "author": process.author,
-                "deployedBy": deployer.username,
+                "deployedBy": process.deployer,
                 "lastModifiedTime": process.last_modified_time and process.last_modified_time.isoformat(),
                 "cwlLink": process.cwl_link,
                 "links": [link_obj_process]
@@ -297,15 +296,14 @@ class Describe(Resource):
         if not existing_process:
             return generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
 
-        process_name_hysds = get_hysds_process_name(existing_process.id, existing_process.deployer, existing_process.version)
+        deployer = db.session.query(Member_db).filter_by(username=existing_process.deployer).first()
+        process_name_hysds = get_hysds_process_name(existing_process.id, deployer.id, existing_process.version)
         hysdsio_type = f"hysds-io-{process_name_hysds}"
         response = hysds.get_hysds_io(hysdsio_type)
         if not response or not response.get("success"):
             return generate_error("No process with that process ID found on HySDS", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
         
         hysds_io_result = response.get("result")
-
-        deployer = db.session.query(Member_db).filter_by(id=existing_process.deployer).first()
 
         response_body = {
             "title": existing_process.title,
@@ -358,7 +356,7 @@ class Describe(Resource):
         if not existing_process:
             return generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
         
-        if user.id != existing_process.deployer:
+        if user.username != existing_process.deployer:
             return generate_error("You can only modify processes that you posted originally", status.HTTP_403_FORBIDDEN, "ogcapi-processes-2/1.0/immutable-process")
         
         req_data_string = request.data.decode("utf-8")
@@ -423,7 +421,7 @@ class Describe(Resource):
         if not existing_process:
             return generate_error("No process with that process ID found", status.HTTP_404_NOT_FOUND, "ogcapi-processes-1/1.0/no-such-process")
 
-        if user.id != existing_process.deployer:
+        if user.username != existing_process.deployer:
             return generate_error("You can only modify processes that you posted originally", status.HTTP_403_FORBIDDEN, "ogcapi-processes-2/1.0/immutable-process")
         
         try:
@@ -493,7 +491,8 @@ class ExecuteJob(Resource):
 
         dedup = req_data.get("dedup")
         tag = req_data.get("tag")
-        process_name_hysds = get_hysds_process_name(existing_process.id, existing_process.deployer, existing_process.version)
+        deployer = db.session.query(Member_db).filter_by(username=existing_process.deployer).first()
+        process_name_hysds = get_hysds_process_name(existing_process.id, deployer.id, existing_process.version)
         job_type = f"job-{process_name_hysds}"
 
         try:
@@ -529,7 +528,7 @@ class ExecuteJob(Resource):
                     "description": existing_process.description,
                     "keywords": existing_process.keywords.split(",") if existing_process.keywords else [],
                     "metadata": [],
-                    "id": job_id, 
+                    "jobID": job_id, 
                     "processID": existing_process.process_id, 
                     "type": None,
                     "request": None,
@@ -627,8 +626,12 @@ class Result(Resource):
 @ns.route("/jobs/<string:job_id>")
 class Status(Resource):
     parser = api.parser()
-    parser.add_argument("wait_for_completion", default=False, required=False, type=bool,
+    parser.add_argument("waitForCompletion", default=False, required=False, type=bool,
                         help="Wait for Cancel job to finish")
+    parser.add_argument("fields", type=str,
+                        help="Fields separated by commas that you want this response to also return. Options are request, message, created, started, finished, updated, progress, links, title, keywords, description",
+                        required=False)
+    parser.add_argument("getJobDetails",default=False, required=False, type=bool,help="Return all fields for the job")
 
     @api.doc(security="ApiKeyAuth")
     @login_required()
@@ -664,13 +667,13 @@ class Status(Resource):
             print(ex)
         
         if not existing_process:
-            response_body = {
+            job_info = {
                 "title": None,
                 "description": None,
                 "keywords": [],
             }
         else:
-            response_body = {
+            job_info = {
                 "title": existing_process.title,
                 "description": existing_process.description,
                 "keywords": existing_process.keywords.split(",") if existing_process.keywords is not None else [], 
@@ -678,19 +681,23 @@ class Status(Resource):
         submitted_time = time_start = time_end = None
         try:
             current_status = ogc.hysds_to_ogc_status(current_status)
-            submitted_time = response_body["job"]["job_info"]["time_queued"]
-            time_start = response_body["job"]["job_info"]["time_start"]
-            time_end = response_body["job"]["job_info"]["time_end"]
+            submitted_time = response["job"]["job_info"]["time_queued"]
+            time_start = response["job"]["job_info"]["time_start"]
+            time_end = response["job"]["job_info"]["time_end"]
         except Exception as ex:
             print(ex)
-            print(f"ERROR getting times or status for job {job_id}")
-        response_body.update({
-            "id": job_id,
+            print(f"ERROR getting times status for job {job_id}")
+        response_body = {
+            "jobID": job_id,
             "processID": existing_process.process_id if existing_process else None,
             # TODO graceal should this be hard coded in if the example options are process, wps, openeo?
             "type": None,
+            "status": current_status
+        }
+        job_info.update(response_body)
+        fields_to_specify = request.args.get("fields").split(',') if request.args.get("fields") else []
+        job_info.update({
             "request": None,
-            "status": current_status,
             "message": None,
             "created": submitted_time,
             "started": time_start,
@@ -707,7 +714,22 @@ class Status(Resource):
                 }
             ]
         })
-
+        get_job_details = request.args.get("getJobDetails", False)
+        if get_job_details and get_job_details.lower() == "true":
+            return job_info, status.HTTP_200_OK 
+        # Add additional fields to the response that the user requested
+        for field in fields_to_specify:
+            if field in job_info:
+                response_body[field] = job_info[field]
+            elif field == "inputs":
+                try:
+                    response_body[field] = response["context"]["job_specification"]["params"]
+                except Exception as ex:
+                    print("Error finding job inputs")
+                    print(ex)
+                    response_body[field] = None
+            elif field not in ["jobID", "type", "status", "processID"]:
+                return generate_error(f"Invalid field requested {field}. Remember to separate fields with commas", status.HTTP_400_BAD_REQUEST)
         return response_body, status.HTTP_200_OK 
     
     @api.doc(security="ApiKeyAuth")
@@ -719,7 +741,8 @@ class Status(Resource):
         """
         response_body = dict()
         # Since this can take a long time, we dont wait by default.
-        wait_for_completion = request.args.get("wait_for_completion", False)
+        wait_for_completion = request.args.get("waitForCompletion", False)
+        wait_for_completion = wait_for_completion and wait_for_completion.lower() == "true"
 
         try:
             # check if job is non-running and exists
@@ -744,7 +767,7 @@ class Status(Resource):
             else:
                 return generate_error("Not allowed to cancel job with status {}".format(current_status), status.HTTP_400_BAD_REQUEST)
 
-            response_body["id"] = job_id
+            response_body["jobID"] = job_id
             response_body["type"] = "process"
             if not wait_for_completion:
                 response_body["status"] = "dismissed"
@@ -774,8 +797,9 @@ class Jobs(Resource):
     parser.add_argument("tag", type=str, help="User-defined job tag", required=False)
     parser.add_argument("queue", type=str, help="Submitted job queue", required=False)
     parser.add_argument("priority", type=int, help="Job priority, 0-9", required=False)
-    parser.add_argument("getJobDetails", type=str, help="Return full details if True. "
+    parser.add_argument("getJobDetails", type=bool, help="Return full details if True. "
                                                            "List of job id's if false. Default True.", required=False)
+    parser.add_argument("fields", type=int, help="Fields to specify in the job response", required=False)
 
     @api.doc(security="ApiKeyAuth")
     @login_required()
@@ -795,6 +819,7 @@ class Jobs(Resource):
         :param priority: Job priority
         :param queue: Queue
         :param tag: User tag
+        :param fields: Additional fields in response i.e. keywords,description,title,created,started,finished,processID,inputs
         :return: List of jobs for a given user that matches query params provided
         """
 
@@ -808,9 +833,11 @@ class Jobs(Resource):
                 .filter_by(process_id=request.args.get("processID"), status=DEPLOYED_PROCESS_STATUS) \
                 .first()
             if existing_process is not None:
-                process_name_hysds = get_hysds_process_name(existing_process.id, existing_process.deployer, existing_process.version)
+                deployer = db.session.query(Member_db).filter_by(username=existing_process.deployer).first()
+                process_name_hysds = get_hysds_process_name(existing_process.id, deployer.id, existing_process.version)
                 params["job_type"]=f"job-{process_name_hysds}"
             else:
+                # Return no jobs if the user passed an invalid process ID
                 response_body["status"] = status.HTTP_200_OK
                 response_body["jobs"] = []
                 response_body["links"] = []
@@ -882,33 +909,69 @@ class Jobs(Resource):
                 response_body["jobs"] = response_body["jobs"][:limit]
 
         links = []
-        jobs_with_required_fields = []
-        # Need to get the CWLs to return as links with the jobs 
+        job_list = []
+        fields_to_specify = request.args.get("fields").split(',') if request.args.get("fields") else []
+        # Extract necessary information from jobs
         for job in response_body["jobs"]:
             try:
-                # Filter out most job details if user did not request them, default is to have all details
-                if request.args.get("getJobDetails") and request.args.get("getJobDetails").lower() == "false":
-                    job_with_required_fields = {}
+                # Filter out most job details if user did not request them, default is to not have them
+                if request.args.get("getJobDetails") and request.args.get("getJobDetails").lower() == "true":
+                    job_with_fields = job[next(iter(job))]
                 else:
-                    job_with_required_fields = job
-                job_with_required_fields["id"] = next(iter(job))
+                    job_with_fields = {}
+                job_with_fields["jobID"] = next(iter(job))
+                job_info = job[next(iter(job))]
                 # TODO graceal should this be hard coded in if the example options are process, wps, openeo?
-                job_with_required_fields["type"] = "process"
-                hysds_status = job[next(iter(job))]["status"]
+                job_with_fields["type"] = "process"
+                hysds_status = job_info["status"]
                 ogc_status = ogc.hysds_to_ogc_status(hysds_status)
-                job_with_required_fields["status"] = ogc_status
+                job_with_fields["status"] = ogc_status
+                job_with_fields["job_type"] = job_info["type"]
                 links.append({
-                        "href": "/"+ns.name+"/job/"+job_with_required_fields["id"],
+                        "href": "/"+ns.name+"/job/"+job_with_fields["jobID"],
                         "rel": "self",
                         "type": "application/json",
                         "hreflang": HREF_LANG,
                         "title": "Job"
                     })
-                jobs_with_required_fields.append(job_with_required_fields)
-            except: 
-                print("Error getting job type to get CWLs")
+                # Add additional fields to the response that the user requested
+                existing_process = None
+                try:
+                    for field in fields_to_specify:
+                        if field in job_info:
+                            job_with_fields[field] = job_info[field]
+                        # Information where we need to look up the process to get
+                        elif field in ["keywords", "description", "title", "processID"]:
+                            if not existing_process:
+                                existing_process = get_process_from_hysds_name(job_with_fields["job_type"])
+                            if field == "processID":
+                                job_with_fields[field] = existing_process.process_id
+                            else:
+                                job_with_fields[field] = getattr(existing_process, field)
+                        elif field == "created":
+                            job_with_fields[field] = job_info["job"]["job_info"]["time_queued"]
+                        elif field == "started":
+                            job_with_fields[field] = job_info["job"]["job_info"]["time_start"]
+                        elif field == "finished":
+                            job_with_fields[field] = job_info["job"]["job_info"]["time_end"]
+                        elif field == "inputs":
+                            try:
+                                job_with_fields[field] = job_info["context"]["job_specification"]["params"]
+                            except Exception as ex:
+                                print("Error finding job inputs")
+                                print(ex)
+                                job_with_fields[field] = None
+                        elif field not in ["type", "status", "jobID"]:
+                            return generate_error(f"Invalid field requested {field}. Remember to separate fields with commas", status.HTTP_400_BAD_REQUEST)
+                except Exception as ex:
+                    print("Error getting requested field from job")
+                existing_process = None
+
+                job_list.append(job_with_fields)
+            except Exception as ex: 
+                print("Error getting job type or job status")
         response_body["links"] = links
-        response_body["jobs"] = jobs_with_required_fields
+        response_body["jobs"] = job_list
         return response_body, status.HTTP_200_OK
     
 @ns.route("/jobs/<string:job_id>/metrics")
