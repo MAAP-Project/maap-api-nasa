@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "maap-api-nasa"
-version = "4.3.0a17"
+version = "5.0.0rc3"
 description = "NASA Python implementation of the MAAP API specification"
 authors = ["MAAP-Project Platform <platform@MAAP-Project.github.com>"]
 license = "Apache 2.0"

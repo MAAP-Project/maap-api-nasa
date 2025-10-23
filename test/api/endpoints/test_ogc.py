@@ -80,7 +80,7 @@ class TestOGCEndpoints(unittest.TestCase):
             description="A test process for OGC testing",
             keywords="test,ogc",
             cwl_link="https://example.com/test.cwl",
-            deployer=member.id,
+            deployer=member.username,
             author=author,
             status="deployed",
             last_modified_time=datetime.now()
@@ -88,25 +88,47 @@ class TestOGCEndpoints(unittest.TestCase):
         db.session.add(process)
         db.session.commit()
         db.session.refresh(process)  # Ensure object is attached to current session
-        
+
         return process
+
+    def _setup_auth_mock(self, member):
+        """Create and return authentication mock session"""
+        mock_session = MagicMock()
+        mock_session.member = member
+        mock_session.member.role_id = 2  # ROLE_MEMBER
+        return mock_session
+
+    def _create_mock_job_response(self, job_id='job-12345', status='job-completed', job_type='job-test-process', member_id=None, process_version='1.0'):
+        """Create a standard mock job response for HySDS queries"""
+        return {
+            'jobs': [
+                {
+                    job_id: {
+                        'status': status,
+                        'type': f'{job_type}_{member_id}:{process_version}' if member_id else job_type,
+                        'job_id': job_id
+                    }
+                }
+            ]
+        }
+
+    def _assert_response_success(self, response, expected_status=200):
+        """Assert response has expected status and returns JSON data"""
+        self.assertEqual(response.status_code, expected_status)
+        return response.get_json()
 
     def _make_authenticated_request(self, method, url, data=None, member=None):
         """Helper to make authenticated requests"""
         if member is None:
             member = self._create_test_member()
-        
+
         with patch('api.auth.security.validate_proxy') as mock_validate_proxy:
-            # Mock the authentication validation
-            mock_session = MagicMock()
-            mock_session.member = member
-            mock_session.member.role_id = 2  # ROLE_MEMBER
-            mock_validate_proxy.return_value = mock_session
-            
+            mock_validate_proxy.return_value = self._setup_auth_mock(member)
+
             headers = {'proxy-ticket': 'test-ticket'}
             if data is not None:
                 headers['Content-Type'] = 'application/json'
-                
+
             if method.upper() == 'GET':
                 return self.client.get(url, headers=headers)
             elif method.upper() == 'POST':
@@ -177,13 +199,8 @@ class TestOGCEndpoints(unittest.TestCase):
                 # Given an authenticated user and valid CWL metadata
                 member = self._create_test_member()
                 mock_get_user.return_value = member
-                
-                # Mock the authentication validation
-                mock_session = MagicMock()
-                mock_session.member = member
-                mock_session.member.role_id = 2  # ROLE_MEMBER 
-                mock_validate_proxy.return_value = mock_session
-                
+                mock_validate_proxy.return_value = self._setup_auth_mock(member)
+
                 # Mock CWL metadata
                 mock_metadata.return_value = MagicMock(
                     id="new-process",
@@ -199,25 +216,25 @@ class TestOGCEndpoints(unittest.TestCase):
                     cores_min=1,
                     base_command="python"
                 )
-                
+
                 # Mock GitLab pipeline
                 mock_pipeline_obj = MagicMock()
                 mock_pipeline_obj.id = 12345
                 mock_pipeline_obj.web_url = "https://gitlab.com/pipeline/12345"
                 mock_pipeline.return_value = mock_pipeline_obj
-                
+
                 # When posting a new process
                 process_data = {
                     "executionUnit": {
                         "href": "https://example.com/new.cwl"
                     }
                 }
-                
+
                 response = self.client.post('/api/ogc/processes',
                                           data=json.dumps(process_data),
                                           content_type='application/json',
                                           headers={'proxy-ticket': 'test-ticket'})
-                
+
                 # Then deployment should be created with accepted status
                 self.assertEqual(response.status_code, 202)
                 data = response.get_json()
@@ -435,7 +452,7 @@ class TestOGCEndpoints(unittest.TestCase):
             # Then job should be submitted and tracked
             self.assertEqual(response.status_code, 202)
             data = response.get_json()
-            self.assertEqual(data['id'], 'job-12345')
+            self.assertEqual(data['jobID'], 'job-12345')
             self.assertEqual(data['processID'], process.process_id)
             self.assertEqual(data['status'], 'accepted')
             self.assertIn('links', data)
@@ -477,7 +494,7 @@ class TestOGCEndpoints(unittest.TestCase):
                 cwl_link="https://example.com/test.cwl",
                 title="Test Process",
                 description="Test deployment",
-                deployer=member.id,
+                deployer=member.username, 
                 author="test-author",
                 pipeline_id=12345
             )
@@ -513,7 +530,7 @@ class TestOGCEndpoints(unittest.TestCase):
             member = self._create_test_member()
             deployment = Deployment(
                 id="test-process",
-                version="1.0", 
+                version="1.0",
                 job_id=1,
                 created=datetime.now(),
                 execution_venue="test",
@@ -521,7 +538,7 @@ class TestOGCEndpoints(unittest.TestCase):
                 cwl_link="https://example.com/test.cwl",
                 title="Test Process",
                 description="Test deployment",
-                deployer=member.id,
+                deployer=member.username,
                 author="test-author",
                 pipeline_id=12345
             )
@@ -561,12 +578,12 @@ class TestOGCEndpoints(unittest.TestCase):
                         self.assertEqual(response.status_code, 200)
 
     def test_job_status_can_be_queried(self):
-        """Test: GET /ogc/jobs/{job_id} returns job status"""
+        """Test: GET /ogc/jobs/{job_id} returns minimal job status by default"""
         with app.app_context():
             # Given a process job and authenticated user
             member = self._create_test_member()
             process = self._create_test_process(member)
-            
+
             with patch('api.utils.hysds_util.mozart_job_status') as mock_status:
                 with patch('api.utils.hysds_util.get_mozart_job') as mock_get_job:
                     with patch('api.utils.ogc_translate.hysds_to_ogc_status') as mock_translate:
@@ -584,15 +601,20 @@ class TestOGCEndpoints(unittest.TestCase):
                         }
                         mock_translate.return_value = "running"
 
-                        # When querying job status
+                        # When querying job status without fields parameter
                         response = self._make_authenticated_request('GET', '/api/ogc/jobs/job-12345', None, member)
 
-                        # Then job status should be returned
+                        # Then minimal job info should be returned (jobID, processID, type, status only)
                         self.assertEqual(response.status_code, 200)
                         data = response.get_json()
-                        self.assertEqual(data['id'], 'job-12345')
+                        self.assertEqual(data['jobID'], 'job-12345')
                         self.assertEqual(data['status'], 'running')
                         self.assertEqual(data['processID'], process.process_id)
+                        self.assertEqual(data['type'], None)
+                        # Should not include additional fields by default
+                        self.assertNotIn('created', data)
+                        self.assertNotIn('started', data)
+                        self.assertNotIn('finished', data)
 
     def test_job_results_can_be_retrieved(self):
         """Test: GET /ogc/jobs/{job_id}/results returns job results"""
@@ -648,7 +670,7 @@ class TestOGCEndpoints(unittest.TestCase):
                         # Then job should be cancelled
                         self.assertEqual(response.status_code, 202)
                         data = response.get_json()
-                        self.assertEqual(data['id'], 'job-12345')
+                        self.assertEqual(data['jobID'], 'job-12345')
                         self.assertEqual(data['status'], 'dismissed')
 
     def test_job_metrics_can_be_retrieved(self):
@@ -709,36 +731,120 @@ class TestOGCEndpoints(unittest.TestCase):
 
     @patch('api.auth.security.get_authorized_user')
     def test_jobs_list_returns_user_jobs(self, mock_get_user):
-        """Test: GET /ogc/jobs returns list of user jobs"""
+        """Test: GET /ogc/jobs returns minimal list of user jobs by default"""
         with app.app_context():
             # Given an authenticated user and their jobs
             member = self._create_test_member()
             mock_get_user.return_value = member
-            
+
             with patch('api.utils.hysds_util.get_mozart_jobs_from_query_params') as mock_jobs:
-                mock_jobs.return_value = (
-                    {
-                        'jobs': [
-                            {
-                                'job-12345': {
-                                    'status': 'job-completed',
-                                    'job_id': 'job-12345'
+                with patch('api.utils.ogc_translate.hysds_to_ogc_status') as mock_translate:
+                    mock_jobs.return_value = (self._create_mock_job_response(), 200)
+                    mock_translate.return_value = 'successful'
+
+                    # When requesting job list without getJobDetails parameter
+                    response = self._make_authenticated_request('GET', '/api/ogc/jobs', None, member)
+
+                    # Then minimal user jobs should be returned (jobID, type, status, job_type only)
+                    data = self._assert_response_success(response)
+                    self.assertIn('jobs', data)
+                    self.assertEqual(len(data['jobs']), 1)
+                    self.assertEqual(data['jobs'][0]['jobID'], 'job-12345')
+                    self.assertEqual(data['jobs'][0]['status'], 'successful')
+                    self.assertEqual(data['jobs'][0]['type'], 'process')
+                    # Should not include additional fields by default
+                    self.assertNotIn('title', data['jobs'][0])
+                    self.assertNotIn('description', data['jobs'][0])
+                    self.assertNotIn('keywords', data['jobs'][0])
+
+    @patch('api.auth.security.get_authorized_user')
+    def test_jobs_list_with_fields_parameter(self, mock_get_user):
+        """Test: GET /ogc/jobs?fields=... returns requested fields for each job"""
+        with app.app_context():
+            # Given an authenticated user and their jobs
+            member = self._create_test_member()
+            mock_get_user.return_value = member
+            process = self._create_test_process(member)
+
+            with patch('api.utils.hysds_util.get_mozart_jobs_from_query_params') as mock_jobs:
+                with patch('api.utils.ogc_translate.hysds_to_ogc_status') as mock_translate:
+                    mock_jobs.return_value = (
+                        {
+                            'jobs': [
+                                {
+                                    'job-12345': {
+                                        'status': 'job-completed',
+                                        'type': f'job-test-process_{member.id}:1.0',
+                                        'job_id': 'job-12345',
+                                        'job': {
+                                            'job_info': {
+                                                'time_queued': '2023-01-01T12:00:00Z',
+                                                'time_start': '2023-01-01T12:01:00Z',
+                                                'time_end': '2023-01-01T13:00:00Z'
+                                            }
+                                        }
+                                    }
                                 }
-                            }
-                        ]
-                    },
-                    200
-                )
-                
-                # When requesting job list
-                response = self._make_authenticated_request('GET', '/api/ogc/jobs', None, member)
-                
-                # Then user jobs should be returned
-                self.assertEqual(response.status_code, 200)
-                data = response.get_json()
-                self.assertIn('jobs', data)
-                self.assertEqual(len(data['jobs']), 1)
-                self.assertEqual(data['jobs'][0]['id'], 'job-12345')
+                            ]
+                        },
+                        200
+                    )
+                    mock_translate.return_value = 'successful'
+
+                    # When requesting job list with fields parameter
+                    response = self._make_authenticated_request('GET', '/api/ogc/jobs?fields=title,description,created', None, member)
+
+                    # Then specified fields should be included
+                    self.assertEqual(response.status_code, 200)
+                    data = response.get_json()
+                    self.assertIn('jobs', data)
+                    self.assertEqual(len(data['jobs']), 1)
+                    self.assertIn('title', data['jobs'][0])
+                    self.assertIn('description', data['jobs'][0])
+                    self.assertIn('created', data['jobs'][0])
+
+    @patch('api.auth.security.get_authorized_user')
+    def test_jobs_list_with_get_job_details_parameter(self, mock_get_user):
+        """Test: GET /ogc/jobs?getJobDetails=true returns all job details"""
+        with app.app_context():
+            # Given an authenticated user and their jobs
+            member = self._create_test_member()
+            mock_get_user.return_value = member
+
+            with patch('api.utils.hysds_util.get_mozart_jobs_from_query_params') as mock_jobs:
+                with patch('api.utils.ogc_translate.hysds_to_ogc_status') as mock_translate:
+                    mock_jobs.return_value = (
+                        {
+                            'jobs': [
+                                {
+                                    'job-12345': {
+                                        'status': 'job-completed',
+                                        'type': 'job-test-process',
+                                        'job_id': 'job-12345',
+                                        'job': {
+                                            'job_info': {
+                                                'time_queued': '2023-01-01T12:00:00Z'
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        200
+                    )
+                    mock_translate.return_value = 'successful'
+
+                    # When requesting job list with getJobDetails=true
+                    response = self._make_authenticated_request('GET', '/api/ogc/jobs?getJobDetails=true', None, member)
+
+                    # Then all job details should be returned
+                    self.assertEqual(response.status_code, 200)
+                    data = response.get_json()
+                    self.assertIn('jobs', data)
+                    self.assertEqual(len(data['jobs']), 1)
+                    # With getJobDetails=true, the full job info should be included
+                    self.assertIn('job', data['jobs'][0])
+                    self.assertIn('job_info', data['jobs'][0]['job'])
 
     @patch('api.auth.security.get_authorized_user')
     def test_jobs_list_filters_by_process_id(self, mock_get_user):
@@ -748,32 +854,22 @@ class TestOGCEndpoints(unittest.TestCase):
             member = self._create_test_member()
             mock_get_user.return_value = member
             process = self._create_test_process(member)
-            
+
             with patch('api.utils.hysds_util.get_mozart_jobs_from_query_params') as mock_jobs:
-                mock_jobs.return_value = (
-                    {
-                        'jobs': [
-                            {
-                                'job-12345': {
-                                    'status': 'job-completed',
-                                    'job_id': 'job-12345'
-                                }
-                            }
-                        ]
-                    },
-                    200
-                )
-                
+                mock_jobs.return_value = (self._create_mock_job_response(), 200)
+
                 # When requesting jobs with processID filter
                 response = self._make_authenticated_request('GET', f'/api/ogc/jobs?processID={process.process_id}', None, member)
-                
+
                 # Then filtered jobs should be returned and correct params passed to HySDS
-                self.assertEqual(response.status_code, 200)
+                # deployer field stores username, but HySDS job_type uses deployer's numeric ID
+                self._assert_response_success(response)
                 mock_jobs.assert_called_once()
                 args, kwargs = mock_jobs.call_args
                 params = args[0]  # First argument is params dict
                 self.assertIn('job_type', params)
-                self.assertEqual(params['job_type'], f"job-{process.id}_{process.deployer}:{process.version}")
+                # Process name format: job-{id}_{deployer_id}:{version}
+                self.assertEqual(params['job_type'], f"job-{process.id}_{member.id}:{process.version}")
 
     @patch('api.auth.security.get_authorized_user')
     def test_jobs_list_filters_by_status(self, mock_get_user):
@@ -782,35 +878,25 @@ class TestOGCEndpoints(unittest.TestCase):
             # Given an authenticated user
             member = self._create_test_member()
             mock_get_user.return_value = member
-            
+
             with patch('api.utils.hysds_util.get_mozart_jobs_from_query_params') as mock_jobs:
                 with patch('api.utils.ogc_translate.get_hysds_status_from_ogc') as mock_translate:
-                    mock_translate.return_value = ('job-completed', None)  # Returns tuple (status, error)
-                    mock_jobs.return_value = (
-                        {
-                            'jobs': [
-                                {
-                                    'job-12345': {
-                                        'status': 'job-completed',
-                                        'job_id': 'job-12345'
-                                    }
-                                }
-                            ]
-                        },
-                        200
-                    )
-                    
-                    # When requesting jobs with status filter
-                    response = self._make_authenticated_request('GET', '/api/ogc/jobs?status=successful', None, member)
-                    
-                    # Then status should be translated and passed to HySDS
-                    self.assertEqual(response.status_code, 200)
-                    mock_translate.assert_called_once_with('successful')
-                    mock_jobs.assert_called_once()
-                    args, kwargs = mock_jobs.call_args
-                    params = args[0]
-                    self.assertIn('status', params)
-                    self.assertEqual(params['status'], 'job-completed')
+                    with patch('api.utils.ogc_translate.hysds_to_ogc_status') as mock_translate_hysds:
+                        mock_translate.return_value = ('job-completed', None)  # Returns tuple (status, error)
+                        mock_translate_hysds.return_value = 'successful'
+                        mock_jobs.return_value = (self._create_mock_job_response(), 200)
+
+                        # When requesting jobs with status filter
+                        response = self._make_authenticated_request('GET', '/api/ogc/jobs?status=successful', None, member)
+
+                        # Then status should be translated and passed to HySDS
+                        self._assert_response_success(response)
+                        mock_translate.assert_called_once_with('successful')
+                        mock_jobs.assert_called_once()
+                        args, kwargs = mock_jobs.call_args
+                        params = args[0]
+                        self.assertIn('status', params)
+                        self.assertEqual(params['status'], 'job-completed')
 
     @patch('api.auth.security.get_authorized_user')
     def test_jobs_list_filters_by_duration_range(self, mock_get_user):
@@ -870,35 +956,38 @@ class TestOGCEndpoints(unittest.TestCase):
             mock_get_user.return_value = member
             
             with patch('api.utils.hysds_util.get_mozart_jobs_from_query_params') as mock_jobs:
-                mock_jobs.return_value = (
-                    {
-                        'jobs': [
-                            {
-                                'job-in-range': {
-                                    'status': 'job-completed',
-                                    'job': {
-                                        'job_info': {
-                                            'time_start': '2023-01-01T12:00:00.000000Z',
-                                            'time_end': '2023-01-01T13:00:00.000000Z'
+                with patch('api.utils.ogc_translate.hysds_to_ogc_status') as mock_translate:
+                    mock_jobs.return_value = (
+                        {
+                            'jobs': [
+                                {
+                                    'job-in-range': {
+                                        'status': 'job-completed',
+                                        'type': 'job-test-process',
+                                        'job': {
+                                            'job_info': {
+                                                'time_start': '2023-01-01T12:00:00.000000Z',
+                                                'time_end': '2023-01-01T13:00:00.000000Z'
+                                            }
                                         }
                                     }
                                 }
-                            }
-                        ]
-                    },
-                    200
-                )
-                
-                # When requesting jobs with datetime filter
-                datetime_param = '2023-01-01T12:30:00Z/2023-01-01T14:00:00Z'
-                response = self._make_authenticated_request('GET', f'/api/ogc/jobs?datetime={datetime_param}', None, member)
-                
-                # Then datetime filtering should be applied
-                self.assertEqual(response.status_code, 200)
-                data = response.get_json()
-                self.assertIn('jobs', data)
-                # The job should be filtered based on datetime logic
-                self.assertEqual(len(data['jobs']), 1)
+                            ]
+                        },
+                        200
+                    )
+                    mock_translate.return_value = 'successful'
+
+                    # When requesting jobs with datetime filter
+                    datetime_param = '2023-01-01T12:30:00Z/2023-01-01T14:00:00Z'
+                    response = self._make_authenticated_request('GET', f'/api/ogc/jobs?datetime={datetime_param}', None, member)
+
+                    # Then datetime filtering should be applied
+                    self.assertEqual(response.status_code, 200)
+                    data = response.get_json()
+                    self.assertIn('jobs', data)
+                    # The job should be filtered based on datetime logic
+                    self.assertEqual(len(data['jobs']), 1)
 
     @patch('api.auth.security.get_authorized_user')
     def test_jobs_list_applies_limit(self, mock_get_user):
@@ -915,18 +1004,21 @@ class TestOGCEndpoints(unittest.TestCase):
                             {
                                 'job-1': {
                                     'status': 'job-completed',
+                                    'type': 'job-test-process',
                                     'job_id': 'job-1'
                                 }
                             },
                             {
                                 'job-2': {
                                     'status': 'job-completed',
-                                    'job_id': 'job-2' 
+                                    'type': 'job-test-process',
+                                    'job_id': 'job-2'
                                 }
                             },
                             {
                                 'job-3': {
                                     'status': 'job-completed',
+                                    'type': 'job-test-process',
                                     'job_id': 'job-3'
                                 }
                             }
@@ -951,23 +1043,15 @@ class TestOGCEndpoints(unittest.TestCase):
             # Given an authenticated user
             member = self._create_test_member()
             mock_get_user.return_value = member
-            
-            with patch('api.auth.security.validate_proxy') as mock_validate_proxy:
-                # Mock the authentication validation
-                mock_session = MagicMock()
-                mock_session.member = member
-                mock_session.member.role_id = 2  # ROLE_MEMBER
-                mock_validate_proxy.return_value = mock_session
-                
-                # When requesting jobs for nonexistent process
-                response = self.client.get('/api/ogc/jobs?processID=999999', 
-                                         headers={'proxy-ticket': 'test-ticket'})
-                
-                # Then empty job list should be returned
-                self.assertEqual(response.status_code, 200)
-                data = response.get_json()
-                self.assertIn('jobs', data)
-                self.assertEqual(len(data['jobs']), 0)
+
+            # When requesting jobs for nonexistent process
+            response = self._make_authenticated_request('GET', '/api/ogc/jobs?processID=999999', None, member)
+
+            # Then empty job list should be returned
+            self.assertEqual(response.status_code, 200)
+            data = response.get_json()
+            self.assertIn('jobs', data)
+            self.assertEqual(len(data['jobs']), 0)
 
     @patch('api.auth.security.get_authorized_user')
     def test_jobs_list_handles_invalid_duration_parameters(self, mock_get_user):
@@ -976,7 +1060,7 @@ class TestOGCEndpoints(unittest.TestCase):
             # Given an authenticated user
             member = self._create_test_member()
             mock_get_user.return_value = member
-            
+
             with patch('api.utils.hysds_util.get_mozart_jobs_from_query_params') as mock_jobs:
                 mock_jobs.return_value = (
                     {
@@ -984,27 +1068,19 @@ class TestOGCEndpoints(unittest.TestCase):
                     },
                     200
                 )
-                
-                with patch('api.auth.security.validate_proxy') as mock_validate_proxy:
-                    # Mock the authentication validation
-                    mock_session = MagicMock()
-                    mock_session.member = member
-                    mock_session.member.role_id = 2  # ROLE_MEMBER
-                    mock_validate_proxy.return_value = mock_session
-                    
-                    # When requesting jobs with invalid duration
-                    response = self.client.get('/api/ogc/jobs?minDuration=invalid', 
-                                             headers={'proxy-ticket': 'test-ticket'})
-                    
-                    # Then error should be returned
-                    self.assertEqual(response.status_code, 500)
-                    data = response.get_json()
-                    # Check for the error message structure that actually gets returned
-                    if 'detail' in data:
-                        self.assertIn('Min/ max duration must be able to be converted', data['detail'])
-                    elif 'message' in data:
-                        # Handle the case where the error is wrapped differently
-                        self.assertIn('duration', data['message'].lower())
+
+                # When requesting jobs with invalid duration
+                response = self._make_authenticated_request('GET', '/api/ogc/jobs?minDuration=invalid', None, member)
+
+                # Then error should be returned
+                self.assertEqual(response.status_code, 500)
+                data = response.get_json()
+                # Check for the error message structure that actually gets returned
+                if 'detail' in data:
+                    self.assertIn('Min/ max duration must be able to be converted', data['detail'])
+                elif 'message' in data:
+                    # Handle the case where the error is wrapped differently
+                    self.assertIn('duration', data['message'].lower())
 
     @patch('api.auth.security.get_authorized_user')
     def test_jobs_list_converts_camel_case_to_snake_case(self, mock_get_user):
@@ -1043,30 +1119,19 @@ class TestOGCEndpoints(unittest.TestCase):
             # Given an authenticated user and jobs with HySDS status
             member = self._create_test_member()
             mock_get_user.return_value = member
-            
+
             with patch('api.utils.hysds_util.get_mozart_jobs_from_query_params') as mock_jobs:
                 with patch('api.utils.ogc_translate.hysds_to_ogc_status') as mock_translate:
-                    mock_jobs.return_value = (
-                        {
-                            'jobs': [
-                                {
-                                    'job-12345': {
-                                        'status': 'job-completed',
-                                        'job_id': 'job-12345'
-                                    }
-                                }
-                            ]
-                        },
-                        200
-                    )
+                    mock_jobs.return_value = (self._create_mock_job_response(), 200)
                     mock_translate.return_value = 'successful'
-                    
+
                     # When requesting jobs
                     response = self._make_authenticated_request('GET', '/api/ogc/jobs', None, member)
-                    
+
                     # Then status should be translated to OGC format
-                    self.assertEqual(response.status_code, 200)
-                    data = response.get_json()
+                    data = self._assert_response_success(response)
+                    self.assertIn('jobs', data)
+                    self.assertGreater(len(data['jobs']), 0)
                     self.assertEqual(data['jobs'][0]['status'], 'successful')
                     mock_translate.assert_called_with('job-completed')
 
@@ -1077,30 +1142,17 @@ class TestOGCEndpoints(unittest.TestCase):
             # Given an authenticated user and jobs
             member = self._create_test_member()
             mock_get_user.return_value = member
-            
+
             with patch('api.utils.hysds_util.get_mozart_jobs_from_query_params') as mock_jobs:
                 with patch('api.utils.ogc_translate.hysds_to_ogc_status') as mock_translate:
-                    mock_jobs.return_value = (
-                        {
-                            'jobs': [
-                                {
-                                    'job-12345': {
-                                        'status': 'job-completed',
-                                        'job_id': 'job-12345'
-                                    }
-                                }
-                            ]
-                        },
-                        200
-                    )
+                    mock_jobs.return_value = (self._create_mock_job_response(), 200)
                     mock_translate.return_value = 'successful'
-                    
+
                     # When requesting jobs
                     response = self._make_authenticated_request('GET', '/api/ogc/jobs', None, member)
-                    
+
                     # Then proper links should be included
-                    self.assertEqual(response.status_code, 200)
-                    data = response.get_json()
+                    data = self._assert_response_success(response)
                     self.assertIn('links', data)
                     self.assertEqual(len(data['links']), 1)
                     self.assertEqual(data['links'][0]['href'], '/ogc/job/job-12345')
