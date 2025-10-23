@@ -9,8 +9,8 @@ from api.utils.organization import get_member_organizations
 from api.models.role import Role
 from api.restplus import api
 import api.settings as settings
-from api.auth.security import get_authorized_user, login_required, valid_dps_request, edl_federated_request, \
-    MEMBER_STATUS_ACTIVE, MEMBER_STATUS_SUSPENDED
+from api import constants
+from api.auth.security import get_authorized_user, login_required, valid_dps_request, edl_federated_request
 from api.maap_database import db
 from api.utils import github_util
 from api.models.member import Member as Member_db
@@ -191,7 +191,7 @@ class Member(Resource):
             (~PreApproved.email.like("*%") & PreApproved.email.like(email))
         ).first()
 
-        member_status = MEMBER_STATUS_SUSPENDED if pre_approved_email is None else MEMBER_STATUS_ACTIVE
+        member_status = constants.STATUS_SUSPENDED if pre_approved_email is None else constants.STATUS_ACTIVE
 
         guest = Member_db(first_name=first_name,
                           last_name=last_name,
@@ -213,7 +213,7 @@ class Member(Resource):
             raise
 
         # Send Email Notifications based on member status
-        if member_status == MEMBER_STATUS_ACTIVE:
+        if member_status == constants.STATUS_ACTIVE:
             send_user_status_change_email(guest, True, True, proxied_url(request))
             send_welcome_to_maap_active_user_email(guest, proxied_url(request))
         else:
@@ -318,17 +318,17 @@ class MemberStatus(Resource):
         if not isinstance(member_status, str) or not member_status:
             return err_response("Valid status string required.")
 
-        if member_status != MEMBER_STATUS_ACTIVE and member_status != MEMBER_STATUS_SUSPENDED:
-            return err_response("Status must be either " + MEMBER_STATUS_ACTIVE + " or " + MEMBER_STATUS_SUSPENDED)
+        if member_status != constants.STATUS_ACTIVE and member_status != constants.STATUS_SUSPENDED:
+            return err_response("Status must be either " + constants.STATUS_ACTIVE + " or " + constants.STATUS_SUSPENDED)
 
         member = db.session.query(Member_db).filter_by(username=key).first()
 
         if member is None:
             return err_response(msg="No member found with key " + key, code=404)
 
-        old_status = member.status if member.status is not None else MEMBER_STATUS_SUSPENDED
-        activated = old_status == MEMBER_STATUS_SUSPENDED and member_status == MEMBER_STATUS_ACTIVE
-        deactivated = old_status == MEMBER_STATUS_ACTIVE and member_status == MEMBER_STATUS_SUSPENDED
+        old_status = member.status if member.status is not None else constants.STATUS_SUSPENDED
+        activated = old_status == constants.STATUS_SUSPENDED and member_status == constants.STATUS_ACTIVE
+        deactivated = old_status == constants.STATUS_ACTIVE and member_status == constants.STATUS_SUSPENDED
 
         if activated or deactivated:
             member.status = member_status
