@@ -172,6 +172,9 @@ def edl_federated_request(url, stream_response=False):
 # --- HELPER FUNCTION TO VALIDATE JWT ---
 def verify_jwt_token(token):
     try:
+        if token.startswith("jwt:"):
+            token = token[4:]
+
         # Fetch JWKS keys from Keycloak
         jwks_client = PyJWKClient(settings.KEYCLOAK_JWKS_URL)
         signing_key = jwks_client.get_signing_key_from_jwt(token)
