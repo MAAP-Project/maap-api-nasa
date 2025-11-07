@@ -125,6 +125,16 @@ PORTAL_ADMIN_DASHBOARD_PATH = os.getenv('PORTAL_ADMIN_DASHBOARD_PATH', '')
 ESA_ISS_HOST = os.getenv('ESA_ISS_HOST', "")
 ESA_EDL_SYS_ACCOUNT = os.getenv('ESA_EDL_SYS_ACCOUNT', "")
 
+# Keycloak Configuration
+KEYCLOAK_SERVER_URL = os.getenv('KEYCLOAK_SERVER_URL', "")
+KEYCLOAK_REALM = os.getenv('KEYCLOAK_REALM', "")
+KEYCLOAK_CLIENT_ID = os.getenv('KEYCLOAK_CLIENT_ID', "")
+KEYCLOAK_CLIENT_SECRET = os.getenv('KEYCLOAK_CLIENT_SECRET', "") 
+# JWKS endpoint for public keys
+KEYCLOAK_JWKS_URL = f"{KEYCLOAK_SERVER_URL}realms/{KEYCLOAK_REALM}/protocol/openid-connect/certs"
+# Expected audience (must match Keycloak client ID)
+JWT_AUDIENCE = KEYCLOAK_CLIENT_ID
+
 CLIENT_SETTINGS = {
     "maap_endpoint": {
         "search_granule_url": "cmr/granules",

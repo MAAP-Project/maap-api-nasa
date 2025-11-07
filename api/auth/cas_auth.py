@@ -276,6 +276,59 @@ def start_member_session(cas_response, ticket, auto_create_member=False):
     return member_session
 
 
+def start_member_session_jwt(decoded_jwt, auto_create_member=False):
+
+    usr = decoded_jwt.get("preferred_username")
+
+    member = db.session.query(Member).filter_by(username=usr).first()
+    #urs_access_token = get_cas_attribute_value(attributes, 'access_token')
+    #is_esa_user = get_cas_attribute_value(attributes, 'iss') == settings.ESA_ISS_HOST
+
+    # if is_esa_user:
+    #     esa_system_account = db.session.query(Member).filter_by(username=settings.ESA_EDL_SYS_ACCOUNT).first()
+
+    #     if esa_system_account is None:
+    #         current_app.logger.warning(f"No ESA system account found for user {usr}.")
+    #     else:
+    #         urs_access_token = esa_system_account.urs_token 
+
+    if member is None and (auto_create_member): # or is_esa_user):
+        member = Member(first_name=decoded_jwt.get("given_name"),
+                        last_name=decoded_jwt.get("family_name"),
+                        username=usr,
+                        email=decoded_jwt.get("email"))#,
+                        #organization=get_cas_attribute_value(attributes, 'organization'),
+                        #urs_token=urs_access_token)
+        try:
+            db.session.add(member)
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Failed to add new member {usr}: {e}")
+            raise
+    else:
+        current_app.logger.error(f"Failed to find member jwt username {usr}")
+        # member.urs_token = urs_access_token
+
+        # try:
+        #     db.session.commit()
+        # except Exception as e:
+        #     db.session.rollback()
+        #     current_app.logger.error(f"Failed to update member {usr}: {e}")
+        #     raise
+
+    # member_session = MemberSession(member_id=member.id, session_key=ticket, creation_date=datetime.utcnow())
+    # try:
+    #     db.session.add(member_session)
+    #     db.session.commit()
+    # except Exception as e:
+    #     db.session.rollback()
+    #     current_app.logger.error(f"Failed to create member session for {usr}: {e}")
+    #     raise
+
+    # return member_session
+    return member
+
+
 def get_cas_attribute_value(attributes, attribute_key):
 
     if attributes and "cas:" + attribute_key in attributes:

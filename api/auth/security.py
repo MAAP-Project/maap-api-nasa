@@ -5,10 +5,12 @@ from flask_api import status
 from werkzeug.exceptions import HTTPException
 from api import settings
 from api.utils.security_utils import AuthenticationError, ExternalServiceError
-from api.auth.cas_auth import validate_proxy, validate_bearer, validate_cas_request
+from api.auth.cas_auth import start_member_session_jwt, validate_proxy, validate_third_party
 from api.maap_database import db
 from api.models.member import Member
 from api.models.role import Role
+import jwt
+from jwt import PyJWKClient
 
 HEADER_PROXY_TICKET = "proxy-ticket"
 HEADER_CP_TICKET = "cpticket"
@@ -30,14 +32,14 @@ def get_authorized_user():
                 return member_session.member
         elif auth_header_name == HEADER_AUTHORIZATION:
             if auth_header_value and auth_header_value.lower().startswith('bearer '):
-                token = auth_header_value.split(None, 1)[1]
-                # validate_bearer now returns user attributes on success or raises an exception
-                user_attributes = validate_bearer(token)
-                if user_attributes and 'id' in user_attributes: # URS profile returns 'id' as username
-                    # NOTE: Evaluate returning a member session object for oauth clients
-                    return user_attributes
-                else: # Should not happen if validate_bearer is successful and returns expected data
-                    raise AuthenticationError("Bearer token validation succeeded but returned unexpected data.")
+                token = auth_header_value.split(" ")[1]
+                decoded = verify_jwt_token(token)
+                if not decoded:
+                    raise AuthenticationError("Invalid or expired jwt token.")
+                
+                _member = start_member_session_jwt(decoded)
+
+                return _member
             else: # Malformed Authorization header
                 raise AuthenticationError("Malformed Authorization header.")
 
@@ -77,22 +79,14 @@ def login_required(role=Role.ROLE_GUEST):
 
                 elif auth_header_name == HEADER_AUTHORIZATION:
                     if auth_header_value and auth_header_value.lower().startswith('bearer '):
-                        token = auth_header_value.split(None, 1)[1]
-                        user_attributes = validate_bearer(token) # Can raise Auth/ExternalServiceError
+                        token = auth_header_value.split(" ")[1]
+                        decoded = verify_jwt_token(token)
+                        if not decoded:
+                            raise AuthenticationError("Invalid or expired jwt token.")
 
-                        # Similar to get_authorized_user, need to map user_attributes to a Member and check role
-                        # This part needs robust implementation based on what validate_bearer returns.
-                        # Assuming 'id' is the username and we need to fetch member role.
-                        if user_attributes and 'id' in user_attributes:
-                            member = db.session.query(Member).filter(Member.username == user_attributes['id']).first()
-                            if member and member.role_id >= role:
-                                return wrapped_function(*args, **kwargs)
-                            elif not member:
-                                raise AuthenticationError("User identified by token not found in MAAP database.")
-                            else: # Member found, but role too low
-                                raise AuthenticationError("Insufficient permissions for this resource.")
-                        else: # Should not happen if validate_bearer is successful
-                             raise AuthenticationError("Bearer token validation succeeded but returned unexpected data.")
+                        #request.user = decoded
+                        return wrapped_function(*args, **kwargs)
+
                     else: # Malformed Authorization header
                         raise AuthenticationError("Malformed Authorization header.")
 
@@ -172,3 +166,26 @@ def edl_federated_request(url, stream_response=False):
             response = s.get(url=response.url, stream=stream_response)
 
     return response
+<<<<<<< HEAD
+=======
+
+# --- HELPER FUNCTION TO VALIDATE JWT ---
+def verify_jwt_token(token):
+    try:
+        # Fetch JWKS keys from Keycloak
+        jwks_client = PyJWKClient(settings.KEYCLOAK_JWKS_URL)
+        signing_key = jwks_client.get_signing_key_from_jwt(token)
+
+        # Decode and validate the token
+        decoded_token = jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=["RS256"],
+            audience=settings.JWT_AUDIENCE,
+            options={"verify_exp": True}
+        )
+        return decoded_token
+    except Exception as e:
+        print("JWT validation error:", e)
+        return None
+>>>>>>> 3579f71 (Initial jwt test)
