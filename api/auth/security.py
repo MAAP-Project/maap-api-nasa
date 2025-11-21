@@ -166,8 +166,6 @@ def edl_federated_request(url, stream_response=False):
             response = s.get(url=response.url, stream=stream_response)
 
     return response
-<<<<<<< HEAD
-=======
 
 # --- HELPER FUNCTION TO VALIDATE JWT ---
 def verify_jwt_token(token):
@@ -191,4 +189,3 @@ def verify_jwt_token(token):
     except Exception as e:
         print("JWT validation error:", e)
         return None
->>>>>>> 3579f71 (Initial jwt test)
