@@ -5,7 +5,7 @@ from flask_api import status
 from werkzeug.exceptions import HTTPException
 from api import settings
 from api.utils.security_utils import AuthenticationError, ExternalServiceError
-from api.auth.cas_auth import start_member_session_jwt, validate_proxy, validate_third_party
+from api.auth.cas_auth import start_member_session_jwt, validate_proxy
 from api.maap_database import db
 from api.models.member import Member
 from api.models.role import Role
