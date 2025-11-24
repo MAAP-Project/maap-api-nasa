@@ -187,5 +187,5 @@ def verify_jwt_token(token):
         )
         return decoded_token
     except Exception as e:
-        print("JWT validation error:", e)
+        current_app.logger.error(f"JWT validation error: {e}")
         return None
