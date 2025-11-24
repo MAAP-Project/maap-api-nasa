@@ -279,8 +279,12 @@ def start_member_session(cas_response, ticket, auto_create_member=False):
 def start_member_session_jwt(decoded_jwt, auto_create_member=False):
 
     usr = decoded_jwt.get("preferred_username")
+    print("gracea1 user from preferred_username is ")
+    print(usr)
 
     member = db.session.query(Member).filter_by(username=usr).first()
+    print("graceal1 trying to get member")
+    print(member)
     #urs_access_token = get_cas_attribute_value(attributes, 'access_token')
     #is_esa_user = get_cas_attribute_value(attributes, 'iss') == settings.ESA_ISS_HOST
 
