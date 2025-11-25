@@ -22,6 +22,7 @@ from api.utils.security_utils import validate_ssh_key_file, sanitize_filename, I
 from api.utils.email_util import send_user_status_update_active_user_email, \
     send_user_status_update_suspended_user_email, send_user_status_change_email, \
     send_welcome_to_maap_active_user_email, send_welcome_to_maap_suspended_user_email
+from api.endpoints import get_config_from_api
 from api.models.pre_approved import PreApproved
 from datetime import datetime, timezone
 import json
@@ -736,6 +737,10 @@ class AwsAccessUserBucketCredentials(Resource):
         if not maap_user:
             return Response('Unauthorized', status=401)
 
+        # Guaranteed to at least always return default 
+        config = get_config_from_api(self.request.host)
+        workspace_bucket = config["workspace_bucket"]
+
         # Allow bucket access to just the user's workspace directory
         policy = f'''{{"Version": "2012-10-17",
             "Statement": [
@@ -752,7 +757,7 @@ class AwsAccessUserBucketCredentials(Resource):
                         "s3:AbortMultipartUpload"
                     ],
                     "Resource": [
-                        "arn:aws:s3:::{settings.WORKSPACE_BUCKET}/{maap_user.username}/*"
+                        "arn:aws:s3:::{workspace_bucket}/{maap_user.username}/*"
                     ]
                 }},
                 {{
@@ -761,7 +766,7 @@ class AwsAccessUserBucketCredentials(Resource):
                     "Action": [
                         "s3:ListBucket"
                     ],
-                    "Resource": "arn:aws:s3:::{settings.WORKSPACE_BUCKET}",
+                    "Resource": "arn:aws:s3:::{workspace_bucket}",
                     "Condition": {{
                         "StringLike": {{
                             "s3:prefix": [
@@ -782,7 +787,7 @@ class AwsAccessUserBucketCredentials(Resource):
         )
 
         response = jsonify(
-            aws_bucket_name=settings.WORKSPACE_BUCKET,
+            aws_bucket_name=workspace_bucket,
             aws_bucket_prefix=maap_user.username,
             aws_access_key_id=assumed_role_object['Credentials']['AccessKeyId'],
             aws_secret_access_key=assumed_role_object['Credentials']['SecretAccessKey'],
