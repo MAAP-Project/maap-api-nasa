@@ -6,7 +6,7 @@
         "auth_server": "auth.dit.maap-project.org",
         "mas_server": "repo.dit.maap-project.org",
         "edsc_server": "ade.dit.maap-project.org:30052",
-        "workspace_bucket": "maap-dit-workspace",
+        "workspace_bucket": "maap-staging-workspace",
         "default_host": true
     },
     {
@@ -16,7 +16,7 @@
         "auth_server": "auth.uat.maap-project.org",
         "mas_server": "repo.uat.maap-project.org",
         "edsc_server": "ade.uat.maap-project.org:30052",
-        "workspace_bucket": "maap-uat-workspace",
+        "workspace_bucket": "maap-staging-workspace",
         "default_host": false
     },
     {
@@ -35,7 +35,7 @@
         "api_server": "api.dit.maap-project.org",
         "auth_server": "auth.dit.maap-project.org",
         "mas_server": "repo.dit.maap-project.org",
-        "workspace_bucket": "maap-dit-workspace",
+        "workspace_bucket": "maap-staging-workspace",
         "default_host": false
     },
     {

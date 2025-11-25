@@ -738,7 +738,7 @@ class AwsAccessUserBucketCredentials(Resource):
             return Response('Unauthorized', status=401)
 
         # Guaranteed to at least always return default 
-        config = get_config_from_api(self.request.host)
+        config = get_config_from_api(request.host)
         workspace_bucket = config["workspace_bucket"]
 
         # Allow bucket access to just the user's workspace directory
