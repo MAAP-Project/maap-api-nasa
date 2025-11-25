@@ -22,7 +22,7 @@ from api.utils.security_utils import validate_ssh_key_file, sanitize_filename, I
 from api.utils.email_util import send_user_status_update_active_user_email, \
     send_user_status_update_suspended_user_email, send_user_status_change_email, \
     send_welcome_to_maap_active_user_email, send_welcome_to_maap_suspended_user_email
-from api.endpoints import get_config_from_api
+from api.endpoints.environment import get_config_from_api
 from api.models.pre_approved import PreApproved
 from datetime import datetime, timezone
 import json
