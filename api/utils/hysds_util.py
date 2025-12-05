@@ -528,10 +528,39 @@ def get_job_spec(job_type):
     try:
         mozart_response = session.get("{}/job_spec/type?id={}".format(settings.MOZART_V1_URL, job_type), headers=headers,
                                       verify=False)
-    except Exception as ex:
-        raise ex
+        logging.debug("Mozart response status code: {}".format(mozart_response.status_code))
 
-    return mozart_response.json()
+        # Handle 404 - job spec not found
+        if mozart_response.status_code == 404:
+            logging.error("Job spec type '{}' not found in Mozart (404)".format(job_type))
+            raise ValueError("Job specification '{}' not found. Please verify the algorithm is registered.".format(job_type))
+
+        # Handle other HTTP errors
+        if mozart_response.status_code >= 400:
+            logging.error("Mozart request failed with status {}: {}".format(mozart_response.status_code, mozart_response.text))
+            raise Exception("Failed to retrieve job specification from Mozart. Status code: {}".format(mozart_response.status_code))
+
+        # Parse JSON response
+        try:
+            response_json = mozart_response.json()
+        except ValueError as json_err:
+            logging.error("Failed to parse Mozart response as JSON: {}".format(json_err))
+            raise Exception("Invalid response from Mozart - could not parse JSON")
+
+        # Check if response contains result
+        if not response_json.get("result"):
+            logging.warning("Mozart returned empty result for job spec type: {}".format(job_type))
+            raise ValueError("No job specification found for '{}'. The algorithm may not be properly registered.".format(job_type))
+
+        logging.debug("Successfully retrieved job spec for type: {}".format(job_type))
+        return response_json
+
+    except requests.exceptions.RequestException as req_ex:
+        logging.error("Network error while contacting Mozart: {}".format(req_ex))
+        raise Exception("Failed to connect to Mozart service: {}".format(str(req_ex)))
+    except (ValueError, Exception) as ex:
+        # Re-raise ValueError and Exception that we've already formatted above
+        raise ex
 
 
 def get_hysds_io(hysdsio_type):
@@ -548,11 +577,39 @@ def get_hysds_io(hysdsio_type):
     try:
         grq_response = session.get("{}/hysds_io/type?id={}".format(settings.GRQ_URL, hysdsio_type), headers=headers,
                                    verify=False)
-        logging.debug(grq_response)
-    except Exception as ex:
-        raise ex
+        logging.debug("GRQ response status code: {}".format(grq_response.status_code))
 
-    return grq_response.json()
+        # Handle 404 - algorithm not found
+        if grq_response.status_code == 404:
+            logging.error("HySDS-IO type '{}' not found in GRQ (404)".format(hysdsio_type))
+            raise ValueError("Algorithm specification '{}' not found. Please verify the algorithm is registered.".format(hysdsio_type))
+
+        # Handle other HTTP errors
+        if grq_response.status_code >= 400:
+            logging.error("GRQ request failed with status {}: {}".format(grq_response.status_code, grq_response.text))
+            raise Exception("Failed to retrieve algorithm specification from GRQ. Status code: {}".format(grq_response.status_code))
+
+        # Parse JSON response
+        try:
+            response_json = grq_response.json()
+        except ValueError as json_err:
+            logging.error("Failed to parse GRQ response as JSON: {}".format(json_err))
+            raise Exception("Invalid response from GRQ - could not parse JSON")
+
+        # Check if response contains result
+        if not response_json.get("result"):
+            logging.warning("GRQ returned empty result for hysds-io type: {}".format(hysdsio_type))
+            raise ValueError("No algorithm specification found for '{}'. The algorithm may not be properly registered.".format(hysdsio_type))
+
+        logging.debug("Successfully retrieved hysds-io for type: {}".format(hysdsio_type))
+        return response_json
+
+    except requests.exceptions.RequestException as req_ex:
+        logging.error("Network error while contacting GRQ: {}".format(req_ex))
+        raise Exception("Failed to connect to GRQ service: {}".format(str(req_ex)))
+    except (ValueError, Exception) as ex:
+        # Re-raise ValueError and Exception that we've already formatted above
+        raise ex
 
 
 def get_recommended_queue(job_type):
