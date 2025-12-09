@@ -20,7 +20,7 @@ from api.utils.url_util import proxied_url
 import ast
 import socket # For socket.timeout
 from xml.parsers.expat import ExpatError # For XML parsing errors
-
+from api.models.role import Role
 from api.utils.security_utils import AuthenticationError, ExternalServiceError
 
 
@@ -33,6 +33,8 @@ except ImportError:
 blueprint = flask.Blueprint('cas', __name__)
 
 PROXY_TICKET_PREFIX = "PGT-"
+MEMBER_STATUS_ACTIVE = "active"
+MEMBER_STATUS_SUSPENDED = "suspended"
 
 def validate(service, ticket):
     """
@@ -247,7 +249,10 @@ def start_member_session(cas_response, ticket, auto_create_member=False):
                         username=usr,
                         email=get_cas_attribute_value(attributes, 'email'),
                         organization=get_cas_attribute_value(attributes, 'organization'),
-                        urs_token=urs_access_token)
+                        urs_token=urs_access_token,
+                        role_id=Role.ROLE_MEMBER if is_esa_user else Role.ROLE_GUEST,
+                        status=MEMBER_STATUS_ACTIVE if is_esa_user else MEMBER_STATUS_SUSPENDED,
+                        creation_date=datetime.utcnow())
         try:
             db.session.add(member)
         except Exception as e:
@@ -281,51 +286,31 @@ def start_member_session_jwt(decoded_jwt, auto_create_member=False):
     usr = decoded_jwt.get("preferred_username")
 
     member = db.session.query(Member).filter_by(username=usr).first()
-    #urs_access_token = get_cas_attribute_value(attributes, 'access_token')
-    #is_esa_user = get_cas_attribute_value(attributes, 'iss') == settings.ESA_ISS_HOST
 
-    # if is_esa_user:
-    #     esa_system_account = db.session.query(Member).filter_by(username=settings.ESA_EDL_SYS_ACCOUNT).first()
-
-    #     if esa_system_account is None:
-    #         current_app.logger.warning(f"No ESA system account found for user {usr}.")
-    #     else:
-    #         urs_access_token = esa_system_account.urs_token 
-
-    if member is None and (auto_create_member): # or is_esa_user):
+    if member is None and (auto_create_member): 
         member = Member(first_name=decoded_jwt.get("given_name"),
                         last_name=decoded_jwt.get("family_name"),
                         username=usr,
-                        email=decoded_jwt.get("email"))#,
-                        #organization=get_cas_attribute_value(attributes, 'organization'),
-                        #urs_token=urs_access_token)
+                        email=decoded_jwt.get("email"))
         try:
             db.session.add(member)
         except Exception as e:
             db.session.rollback()
             current_app.logger.error(f"Failed to add new member {usr}: {e}")
             raise
-    else:
-        current_app.logger.error(f"Failed to find member jwt username {usr}")
-        # member.urs_token = urs_access_token
 
-        # try:
-        #     db.session.commit()
-        # except Exception as e:
-        #     db.session.rollback()
-        #     current_app.logger.error(f"Failed to update member {usr}: {e}")
-        #     raise
+    member_session = MemberSession(member_id=member.id, session_key=decoded_jwt, creation_date=datetime.utcnow())
+    try:
+        db.session.add(member_session)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Failed to create member session for {usr}: {e}")
+        raise
 
-    # member_session = MemberSession(member_id=member.id, session_key=ticket, creation_date=datetime.utcnow())
-    # try:
-    #     db.session.add(member_session)
-    #     db.session.commit()
-    # except Exception as e:
-    #     db.session.rollback()
-    #     current_app.logger.error(f"Failed to create member session for {usr}: {e}")
-    #     raise
+    current_app.logger.error(f"Found member {usr}")
+    current_app.logger.error(f"Member username {member.username}")
 
-    # return member_session
     return member
 
 

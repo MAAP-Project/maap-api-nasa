@@ -417,7 +417,7 @@ class Self(Resource):
             return result
 
         if 'Authorization' in request.headers:
-            return member
+            return result
 
 
 @ns.route('/self/sshKey')
