@@ -6,8 +6,7 @@
         "auth_server": "auth.dit.maap-project.org",
         "mas_server": "repo.dit.maap-project.org",
         "edsc_server": "ade.dit.maap-project.org:30052",
-        "workspace_bucket": "maap-dit-workspace",
-        "kibana_url": "https://35.88.169.231/metrics/goto/4f1115df1b6563782292fb1f75676f95",
+        "workspace_bucket": "maap-staging-workspace",
         "default_host": true
     },
     {
@@ -17,7 +16,7 @@
         "auth_server": "auth.uat.maap-project.org",
         "mas_server": "repo.uat.maap-project.org",
         "edsc_server": "ade.uat.maap-project.org:30052",
-        "workspace_bucket": "maap-uat-workspace",
+        "workspace_bucket": "maap-staging-workspace",
         "default_host": false
     },
     {
@@ -27,6 +26,24 @@
         "auth_server": "auth.maap-project.org",
         "mas_server": "mas.maap-project.org",
         "edsc_server": "ade.maap-project.org:30052",
+        "workspace_bucket": "maap-ops-workspace",
+        "default_host": false
+    },
+    {
+        "environment": "dit_2i2c",
+        "ade_server": "staging.hub.maap-project.org",
+        "api_server": "api.dit.maap-project.org",
+        "auth_server": "auth.dit.maap-project.org",
+        "mas_server": "repo.dit.maap-project.org",
+        "workspace_bucket": "maap-staging-workspace",
+        "default_host": false
+    },
+    {
+        "environment": "ops_2i2c",
+        "ade_server": "hub.maap-project.org",
+        "api_server": "api.dit.maap-project.org",
+        "auth_server": "auth.dit.maap-project.org",
+        "mas_server": "repo.dit.maap-project.org",
         "workspace_bucket": "maap-ops-workspace",
         "default_host": false
     }
