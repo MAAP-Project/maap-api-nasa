@@ -76,6 +76,6 @@ def get_config(host, server_type):
 
     base_url = "{0.netloc}".format(urlsplit(urllib.parse.unquote(host)))
 
-    match = next((x for x in data if base_url in x[server_type]), None)
+    match = next((x for x in data if base_url == x[server_type]), None)
     maap_config = next((x for x in data if x['default_host'] == True), None) if match is None else match
     return maap_config

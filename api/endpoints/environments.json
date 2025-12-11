@@ -41,9 +41,9 @@
     {
         "environment": "ops_2i2c",
         "ade_server": "hub.maap-project.org",
-        "api_server": "api.dit.maap-project.org",
-        "auth_server": "auth.dit.maap-project.org",
-        "mas_server": "repo.dit.maap-project.org",
+        "api_server": "api.maap-project.org",
+        "auth_server": "auth.maap-project.org",
+        "mas_server": "repo.maap-project.org",
         "workspace_bucket": "maap-ops-workspace",
         "default_host": false
     }
