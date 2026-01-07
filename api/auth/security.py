@@ -26,9 +26,19 @@ def get_authorized_user():
 
     try:
         if auth_header_name == HEADER_PROXY_TICKET or auth_header_name == HEADER_CP_TICKET:
-            member_session = validate_proxy(auth_header_value)
-            if member_session is not None:
-                return member_session.member
+
+            if auth_header_value and auth_header_value.lower().startswith('jwt:'):
+                decoded = verify_jwt_token(auth_header_value)
+                if not decoded:
+                    raise AuthenticationError("Invalid or expired jwt token.")
+                
+                _member = start_member_session_jwt(decoded)
+
+                return _member
+            else:
+                member_session = validate_proxy(auth_header_value)
+                if member_session is not None:
+                    return member_session.member
         elif auth_header_name == HEADER_AUTHORIZATION:
             if auth_header_value and auth_header_value.lower().startswith('bearer '):
                 token = auth_header_value.split(" ")[1]
@@ -81,6 +91,15 @@ def login_required(role=Role.ROLE_GUEST):
 
             try:
                 if auth_header_name == HEADER_PROXY_TICKET or auth_header_name == HEADER_CP_TICKET:
+
+                    if auth_header_value and auth_header_value.lower().startswith('jwt:'):
+                        decoded = verify_jwt_token(auth_header_value)
+                        if not decoded:
+                            raise AuthenticationError("Invalid or expired jwt token.")
+                        
+                        #request.user = decoded
+                        return wrapped_function(*args, **kwargs)
+                    
                     member_session = validate_proxy(auth_header_value) # Can raise Auth/ExternalServiceError
                     if member_session is not None and member_session.member.role_id >= role:
                         return wrapped_function(*args, **kwargs)
