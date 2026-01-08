@@ -40,7 +40,7 @@ class Config(Resource):
         Request environment metadata for a given ADE hostname
         :return:
         """
-        config = get_config(ade_host)
+        config = get_config_from_ade(ade_host)
 
         return config
 
@@ -52,13 +52,19 @@ class BucketPrefix(Resource):
         Request environment bucket prefix for a given ADE hostname
         :return:
         """
-        config = get_config(ade_host)
+        config = get_config_from_ade(ade_host)
         prefix = config['workspace_bucket'].split('-')[1]
 
         return prefix
 
 
-def get_config(ade_host):
+def get_config_from_ade(ade_host):
+    return get_config(ade_host, 'ade_server')
+
+def get_config_from_api(api_host):
+    return get_config(api_host, 'api_server')
+
+def get_config(host, server_type):
     try:
         ROOT = os.path.dirname(os.path.abspath(__file__))   
         with open(os.path.join(ROOT, "environments.json")) as f:
@@ -68,8 +74,8 @@ def get_config(ade_host):
         logging.exception(msg)
         raise FileNotFoundError(msg)
 
-    base_url = "{0.netloc}".format(urlsplit(urllib.parse.unquote(ade_host)))
+    base_url = "{0.netloc}".format(urlsplit(urllib.parse.unquote(host)))
 
-    match = next((x for x in data if base_url in x['ade_server']), None)
+    match = next((x for x in data if base_url == x[server_type]), None)
     maap_config = next((x for x in data if x['default_host'] == True), None) if match is None else match
     return maap_config
