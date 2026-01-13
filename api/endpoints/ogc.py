@@ -105,12 +105,19 @@ class Processes(Resource):
         req_data = json.loads(req_data_string)
         
         try:
-            cwl_link = req_data.get("executionUnit", {}).get("href")
-            if not cwl_link:
-                return generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
-
+            if req_data.get("executionUnit") and req_data.get("processDescription"):
+                return generate_error("Cannot pass a request body with a executionUnit and processDescription. Must choose one to register.", status.HTTP_400_BAD_REQUEST)
             user = get_authorized_user()
-            response_body, status_code = create_process_deployment(cwl_link, user.id)
+            if req_data.get("executionUnit"):
+                cwl_link = req_data.get("executionUnit", {}).get("href")
+                if not cwl_link:
+                    return generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
+                metadata = get_cwl_metadata(cwl_link)
+                response_body, status_code = create_process_deployment(cwl_link, metadata, user)
+
+            if req_data.get("processDescription"):
+                metadata = req_data.get("processDescription", {}).get("process")
+                response_body, status_code = create_process_deployment(None, metadata, user)
             return response_body, status_code
 
         except ValueError as e:

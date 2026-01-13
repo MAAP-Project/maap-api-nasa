@@ -22,6 +22,7 @@ from api.maap_database import db
 from api.models.process import Process as Process_db
 from api.models.deployment import Deployment as Deployment_db
 from api.models.member import Member
+import json
 
 log = logging.getLogger(__name__)
 
@@ -73,6 +74,24 @@ def trigger_gitlab_pipeline(cwl_link, version, metadata_id, uuid):
         log.error(f"GitLab pipeline trigger failed: {e}")
         raise RuntimeError("Failed to start CI/CD to deploy process. The deployment venue is likely down.")
 
+def trigger_gitlab_pipeline_with_process_json(metadata, metadata_id, uuid):
+    """Triggers the CI/CD pipeline in GitLab to deploy a process."""
+    try:
+        # random process name to allow algorithms later having the same id/version if the deployer is different 
+        process_name_hysds = f"{metadata_id}_{uuid}"
+        gl = gitlab.Gitlab(settings.GITLAB_URL, private_token=settings.GITLAB_TOKEN)
+        project = gl.projects.get(settings.GITLAB_PROJECT_ID_POST_PROCESS)
+        print("graceal1 the string that I am passing as PROCESS to the pipeline")
+        print(json.dumps(metadata))
+        pipeline = project.pipelines.create({
+            "ref": settings.GITLAB_POST_PROCESS_PIPELINE_REF,
+            "variables": [{"key": "PROCESS", "value": json.dumps(metadata)}, {"key": "PROCESS_NAME_HYSDS", "value": process_name_hysds}]
+        })
+        log.info(f"Triggered pipeline ID: {pipeline.id}")
+        return pipeline
+    except Exception as e:
+        log.error(f"GitLab pipeline trigger failed: {e}")
+        raise RuntimeError("Failed to start CI/CD to deploy process. The deployment venue is likely down.")
 
 def create_and_commit_deployment(metadata, pipeline, user, existing_process=None):
     """Creates a new deployment record in the database."""
@@ -226,8 +245,7 @@ def get_cwl_metadata(cwl_link):
         author=author
     )
 
-
-def create_process_deployment(cwl_link, user_id, ignore_existing=False):
+def create_process_deployment(cwl_link, metadata, user, ignore_existing=False):
     """
     Create a new OGC process deployment using the provided CWL link and user.
     
@@ -247,21 +265,12 @@ def create_process_deployment(cwl_link, user_id, ignore_existing=False):
         RuntimeError: If deployment process fails
     """
     current_app.logger.debug(f"Creating OGC process deployment for CWL: {cwl_link}")
-    current_app.logger.debug(f"User ID: {user_id}")
-    
-    if not cwl_link:
-        raise ValueError("CWL link is required")
-    
-    # Get the user
-    user = db.session.query(Member).filter_by(id=user_id).first()
-    if not user:
-        raise ValueError(f"User with ID {user_id} not found")
+    print("graceal1 checking if can pass user object")
+    print(user)
+    current_app.logger.debug(user)
+    current_app.logger.debug(f"User ID: {user.id}")
     
     try:
-        # Get metadata from CWL file
-        metadata = get_cwl_metadata(cwl_link)
-        current_app.logger.debug(f"Retrieved CWL metadata for process: {metadata.id} v{metadata.version}")
-        
         # Check for existing process
         existing_process = db.session.query(Process_db).filter_by(
             id=metadata.id, version=metadata.version, status=DEPLOYED_PROCESS_STATUS
@@ -279,7 +288,10 @@ def create_process_deployment(cwl_link, user_id, ignore_existing=False):
         
         # Trigger GitLab pipeline for deployment
         current_app.logger.debug(f"Triggering GitLab pipeline for deployment")
-        pipeline = trigger_gitlab_pipeline(cwl_link, metadata.version, metadata.id, user.id)
+        if cwl_link:
+            pipeline = trigger_gitlab_pipeline(cwl_link, metadata.version, metadata.id, user.id)
+        else:
+            pipeline = trigger_gitlab_pipeline_with_process_json(cwl_link, metadata.version, metadata.id, user.id)
         current_app.logger.debug(f"Pipeline created with ID: {pipeline.id}")
         
         # Create deployment record
@@ -324,9 +336,6 @@ def create_process_deployment(cwl_link, user_id, ignore_existing=False):
         
         return response_body, status.HTTP_202_ACCEPTED
         
-    except ValueError as e:
-        current_app.logger.error(f"Validation error in OGC process deployment: {e}")
-        raise
     except Exception as e:
         current_app.logger.error(f"Unexpected error in OGC process deployment: {e}")
         raise RuntimeError(f"Failed to create OGC process deployment: {e}")
