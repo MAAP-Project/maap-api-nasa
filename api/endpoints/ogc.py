@@ -23,7 +23,7 @@ from api.models.member import Member as Member_db
 
 from api.utils import job_queue
 from api.utils.ogc_process_util import (
-    create_process_deployment, get_cwl_metadata, dict_to_json_process_metadata,
+    create_process_deployment, get_cwl_metadata,
     trigger_gitlab_pipeline, create_and_commit_deployment, generate_error, get_hysds_process_name,
     get_process_from_hysds_name, determineDatetimeInRange, parse_rfc3339_datetime,
     DEPLOYED_PROCESS_STATUS, INITIAL_JOB_STATUS, UNDEPLOYED_PROCESS_STATUS, HREF_LANG
@@ -105,8 +105,8 @@ class Processes(Resource):
         req_data = json.loads(req_data_string)
         
         try:
-            if req_data.get("executionUnit") and req_data.get("processDescription"):
-                return generate_error("Cannot pass a request body with a executionUnit and processDescription. Must choose one to register.", status.HTTP_400_BAD_REQUEST)
+            if req_data.get("executionUnit") and req_data.get("cwlRawText"):
+                return generate_error("Cannot pass a request body with a executionUnit and cwlRawText. Must choose one to register.", status.HTTP_400_BAD_REQUEST)
             user = get_authorized_user()
             if req_data.get("executionUnit"):
                 try:
@@ -115,18 +115,12 @@ class Processes(Resource):
                         return generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
                 except Exception as e:
                     return generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
-                metadata = get_cwl_metadata(cwl_link)
+                metadata = get_cwl_metadata(cwl_link, None)
                 response_body, status_code = create_process_deployment(cwl_link, metadata, user)
 
-            if req_data.get("processDescription"):
-                try:
-                    process_dict = req_data.get("processDescription", {}).get("process")
-                    if not process_dict:
-                        return generate_error("Request body must contain processDescription with a process dict.", status.HTTP_400_BAD_REQUEST)
-                    metadata = dict_to_json_process_metadata(process_dict)
-                except Exception as e:
-                    return generate_error(f"Invalid process metadata: {str(e)}", status.HTTP_400_BAD_REQUEST)
-                response_body, status_code = create_process_deployment(None, metadata, user)
+            if req_data.get("cwlRawText"):
+                metadata = get_cwl_metadata(None, req_data.get("cwlRawText"))
+                response_body, status_code = create_process_deployment(None, metadata, user, req_data.get("cwlRawText"))
             return response_body, status_code
 
         except ValueError as e:

@@ -22,7 +22,7 @@ from api.maap_database import db
 from api.models.process import Process as Process_db
 from api.models.deployment import Deployment as Deployment_db
 from api.models.member import Member
-import json
+import base64
 
 log = logging.getLogger(__name__)
 
@@ -74,7 +74,7 @@ def trigger_gitlab_pipeline(cwl_link, version, metadata_id, uuid):
         log.error(f"GitLab pipeline trigger failed: {e}")
         raise RuntimeError("Failed to start CI/CD to deploy process. The deployment venue is likely down.")
 
-def trigger_gitlab_pipeline_with_process_json(metadata, metadata_id, uuid):
+def trigger_gitlab_pipeline_with_cwl_text(cwl_raw_text, metadata_id, uuid):
     """Triggers the CI/CD pipeline in GitLab to deploy a process."""
     try:
         # random process name to allow algorithms later having the same id/version if the deployer is different
@@ -82,13 +82,9 @@ def trigger_gitlab_pipeline_with_process_json(metadata, metadata_id, uuid):
         gl = gitlab.Gitlab(settings.GITLAB_URL, private_token=settings.GITLAB_TOKEN)
         project = gl.projects.get(settings.GITLAB_PROJECT_ID_POST_PROCESS)
 
-        # Convert namedtuple to dict, then to JSON string for GitLab pipeline variable
-        metadata_dict = metadata._asdict() if hasattr(metadata, '_asdict') else metadata
-        metadata_json = json.dumps(metadata_dict)
-
         pipeline = project.pipelines.create({
             "ref": settings.GITLAB_POST_PROCESS_PIPELINE_REF,
-            "variables": [{"key": "PROCESS", "value": metadata_json}, {"key": "PROCESS_NAME_HYSDS", "value": process_name_hysds}]
+            "variables": [{"key": "PROCESS", "value": base64.b64encode(cwl_raw_text.encode()).decode()     }, {"key": "PROCESS_NAME_HYSDS", "value": process_name_hysds}]
         })
         log.info(f"Triggered pipeline ID: {pipeline.id}")
         return pipeline
@@ -128,62 +124,14 @@ CWL_METADATA = namedtuple("CWL_METADATA", [
     "base_command", "author"
 ])
 
-def dict_to_json_process_metadata(process_dict):
-    """
-    Convert a process dictionary to CWL_METADATA namedtuple.
-
-    Args:
-        process_dict: Dictionary containing process metadata
-
-    Returns:
-        CWL_METADATA: Named tuple with process metadata
-
-    Raises:
-        ValueError: If required fields are missing
-    """
-    if not process_dict:
-        raise ValueError("process_dict cannot be None or empty")
-
-    # Validate required fields
-    required_fields = ["id", "version", "title", "description"]
-    missing_fields = [field for field in required_fields if not process_dict.get(field)]
-    if missing_fields:
-        raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
-
-    # Handle githubUrl which may be a dict with 'href' or a string
-    github_url = process_dict.get("githubUrl")
-    if isinstance(github_url, dict):
-        github_url = github_url.get("href")
-
-    # Handle keywords which may be a list or a string
-    keywords = process_dict.get("keywords")
-    if isinstance(keywords, list):
-        keywords = ",".join(keywords)
-
-    return CWL_METADATA(
-        id=process_dict.get("id"),
-        version=str(process_dict.get("version")),  # Convert to string
-        title=process_dict.get("title"),
-        description=process_dict.get("description"),
-        keywords=keywords,
-        author=process_dict.get("author"),
-        github_url=github_url,
-        git_commit_hash=process_dict.get("gitCommitHash"),
-        cwl_link=None,  # No CWL link for JSON processes
-        raw_text=None,  # No raw text for JSON processes
-        ram_min=process_dict.get("ramMin"),
-        cores_min=process_dict.get("coresMin"),
-        base_command=process_dict.get("baseCommand")
-    )
-
-
-def get_cwl_metadata(cwl_link):
+def get_cwl_metadata(cwl_link, cwl_text = None):
     """
     Fetches, parses, and extracts metadata from a CWL file. This approach avoids making 
     two separate web requests for the same file.
     
     Args:
         cwl_link (str): URL to the CWL file
+        cwl_raw_text (str): Raw text of CWL file 
         
     Returns:
         CWL_METADATA: Named tuple containing extracted metadata
@@ -202,9 +150,10 @@ def get_cwl_metadata(cwl_link):
         # 3. Use the local file URI with cwl_utils to parse the object model.
         # 4. Use the in-memory text for regex-based metadata extraction.
         # This is wrapped in a try/finally block to ensure the temp file is cleaned up.
-        response = requests.get(cwl_link)
-        response.raise_for_status()
-        cwl_text = response.text
+        if cwl_link:
+            response = requests.get(cwl_link)
+            response.raise_for_status()
+            cwl_text = response.text
 
         with tempfile.NamedTemporaryFile(mode='w', suffix=".cwl", delete=False) as tmp:
             tmp.write(cwl_text)
@@ -296,7 +245,7 @@ def get_cwl_metadata(cwl_link):
         author=author
     )
 
-def create_process_deployment(cwl_link, metadata, user, ignore_existing=False):
+def create_process_deployment(cwl_link, metadata, user, cwl_text = None, ignore_existing=False):
     """
     Create a new OGC process deployment using the provided CWL link and user.
     
@@ -340,7 +289,7 @@ def create_process_deployment(cwl_link, metadata, user, ignore_existing=False):
         if cwl_link:
             pipeline = trigger_gitlab_pipeline(cwl_link, metadata.version, metadata.id, user.id)
         else:
-            pipeline = trigger_gitlab_pipeline_with_process_json(metadata, metadata.id, user.id)
+            pipeline = trigger_gitlab_pipeline_with_cwl_text(cwl_text, metadata.id, user.id)
         current_app.logger.debug(f"Pipeline created with ID: {pipeline.id}")
         
         # Create deployment record
