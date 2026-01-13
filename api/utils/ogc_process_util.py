@@ -77,15 +77,18 @@ def trigger_gitlab_pipeline(cwl_link, version, metadata_id, uuid):
 def trigger_gitlab_pipeline_with_process_json(metadata, metadata_id, uuid):
     """Triggers the CI/CD pipeline in GitLab to deploy a process."""
     try:
-        # random process name to allow algorithms later having the same id/version if the deployer is different 
+        # random process name to allow algorithms later having the same id/version if the deployer is different
         process_name_hysds = f"{metadata_id}_{uuid}"
         gl = gitlab.Gitlab(settings.GITLAB_URL, private_token=settings.GITLAB_TOKEN)
         project = gl.projects.get(settings.GITLAB_PROJECT_ID_POST_PROCESS)
-        print("graceal1 the string that I am passing as PROCESS to the pipeline")
-        print(json.dumps(metadata))
+
+        # Convert namedtuple to dict, then to JSON string for GitLab pipeline variable
+        metadata_dict = metadata._asdict() if hasattr(metadata, '_asdict') else metadata
+        metadata_json = json.dumps(metadata_dict)
+
         pipeline = project.pipelines.create({
             "ref": settings.GITLAB_POST_PROCESS_PIPELINE_REF,
-            "variables": [{"key": "PROCESS", "value": json.dumps(metadata)}, {"key": "PROCESS_NAME_HYSDS", "value": process_name_hysds}]
+            "variables": [{"key": "PROCESS", "value": metadata_json}, {"key": "PROCESS_NAME_HYSDS", "value": process_name_hysds}]
         })
         log.info(f"Triggered pipeline ID: {pipeline.id}")
         return pipeline
@@ -120,10 +123,58 @@ def create_and_commit_deployment(metadata, pipeline, user, existing_process=None
 
 # Define CWL_METADATA namedtuple here to avoid circular imports
 CWL_METADATA = namedtuple("CWL_METADATA", [
-    "id", "version", "title", "description", "keywords", "raw_text", 
-    "github_url", "git_commit_hash", "cwl_link", "ram_min", "cores_min", 
+    "id", "version", "title", "description", "keywords", "raw_text",
+    "github_url", "git_commit_hash", "cwl_link", "ram_min", "cores_min",
     "base_command", "author"
 ])
+
+def dict_to_json_process_metadata(process_dict):
+    """
+    Convert a process dictionary to CWL_METADATA namedtuple.
+
+    Args:
+        process_dict: Dictionary containing process metadata
+
+    Returns:
+        CWL_METADATA: Named tuple with process metadata
+
+    Raises:
+        ValueError: If required fields are missing
+    """
+    if not process_dict:
+        raise ValueError("process_dict cannot be None or empty")
+
+    # Validate required fields
+    required_fields = ["id", "version", "title", "description"]
+    missing_fields = [field for field in required_fields if not process_dict.get(field)]
+    if missing_fields:
+        raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
+
+    # Handle githubUrl which may be a dict with 'href' or a string
+    github_url = process_dict.get("githubUrl")
+    if isinstance(github_url, dict):
+        github_url = github_url.get("href")
+
+    # Handle keywords which may be a list or a string
+    keywords = process_dict.get("keywords")
+    if isinstance(keywords, list):
+        keywords = ",".join(keywords)
+
+    return CWL_METADATA(
+        id=process_dict.get("id"),
+        version=str(process_dict.get("version")),  # Convert to string
+        title=process_dict.get("title"),
+        description=process_dict.get("description"),
+        keywords=keywords,
+        author=process_dict.get("author"),
+        github_url=github_url,
+        git_commit_hash=process_dict.get("gitCommitHash"),
+        cwl_link=None,  # No CWL link for JSON processes
+        raw_text=None,  # No raw text for JSON processes
+        ram_min=process_dict.get("ramMin"),
+        cores_min=process_dict.get("coresMin"),
+        base_command=process_dict.get("baseCommand")
+    )
 
 
 def get_cwl_metadata(cwl_link):
@@ -291,7 +342,7 @@ def create_process_deployment(cwl_link, metadata, user, ignore_existing=False):
         if cwl_link:
             pipeline = trigger_gitlab_pipeline(cwl_link, metadata.version, metadata.id, user.id)
         else:
-            pipeline = trigger_gitlab_pipeline_with_process_json(cwl_link, metadata.version, metadata.id, user.id)
+            pipeline = trigger_gitlab_pipeline_with_process_json(metadata, metadata.id, user.id)
         current_app.logger.debug(f"Pipeline created with ID: {pipeline.id}")
         
         # Create deployment record
