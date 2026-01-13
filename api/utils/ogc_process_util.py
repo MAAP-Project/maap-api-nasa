@@ -316,8 +316,6 @@ def create_process_deployment(cwl_link, metadata, user, ignore_existing=False):
         RuntimeError: If deployment process fails
     """
     current_app.logger.debug(f"Creating OGC process deployment for CWL: {cwl_link}")
-    print("graceal1 checking if can pass user object")
-    print(user)
     current_app.logger.debug(user)
     current_app.logger.debug(f"User ID: {user.id}")
     
