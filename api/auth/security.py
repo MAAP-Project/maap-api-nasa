@@ -197,14 +197,23 @@ def verify_jwt_token(token):
         signing_key = jwks_client.get_signing_key_from_jwt(token)
 
         # Decode and validate the token
-        decoded_token = jwt.decode(
-            token,
-            signing_key.key,
-            algorithms=["RS256"],
-            audience=settings.JWT_AUDIENCE,
-            options={"verify_exp": False}
-        )
+        try:
+            decoded_token = jwt_decode(token, signing_key, True)
+        except:
+            # Retry without expiration validation
+            decoded_token = jwt_decode(token, signing_key, False)
+            
         return decoded_token
     except Exception as e:
         print(f"JWT validation error: {e}")
         return None
+
+def jwt_decode(token, signing_key, verify_exp):
+    decoded_token = jwt.decode(
+                token,
+                signing_key.key,
+                algorithms=["RS256"],
+                audience=settings.JWT_AUDIENCE,
+                options={"verify_exp": verify_exp}
+            )
+    return decoded_token
