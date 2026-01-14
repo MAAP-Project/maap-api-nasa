@@ -84,7 +84,7 @@ def trigger_gitlab_pipeline_with_cwl_text(cwl_raw_text, metadata_id, uuid):
 
         pipeline = project.pipelines.create({
             "ref": settings.GITLAB_POST_PROCESS_PIPELINE_REF,
-            "variables": [{"key": "PROCESS", "value": base64.b64encode(cwl_raw_text.encode()).decode()     }, {"key": "PROCESS_NAME_HYSDS", "value": process_name_hysds}]
+            "variables": [{"key": "PROCESS", "value": base64.b64encode(cwl_raw_text.encode()).decode()}, {"key": "PROCESS_NAME_HYSDS", "value": process_name_hysds}]
         })
         log.info(f"Triggered pipeline ID: {pipeline.id}")
         return pipeline
