@@ -111,7 +111,7 @@ def login_required(role=Role.ROLE_GUEST):
                         token = auth_header_value.split(" ")[1]
                         decoded = verify_jwt_token(token)
                         if not decoded:
-                            raise AuthenticationError(f"Invalid or expired jwt token. {token[4:]}")
+                            raise AuthenticationError("Invalid or expired jwt token.")
 
                         #request.user = decoded
                         return wrapped_function(*args, **kwargs)
@@ -212,9 +212,9 @@ def verify_jwt_token(token):
             signing_key.key,
             algorithms=["RS256"],
             audience=settings.JWT_AUDIENCE,
-            options={"verify_exp": False}
+            options={"verify_exp": True}
         )
         return decoded_token
     except Exception as e:
-        print(f"JWT validation error: {e}")
+        print("JWT validation error:", e)
         return None
