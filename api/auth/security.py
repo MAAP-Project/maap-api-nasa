@@ -31,8 +31,8 @@ def get_authorized_user():
                 decoded = verify_jwt_token(auth_header_value)
                 if not decoded:
                     raise AuthenticationError("Invalid or expired jwt token.")
-                
-                _member = start_member_session_jwt(decoded)
+
+                _member = start_member_session_jwt(decoded, auth_header_value)
 
                 return _member
             else:
@@ -45,8 +45,8 @@ def get_authorized_user():
                 decoded = verify_jwt_token(token)
                 if not decoded:
                     raise AuthenticationError("Invalid or expired jwt token.")
-                
-                _member = start_member_session_jwt(decoded)
+
+                _member = start_member_session_jwt(decoded, token)
 
                 return _member
             else: # Malformed Authorization header
