@@ -24,9 +24,9 @@ from api.models.member import Member as Member_db
 from api.utils import job_queue
 from api.utils.ogc_process_util import (
     create_process_deployment, get_cwl_metadata,
-    trigger_gitlab_pipeline, create_and_commit_deployment, generate_error, get_hysds_process_name, 
-    get_process_from_hysds_name, determineDatetimeInRange, parse_rfc3339_datetime,
-    DEPLOYED_PROCESS_STATUS, INITIAL_JOB_STATUS, UNDEPLOYED_PROCESS_STATUS, HREF_LANG
+    trigger_gitlab_pipeline, create_and_commit_deployment, 
+    generate_error, get_hysds_process_name, get_process_from_hysds_name, determineDatetimeInRange, 
+    parse_rfc3339_datetime, DEPLOYED_PROCESS_STATUS, INITIAL_JOB_STATUS, UNDEPLOYED_PROCESS_STATUS, HREF_LANG
 )
 
 log = logging.getLogger(__name__)
@@ -105,12 +105,22 @@ class Processes(Resource):
         req_data = json.loads(req_data_string)
         
         try:
-            cwl_link = req_data.get("executionUnit", {}).get("href")
-            if not cwl_link:
-                return generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
-
+            if req_data.get("executionUnit") and req_data.get("cwlRawText"):
+                return generate_error("Cannot pass a request body with a executionUnit and cwlRawText. Must choose one to register.", status.HTTP_400_BAD_REQUEST)
             user = get_authorized_user()
-            response_body, status_code = create_process_deployment(cwl_link, user.id)
+            if req_data.get("executionUnit"):
+                try:
+                    cwl_link = req_data.get("executionUnit", {}).get("href")
+                    if not cwl_link:
+                        return generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
+                except Exception as e:
+                    return generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
+                response_body, status_code = create_process_deployment(cwl_link, user.id)
+
+            elif req_data.get("cwlRawText"):
+                response_body, status_code = create_process_deployment(None, user.id, req_data.get("cwlRawText"))
+            else:
+                return generate_error("Must pass a request body with a executionUnit or cwlRawText. Other formats not currently supported", status.HTTP_400_BAD_REQUEST)
             return response_body, status_code
 
         except ValueError as e:
@@ -365,18 +375,30 @@ class Describe(Resource):
         
         req_data = json.loads(req_data_string)
 
+        cwl_link = None
+        cwl_raw_text=None
         try:
-            cwl_link = req_data.get("executionUnit", {}).get("href")
-            if not cwl_link:
-                return generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
-
-            metadata = get_cwl_metadata(cwl_link)
-
+            if req_data.get("executionUnit") and req_data.get("cwlRawText"):
+                return generate_error("Cannot pass a request body with a executionUnit and cwlRawText. Must choose one to register.", status.HTTP_400_BAD_REQUEST)
+            if req_data.get("executionUnit"):
+                try:
+                    cwl_link = req_data.get("executionUnit", {}).get("href")
+                    if not cwl_link:
+                        return generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
+                except Exception as e:
+                    return generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
+                metadata = get_cwl_metadata(cwl_link, None)
+            elif req_data.get("cwlRawText"):
+                cwl_raw_text = req_data.get("cwlRawText")
+                metadata = get_cwl_metadata(None, req_data.get("cwlRawText"))
+            else:
+                return generate_error("Must pass a request body with a executionUnit or cwlRawText. Other formats not currently supported", status.HTTP_400_BAD_REQUEST)
+            
             if metadata.id != existing_process.id or metadata.version != existing_process.version:
                 detail = f"Need to provide same id and version as previous process which is {existing_process.id}:{existing_process.version}"
                 return generate_error(detail, status.HTTP_400_BAD_REQUEST)
-
-            pipeline = trigger_gitlab_pipeline(cwl_link, metadata.version, metadata.id, user.id)
+            
+            pipeline = trigger_gitlab_pipeline(cwl_link, metadata.id, user.id, cwl_raw_text)
             deployment = create_and_commit_deployment(metadata, pipeline, user, existing_process)
             
             deployment = db.session.query(Deployment_db).filter_by(pipeline_id=pipeline.id).first()

@@ -22,6 +22,7 @@ from api.maap_database import db
 from api.models.process import Process as Process_db
 from api.models.deployment import Deployment as Deployment_db
 from api.models.member import Member
+import base64
 
 log = logging.getLogger(__name__)
 
@@ -56,23 +57,28 @@ def generate_error(detail, error_status, error_type=None):
     return response_body, error_status
 
 
-def trigger_gitlab_pipeline(cwl_link, version, metadata_id, uuid):
+def trigger_gitlab_pipeline(cwl_link, metadata_id, uuid, cwl_raw_text=None):
     """Triggers the CI/CD pipeline in GitLab to deploy a process."""
     try:
         # random process name to allow algorithms later having the same id/version if the deployer is different 
         process_name_hysds = f"{metadata_id}_{uuid}"
         gl = gitlab.Gitlab(settings.GITLAB_URL, private_token=settings.GITLAB_TOKEN)
         project = gl.projects.get(settings.GITLAB_PROJECT_ID_POST_PROCESS)
+        if cwl_link:
+            pipeline_key = "CWL_URL"
+            pipeline_value = cwl_link
+        else:
+            pipeline_key = "PROCESS"
+            pipeline_value = base64.b64encode(cwl_raw_text.encode()).decode()
         pipeline = project.pipelines.create({
             "ref": settings.GITLAB_POST_PROCESS_PIPELINE_REF,
-            "variables": [{"key": "CWL_URL", "value": cwl_link}, {"key": "PROCESS_NAME_HYSDS", "value": process_name_hysds}]
+            "variables": [{"key": pipeline_key, "value": pipeline_value}, {"key": "PROCESS_NAME_HYSDS", "value": process_name_hysds}]
         })
         log.info(f"Triggered pipeline ID: {pipeline.id}")
         return pipeline
     except Exception as e:
         log.error(f"GitLab pipeline trigger failed: {e}")
         raise RuntimeError("Failed to start CI/CD to deploy process. The deployment venue is likely down.")
-
 
 def create_and_commit_deployment(metadata, pipeline, user, existing_process=None):
     """Creates a new deployment record in the database."""
@@ -101,19 +107,19 @@ def create_and_commit_deployment(metadata, pipeline, user, existing_process=None
 
 # Define CWL_METADATA namedtuple here to avoid circular imports
 CWL_METADATA = namedtuple("CWL_METADATA", [
-    "id", "version", "title", "description", "keywords", "raw_text", 
-    "github_url", "git_commit_hash", "cwl_link", "ram_min", "cores_min", 
+    "id", "version", "title", "description", "keywords", "raw_text",
+    "github_url", "git_commit_hash", "cwl_link", "ram_min", "cores_min",
     "base_command", "author"
 ])
 
-
-def get_cwl_metadata(cwl_link):
+def get_cwl_metadata(cwl_link, cwl_text = None):
     """
     Fetches, parses, and extracts metadata from a CWL file. This approach avoids making 
     two separate web requests for the same file.
     
     Args:
         cwl_link (str): URL to the CWL file
+        cwl_raw_text (str): Raw text of CWL file 
         
     Returns:
         CWL_METADATA: Named tuple containing extracted metadata
@@ -132,9 +138,10 @@ def get_cwl_metadata(cwl_link):
         # 3. Use the local file URI with cwl_utils to parse the object model.
         # 4. Use the in-memory text for regex-based metadata extraction.
         # This is wrapped in a try/finally block to ensure the temp file is cleaned up.
-        response = requests.get(cwl_link)
-        response.raise_for_status()
-        cwl_text = response.text
+        if cwl_link:
+            response = requests.get(cwl_link)
+            response.raise_for_status()
+            cwl_text = response.text
 
         with tempfile.NamedTemporaryFile(mode='w', suffix=".cwl", delete=False) as tmp:
             tmp.write(cwl_text)
@@ -226,8 +233,7 @@ def get_cwl_metadata(cwl_link):
         author=author
     )
 
-
-def create_process_deployment(cwl_link, user_id, ignore_existing=False):
+def create_process_deployment(cwl_link, user_id, cwl_text = None, ignore_existing=False):
     """
     Create a new OGC process deployment using the provided CWL link and user.
     
@@ -247,21 +253,20 @@ def create_process_deployment(cwl_link, user_id, ignore_existing=False):
         RuntimeError: If deployment process fails
     """
     current_app.logger.debug(f"Creating OGC process deployment for CWL: {cwl_link}")
-    current_app.logger.debug(f"User ID: {user_id}")
-    
-    if not cwl_link:
-        raise ValueError("CWL link is required")
-    
+
     # Get the user
     user = db.session.query(Member).filter_by(id=user_id).first()
     if not user:
         raise ValueError(f"User with ID {user_id} not found")
+    current_app.logger.debug(user)
+    current_app.logger.debug(f"User ID: {user.id}")
+
+    if cwl_link:
+        metadata = get_cwl_metadata(cwl_link, None)
+    else:
+        metadata = get_cwl_metadata(None, cwl_text)
     
     try:
-        # Get metadata from CWL file
-        metadata = get_cwl_metadata(cwl_link)
-        current_app.logger.debug(f"Retrieved CWL metadata for process: {metadata.id} v{metadata.version}")
-        
         # Check for existing process
         existing_process = db.session.query(Process_db).filter_by(
             id=metadata.id, version=metadata.version, status=DEPLOYED_PROCESS_STATUS
@@ -279,7 +284,7 @@ def create_process_deployment(cwl_link, user_id, ignore_existing=False):
         
         # Trigger GitLab pipeline for deployment
         current_app.logger.debug(f"Triggering GitLab pipeline for deployment")
-        pipeline = trigger_gitlab_pipeline(cwl_link, metadata.version, metadata.id, user.id)
+        pipeline = trigger_gitlab_pipeline(cwl_link, metadata.id, user.id, cwl_text)
         current_app.logger.debug(f"Pipeline created with ID: {pipeline.id}")
         
         # Create deployment record
@@ -324,9 +329,6 @@ def create_process_deployment(cwl_link, user_id, ignore_existing=False):
         
         return response_body, status.HTTP_202_ACCEPTED
         
-    except ValueError as e:
-        current_app.logger.error(f"Validation error in OGC process deployment: {e}")
-        raise
     except Exception as e:
         current_app.logger.error(f"Unexpected error in OGC process deployment: {e}")
         raise RuntimeError(f"Failed to create OGC process deployment: {e}")
