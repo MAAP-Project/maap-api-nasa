@@ -277,16 +277,277 @@ class TestOGCEndpoints(unittest.TestCase):
         """Test: POST /ogc/processes returns 400 for missing executionUnit"""
         with app.app_context():
             member = self._create_test_member()
-            
+
             # When posting without executionUnit
             process_data = {}
-            
+
             response = self._make_authenticated_request('POST', '/api/ogc/processes', process_data, member)
-            
+
             # Then bad request should be returned
             self.assertEqual(response.status_code, 400)
             data = response.get_json()
             self.assertIn('executionUnit', data['detail'])
+
+    @patch('api.utils.ogc_process_util.trigger_gitlab_pipeline_with_cwl_text')
+    @patch('api.utils.ogc_process_util.get_cwl_metadata')
+    @patch('api.auth.security.get_authorized_user')
+    def test_processes_post_with_cwl_raw_text_creates_deployment(self, mock_get_user, mock_metadata, mock_pipeline):
+        """Test: POST /ogc/processes with cwlRawText creates new process deployment"""
+        with app.app_context():
+            with patch('api.auth.security.validate_proxy') as mock_validate_proxy:
+                # Given an authenticated user and valid CWL raw text
+                member = self._create_test_member()
+                mock_get_user.return_value = member
+                mock_validate_proxy.return_value = self._setup_auth_mock(member)
+
+                # Mock CWL metadata
+                mock_metadata.return_value = MagicMock(
+                    id="raw-text-process",
+                    version="1.0",
+                    title="Raw Text Process",
+                    description="A process from raw CWL text",
+                    author="Author",
+                    keywords="test,raw",
+                    cwl_link=None,
+                    github_url="https://github.com/test/repo",
+                    git_commit_hash="abc123",
+                    ram_min=2048,
+                    cores_min=2,
+                    base_command="python"
+                )
+
+                # Mock GitLab pipeline
+                mock_pipeline_obj = MagicMock()
+                mock_pipeline_obj.id = 54321
+                mock_pipeline_obj.web_url = "https://gitlab.com/pipeline/54321"
+                mock_pipeline.return_value = mock_pipeline_obj
+
+                # Sample CWL raw text
+                cwl_raw_text = """
+cwlVersion: v1.2
+$graph:
+  - class: Workflow
+    id: raw-text-process
+    label: Raw Text Process
+    doc: A process from raw CWL text
+    s:version: "1.0"
+    s:author:
+      s:name: Author
+    s:codeRepository: https://github.com/test/repo
+    s:commitHash: abc123
+    s:keywords: test,raw
+    inputs: []
+    outputs: []
+    steps: []
+"""
+
+                # When posting a process with cwlRawText
+                process_data = {
+                    "cwlRawText": cwl_raw_text
+                }
+
+                response = self.client.post('/api/ogc/processes',
+                                          data=json.dumps(process_data),
+                                          content_type='application/json',
+                                          headers={'proxy-ticket': 'test-ticket'})
+
+                # Then deployment should be created
+                self.assertEqual(response.status_code, 202)
+                data = response.get_json()
+                self.assertEqual(data['id'], 'raw-text-process')
+                self.assertEqual(data['version'], '1.0')
+                self.assertIn('links', data)
+                self.assertIn('processPipelineLink', data)
+
+                # Verify get_cwl_metadata was called with raw text
+                mock_metadata.assert_called_once_with(None, cwl_raw_text)
+                # Verify trigger_gitlab_pipeline_with_cwl_text was called
+                mock_pipeline.assert_called_once()
+
+    @patch('api.auth.security.get_authorized_user')
+    def test_processes_post_with_both_execution_unit_and_raw_text_returns_400(self, mock_get_user):
+        """Test: POST /ogc/processes with both executionUnit and cwlRawText returns 400"""
+        with app.app_context():
+            with patch('api.auth.security.validate_proxy') as mock_validate_proxy:
+                # Given an authenticated user
+                member = self._create_test_member()
+                mock_get_user.return_value = member
+                mock_validate_proxy.return_value = self._setup_auth_mock(member)
+
+                # When posting with both executionUnit and cwlRawText
+                process_data = {
+                    "executionUnit": {
+                        "href": "https://example.com/test.cwl"
+                    },
+                    "cwlRawText": "cwlVersion: v1.2\n..."
+                }
+
+                response = self.client.post('/api/ogc/processes',
+                                          data=json.dumps(process_data),
+                                          content_type='application/json',
+                                          headers={'proxy-ticket': 'test-ticket'})
+
+                # Then bad request should be returned
+                self.assertEqual(response.status_code, 400)
+                data = response.get_json()
+                self.assertIn('Cannot pass a request body with a executionUnit and cwlRawText', data['detail'])
+
+    @patch('api.utils.ogc_process_util.get_cwl_metadata')
+    @patch('api.auth.security.get_authorized_user')
+    def test_processes_post_with_cwl_raw_text_invalid_returns_400(self, mock_get_user, mock_metadata):
+        """Test: POST /ogc/processes with invalid cwlRawText returns 400"""
+        with app.app_context():
+            with patch('api.auth.security.validate_proxy') as mock_validate_proxy:
+                # Given an authenticated user and invalid CWL
+                member = self._create_test_member()
+                mock_get_user.return_value = member
+                mock_validate_proxy.return_value = self._setup_auth_mock(member)
+
+                # Mock get_cwl_metadata to raise ValueError
+                mock_metadata.side_effect = ValueError("CWL file is not in the right format or is invalid.")
+
+                # When posting with invalid CWL raw text
+                process_data = {
+                    "cwlRawText": "invalid cwl content"
+                }
+
+                response = self.client.post('/api/ogc/processes',
+                                          data=json.dumps(process_data),
+                                          content_type='application/json',
+                                          headers={'proxy-ticket': 'test-ticket'})
+
+                # Then bad request should be returned
+                self.assertEqual(response.status_code, 400)
+                data = response.get_json()
+                self.assertIn('CWL file is not in the right format', data['detail'])
+
+    @patch('api.utils.ogc_process_util.create_and_commit_deployment')
+    @patch('api.utils.ogc_process_util.trigger_gitlab_pipeline_with_cwl_text')
+    @patch('api.utils.ogc_process_util.get_cwl_metadata')
+    @patch('api.auth.security.get_authorized_user')
+    def test_process_put_with_cwl_raw_text_updates_process(self, mock_get_user, mock_metadata, mock_pipeline, mock_create_deployment):
+        """Test: PUT /ogc/processes/{process_id} with cwlRawText updates process"""
+        with app.app_context():
+            with patch('api.auth.security.validate_proxy') as mock_validate_proxy:
+                # Given an authenticated user and existing process
+                member = self._create_test_member()
+                mock_get_user.return_value = member
+                mock_validate_proxy.return_value = self._setup_auth_mock(member)
+                process = self._create_test_process(member)
+
+                # Mock CWL metadata with same id/version
+                mock_metadata.return_value = MagicMock(
+                    id="test-process",
+                    version="1.0",
+                    title="Updated Process",
+                    description="Updated description",
+                    author="Author",
+                    keywords="test,updated",
+                    cwl_link=None,
+                    github_url="https://github.com/test/repo",
+                    git_commit_hash="def456",
+                    ram_min=4096,
+                    cores_min=4,
+                    base_command="python"
+                )
+
+                # Mock GitLab pipeline
+                mock_pipeline_obj = MagicMock()
+                mock_pipeline_obj.id = 99999
+                mock_pipeline_obj.web_url = "https://gitlab.com/pipeline/99999"
+                mock_pipeline.return_value = mock_pipeline_obj
+
+                # Mock deployment creation to actually create in DB
+                from api.models.deployment import Deployment as Deployment_db
+                def create_real_deployment(metadata, pipeline, user, existing_process=None):
+                    deployment = Deployment_db(
+                        created=datetime.now(),
+                        execution_venue='test-venue',
+                        status='accepted',
+                        cwl_link=metadata.cwl_link,
+                        title=metadata.title,
+                        description=metadata.description,
+                        keywords=metadata.keywords,
+                        deployer=user.username,
+                        author=metadata.author,
+                        pipeline_id=pipeline.id,
+                        github_url=metadata.github_url,
+                        git_commit_hash=metadata.git_commit_hash,
+                        id=metadata.id if not existing_process else existing_process.id,
+                        version=metadata.version if not existing_process else existing_process.version,
+                        ram_min=metadata.ram_min,
+                        cores_min=metadata.cores_min,
+                        base_command=metadata.base_command
+                    )
+                    db.session.add(deployment)
+                    db.session.commit()
+                    return deployment
+
+                mock_create_deployment.side_effect = create_real_deployment
+
+                # Sample CWL raw text
+                cwl_raw_text = """
+cwlVersion: v1.2
+$graph:
+  - class: Workflow
+    id: test-process
+    label: Updated Process
+    doc: Updated description
+    s:version: "1.0"
+    inputs: []
+    outputs: []
+    steps: []
+"""
+
+                # When updating process with cwlRawText
+                process_data = {
+                    "cwlRawText": cwl_raw_text
+                }
+
+                response = self.client.put(f'/api/ogc/processes/{process.process_id}',
+                                          data=json.dumps(process_data),
+                                          content_type='application/json',
+                                          headers={'proxy-ticket': 'test-ticket'})
+
+                # Then update should be accepted
+                self.assertEqual(response.status_code, 202)
+                data = response.get_json()
+                self.assertEqual(data['id'], 'test-process')
+                self.assertEqual(data['version'], '1.0')
+                self.assertIn('links', data)
+                self.assertIn('processPipelineLink', data)
+
+                # Verify pipeline trigger was called
+                mock_pipeline.assert_called_once()
+
+    @patch('api.auth.security.get_authorized_user')
+    def test_process_put_with_both_execution_unit_and_raw_text_returns_400(self, mock_get_user):
+        """Test: PUT /ogc/processes/{process_id} with both executionUnit and cwlRawText returns 400"""
+        with app.app_context():
+            with patch('api.auth.security.validate_proxy') as mock_validate_proxy:
+                # Given an authenticated user and existing process
+                member = self._create_test_member()
+                mock_get_user.return_value = member
+                mock_validate_proxy.return_value = self._setup_auth_mock(member)
+                process = self._create_test_process(member)
+
+                # When updating with both executionUnit and cwlRawText
+                process_data = {
+                    "executionUnit": {
+                        "href": "https://example.com/updated.cwl"
+                    },
+                    "cwlRawText": "cwlVersion: v1.2\n..."
+                }
+
+                response = self.client.put(f'/api/ogc/processes/{process.process_id}',
+                                          data=json.dumps(process_data),
+                                          content_type='application/json',
+                                          headers={'proxy-ticket': 'test-ticket'})
+
+                # Then bad request should be returned
+                self.assertEqual(response.status_code, 400)
+                data = response.get_json()
+                self.assertIn('Cannot pass a request body with a executionUnit and cwlRawText', data['detail'])
 
     def test_process_describe_returns_process_details(self):
         """Test: GET /ogc/processes/{process_id} returns process details"""

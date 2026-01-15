@@ -375,42 +375,42 @@ class Describe(Resource):
         
         req_data = json.loads(req_data_string)
 
-        try:
-            if req_data.get("executionUnit") and req_data.get("cwlRawText"):
-                return generate_error("Cannot pass a request body with a executionUnit and cwlRawText. Must choose one to register.", status.HTTP_400_BAD_REQUEST)
-            if req_data.get("executionUnit"):
-                try:
-                    cwl_link = req_data.get("executionUnit", {}).get("href")
-                    if not cwl_link:
-                        return generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
-                except Exception as e:
+        #try:
+        if req_data.get("executionUnit") and req_data.get("cwlRawText"):
+            return generate_error("Cannot pass a request body with a executionUnit and cwlRawText. Must choose one to register.", status.HTTP_400_BAD_REQUEST)
+        if req_data.get("executionUnit"):
+            try:
+                cwl_link = req_data.get("executionUnit", {}).get("href")
+                if not cwl_link:
                     return generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
-                metadata = get_cwl_metadata(cwl_link, None)
-            elif req_data.get("cwlRawText"):
-                metadata = get_cwl_metadata(None, req_data.get("cwlRawText"))
-            else:
-                return generate_error("Must pass a request body with a executionUnit or cwlRawText. Other formats not currently supported", status.HTTP_400_BAD_REQUEST)
-            
-            if metadata.id != existing_process.id or metadata.version != existing_process.version:
-                detail = f"Need to provide same id and version as previous process which is {existing_process.id}:{existing_process.version}"
-                return generate_error(detail, status.HTTP_400_BAD_REQUEST)
-            
-            if cwl_link:
-                pipeline = trigger_gitlab_pipeline(cwl_link, metadata.version, metadata.id, user.id)
-            else:
-                pipeline = trigger_gitlab_pipeline_with_cwl_text(req_data.get("cwlRawText"), metadata.id, user.id)
-            deployment = create_and_commit_deployment(metadata, pipeline, user, existing_process)
-            
-            deployment = db.session.query(Deployment_db).filter_by(pipeline_id=pipeline.id).first()
-            deployment_job_id = deployment.job_id
+            except Exception as e:
+                return generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
+            metadata = get_cwl_metadata(cwl_link, None)
+        elif req_data.get("cwlRawText"):
+            metadata = get_cwl_metadata(None, req_data.get("cwlRawText"))
+        else:
+            return generate_error("Must pass a request body with a executionUnit or cwlRawText. Other formats not currently supported", status.HTTP_400_BAD_REQUEST)
+        
+        if metadata.id != existing_process.id or metadata.version != existing_process.version:
+            detail = f"Need to provide same id and version as previous process which is {existing_process.id}:{existing_process.version}"
+            return generate_error(detail, status.HTTP_400_BAD_REQUEST)
+        
+        if cwl_link:
+            pipeline = trigger_gitlab_pipeline(cwl_link, metadata.version, metadata.id, user.id)
+        else:
+            pipeline = trigger_gitlab_pipeline_with_cwl_text(req_data.get("cwlRawText"), metadata.id, user.id)
+        deployment = create_and_commit_deployment(metadata, pipeline, user, existing_process)
+        
+        deployment = db.session.query(Deployment_db).filter_by(pipeline_id=pipeline.id).first()
+        deployment_job_id = deployment.job_id
 
-        except ValueError as e:
-            return generate_error(str(e), status.HTTP_400_BAD_REQUEST)
-        except RuntimeError as e:
-            return generate_error(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
-        except Exception as e:
-            log.error(f"Unexpected error during process PUT: {traceback.format_exc()}")
-            return generate_error("An unexpected error occurred.", status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # except ValueError as e:
+        #     return generate_error(str(e), status.HTTP_400_BAD_REQUEST)
+        # except RuntimeError as e:
+        #     return generate_error(str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # except Exception as e:
+        #     log.error(f"Unexpected error during process PUT: {traceback.format_exc()}")
+        #     return generate_error("An unexpected error occurred.", status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         response_body = {
             "id": existing_process.id,
