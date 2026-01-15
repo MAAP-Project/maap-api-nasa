@@ -245,7 +245,7 @@ def get_cwl_metadata(cwl_link, cwl_text = None):
         author=author
     )
 
-def create_process_deployment(cwl_link, metadata, user, cwl_text = None, ignore_existing=False):
+def create_process_deployment(cwl_link, user_id, cwl_text = None, ignore_existing=False):
     """
     Create a new OGC process deployment using the provided CWL link and user.
     
@@ -265,8 +265,18 @@ def create_process_deployment(cwl_link, metadata, user, cwl_text = None, ignore_
         RuntimeError: If deployment process fails
     """
     current_app.logger.debug(f"Creating OGC process deployment for CWL: {cwl_link}")
+
+    # Get the user
+    user = db.session.query(Member).filter_by(id=user_id).first()
+    if not user:
+        raise ValueError(f"User with ID {user_id} not found")
     current_app.logger.debug(user)
     current_app.logger.debug(f"User ID: {user.id}")
+
+    if cwl_link:
+        metadata = get_cwl_metadata(cwl_link, None)
+    else:
+        metadata = get_cwl_metadata(None, cwl_text)
     
     try:
         # Check for existing process

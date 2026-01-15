@@ -115,12 +115,10 @@ class Processes(Resource):
                         return generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
                 except Exception as e:
                     return generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
-                metadata = get_cwl_metadata(cwl_link, None)
-                response_body, status_code = create_process_deployment(cwl_link, metadata, user)
+                response_body, status_code = create_process_deployment(cwl_link, user.id)
 
             elif req_data.get("cwlRawText"):
-                metadata = get_cwl_metadata(None, req_data.get("cwlRawText"))
-                response_body, status_code = create_process_deployment(None, metadata, user, req_data.get("cwlRawText"))
+                response_body, status_code = create_process_deployment(None, user.id, req_data.get("cwlRawText"))
             else:
                 return generate_error("Must pass a request body with a executionUnit or cwlRawText. Other formats not currently supported", status.HTTP_400_BAD_REQUEST)
             return response_body, status_code
