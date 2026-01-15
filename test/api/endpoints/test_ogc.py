@@ -288,7 +288,7 @@ class TestOGCEndpoints(unittest.TestCase):
             data = response.get_json()
             self.assertIn('executionUnit', data['detail'])
 
-    @patch('api.utils.ogc_process_util.trigger_gitlab_pipeline_with_cwl_text')
+    @patch('api.utils.ogc_process_util.trigger_gitlab_pipeline')
     @patch('api.utils.ogc_process_util.get_cwl_metadata')
     @patch('api.auth.security.get_authorized_user')
     def test_processes_post_with_cwl_raw_text_creates_deployment(self, mock_get_user, mock_metadata, mock_pipeline):
@@ -361,7 +361,7 @@ $graph:
 
                 # Verify get_cwl_metadata was called with raw text
                 mock_metadata.assert_called_once_with(None, cwl_raw_text)
-                # Verify trigger_gitlab_pipeline_with_cwl_text was called
+                # Verify trigger_gitlab_pipeline was called
                 mock_pipeline.assert_called_once()
 
     @patch('api.auth.security.get_authorized_user')
