@@ -2,6 +2,7 @@ from datetime import timedelta, datetime
 
 import flask
 import requests
+import sqlalchemy
 from flask import request, json
 from flask_api import status
 from xmltodict import parse
@@ -303,17 +304,15 @@ def start_member_session_jwt(decoded_jwt, token_string, auto_create_member=False
             current_app.logger.error(f"Failed to add new member {usr}: {e}")
             raise
 
-    member_session = MemberSession(member_id=member.id, session_key=token_string, creation_date=datetime.utcnow())
     try:
-        db.session.add(member_session)
-        db.session.commit()
+        query = """INSERT INTO member_session (member_id, session_key, creation_date)
+            VALUES ({}, '{}', '{}')
+            ON CONFLICT (session_key) DO NOTHING;""".format(member.id, token_string, datetime.utcnow())
+        db.session.execute(sqlalchemy.text(query))
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Failed to create member session for {usr}: {e}")
         raise
-
-    current_app.logger.error(f"Found member {usr}")
-    current_app.logger.error(f"Member username {member.username}")
 
     return member
 
