@@ -375,6 +375,7 @@ class Describe(Resource):
         
         req_data = json.loads(req_data_string)
 
+        cwl_link = None
         #try:
         if req_data.get("executionUnit") and req_data.get("cwlRawText"):
             return generate_error("Cannot pass a request body with a executionUnit and cwlRawText. Must choose one to register.", status.HTTP_400_BAD_REQUEST)

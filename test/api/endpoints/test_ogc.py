@@ -509,6 +509,12 @@ $graph:
                                           content_type='application/json',
                                           headers={'proxy-ticket': 'test-ticket'})
 
+                # Debug: Print response if not 202
+                if response.status_code != 202:
+                    import sys
+                    print(f"\nResponse status: {response.status_code}", file=sys.stderr)
+                    print(f"Response data: {response.get_json()}", file=sys.stderr)
+
                 # Then update should be accepted
                 self.assertEqual(response.status_code, 202)
                 data = response.get_json()
