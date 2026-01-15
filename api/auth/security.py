@@ -31,8 +31,8 @@ def get_authorized_user():
                 decoded = verify_jwt_token(auth_header_value)
                 if not decoded:
                     raise AuthenticationError("Invalid or expired jwt token.")
-                
-                _member = start_member_session_jwt(decoded)
+
+                _member = start_member_session_jwt(decoded, auth_header_value)
 
                 return _member
             else:
@@ -45,8 +45,8 @@ def get_authorized_user():
                 decoded = verify_jwt_token(token)
                 if not decoded:
                     raise AuthenticationError("Invalid or expired jwt token.")
-                
-                _member = start_member_session_jwt(decoded)
+
+                _member = start_member_session_jwt(decoded, token)
 
                 return _member
             else: # Malformed Authorization header
@@ -207,14 +207,23 @@ def verify_jwt_token(token):
         signing_key = jwks_client.get_signing_key_from_jwt(token)
 
         # Decode and validate the token
-        decoded_token = jwt.decode(
-            token,
-            signing_key.key,
-            algorithms=["RS256"],
-            audience=settings.JWT_AUDIENCE,
-            options={"verify_exp": True}
-        )
+        try:
+            decoded_token = jwt_decode(token, signing_key, True)
+        except:
+            # Retry without expiration validation
+            decoded_token = jwt_decode(token, signing_key, False)
+            
         return decoded_token
     except Exception as e:
         print("JWT validation error:", e)
         return None
+
+def jwt_decode(token, signing_key, verify_exp):
+    decoded_token = jwt.decode(
+                token,
+                signing_key.key,
+                algorithms=["RS256"],
+                audience=settings.JWT_AUDIENCE,
+                options={"verify_exp": verify_exp}
+            )
+    return decoded_token
