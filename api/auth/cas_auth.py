@@ -34,6 +34,7 @@ except ImportError:
 blueprint = flask.Blueprint('cas', __name__)
 
 PROXY_TICKET_PREFIX = "PGT-"
+JWT_TOKEN_PREFIX = "jwt:"
 MEMBER_STATUS_ACTIVE = "active"
 MEMBER_STATUS_SUSPENDED = "suspended"
 
@@ -284,13 +285,13 @@ def start_member_session(cas_response, ticket, auto_create_member=False):
     return member_session
 
 
-def start_member_session_jwt(decoded_jwt, auto_create_member=False):
+def start_member_session_jwt(decoded_jwt, token_string, auto_create_member=False):
 
     usr = decoded_jwt.get("preferred_username")
 
     member = db.session.query(Member).filter_by(username=usr).first()
 
-    if member is None and (auto_create_member): 
+    if member is None and (auto_create_member):
         member = Member(first_name=decoded_jwt.get("given_name"),
                         last_name=decoded_jwt.get("family_name"),
                         username=usr,
@@ -302,7 +303,7 @@ def start_member_session_jwt(decoded_jwt, auto_create_member=False):
             current_app.logger.error(f"Failed to add new member {usr}: {e}")
             raise
 
-    member_session = MemberSession(member_id=member.id, session_key=decoded_jwt, creation_date=datetime.utcnow())
+    member_session = MemberSession(member_id=member.id, session_key=token_string, creation_date=datetime.utcnow())
     try:
         db.session.add(member_session)
         db.session.commit()
@@ -326,7 +327,7 @@ def get_cas_attribute_value(attributes, attribute_key):
 
 
 def decrypt_proxy_ticket(ticket):
-    if ticket.startswith(PROXY_TICKET_PREFIX):
+    if ticket.startswith(PROXY_TICKET_PREFIX) or ticket.startswith(JWT_TOKEN_PREFIX):
         return ticket
     else:
         try:
