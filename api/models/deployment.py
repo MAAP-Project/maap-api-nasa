@@ -9,7 +9,7 @@ class Deployment(Base):
     status = db.Column(db.String(), nullable=False)
     execution_venue = db.Column(db.String(), nullable=True)
     pipeline_id = db.Column(db.Integer, nullable=True)
-    cwl_link = db.Column(db.String(), nullable=False)
+    cwl_link = db.Column(db.String(), nullable=True)
     id = db.Column(db.String(), nullable=False)
     version = db.Column(db.String(), nullable=False)
     deployer = db.Column(db.String(), db.ForeignKey('member.username'), nullable=False)
