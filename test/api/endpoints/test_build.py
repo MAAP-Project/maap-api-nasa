@@ -617,8 +617,9 @@ class TestBuildEndpoints(unittest.TestCase):
         self.assertEqual(response_body['title'], 'Test Process')
         
         # Verify function calls
-        mock_get_cwl.assert_called_once_with('https://example.com/test-process.cwl')
-        mock_trigger_pipeline.assert_called_once_with('https://example.com/test-process.cwl', 'v1.0', mock_metadata.id, mock_any)
+        mock_get_cwl.assert_called_once_with('https://example.com/test-process.cwl', None)
+        # user.id is mocked due to db.session.query patch, so use mock_any for that argument
+        mock_trigger_pipeline.assert_called_once_with('https://example.com/test-process.cwl', mock_metadata.id, mock_any, None)
 
     @patch('api.utils.ogc_process_util.get_cwl_metadata')
     def test_create_process_deployment_invalid_cwl(self, mock_get_cwl):
@@ -652,7 +653,7 @@ class TestBuildEndpoints(unittest.TestCase):
                     user_id=user_id
                 )
             
-            self.assertEqual(str(cm.exception), "CWL link is required")
+            self.assertEqual(str(cm.exception), "CWL file is not in the right format or is invalid.")
 
     def test_create_process_deployment_invalid_user(self):
         """Test OGC process deployment with invalid user ID"""
