@@ -146,7 +146,7 @@ def get_cwl_metadata(cwl_link, cwl_text = None):
         with tempfile.NamedTemporaryFile(mode='w', suffix=".cwl", delete=False) as tmp:
             tmp.write(cwl_text)
             tmp_path = tmp.name
-        
+
         cwl_obj = load_document_by_uri(urllib.parse.urlparse(tmp_path).geturl(), load_all=True)
 
     except requests.exceptions.RequestException:
@@ -157,6 +157,12 @@ def get_cwl_metadata(cwl_link, cwl_text = None):
     finally:
         if 'tmp_path' in locals() and os.path.exists(tmp_path):
             os.remove(tmp_path)
+
+    # Ensure cwl_obj is iterable (should be a list when load_all=True)
+    try:
+        cwl_obj = list(cwl_obj) if hasattr(cwl_obj, '__iter__') and not isinstance(cwl_obj, str) else [cwl_obj]
+    except TypeError:
+        raise ValueError("CWL file structure is invalid: unable to parse CWL document.")
 
     workflow = next((obj for obj in cwl_obj if isinstance(obj, cwl_v1_2.Workflow)), None)
     if not workflow:
