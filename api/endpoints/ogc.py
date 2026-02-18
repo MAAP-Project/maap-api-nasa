@@ -709,6 +709,7 @@ class Status(Resource):
         except Exception as ex:
             print(ex)
             print(f"ERROR getting times status for job {job_id}")
+        # Bare minimum response body to pass back
         response_body = {
             "jobID": job_id,
             "processID": existing_process.process_id if existing_process else None,
@@ -716,6 +717,7 @@ class Status(Resource):
             "type": None,
             "status": current_status
         }
+        # job_info represents all additional fields a user can request about the job
         job_info.update(response_body)
         fields_to_specify = request.args.get("fields").split(',') if request.args.get("fields") else []
         job_info.update({
@@ -738,7 +740,8 @@ class Status(Resource):
         })
         get_job_details = request.args.get("getJobDetails", False)
         if get_job_details and get_job_details.lower() == "true":
-            return job_info, status.HTTP_200_OK 
+            # don't just return job_info because user can also request inputs through the fields parameter
+            response_body.update(job_info)
         # Add additional fields to the response that the user requested
         for field in fields_to_specify:
             if field in job_info:
