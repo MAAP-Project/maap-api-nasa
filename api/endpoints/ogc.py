@@ -682,6 +682,8 @@ class Status(Resource):
 
         try:
             response = hysds.get_mozart_job(job_id)
+            print("graceal1 printing response for get mozart job")
+            print(response)
             if response and response["type"]:
                 job_type = response["type"]
                 existing_process = get_process_from_hysds_name(job_type)
