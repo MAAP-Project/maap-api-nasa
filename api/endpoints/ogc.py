@@ -682,9 +682,6 @@ class Status(Resource):
 
         try:
             response = hysds.get_mozart_job(job_id)
-            print("graceal1 printing response for get mozart job")
-            print(response)
-            logging.error(response)
             if response and response["type"]:
                 job_type = response["type"]
                 existing_process = get_process_from_hysds_name(job_type)
@@ -712,6 +709,14 @@ class Status(Resource):
         except Exception as ex:
             print(ex)
             print(f"ERROR getting times status for job {job_id}")
+
+        tags = None
+        try:
+            tags = response["tags"]
+        except Exception as ex:
+            print(ex)
+            print(f"ERROR getting tags for job {job_id}")
+
         # Bare minimum response body to pass back
         response_body = {
             "jobID": job_id,
@@ -731,6 +736,7 @@ class Status(Resource):
             "finished": time_end,
             "updated": None,
             "progress": None,
+            "tags": tags,
             "links": [
                 {
                     "href": "/"+ns.name+"/jobs/"+str(job_id),
