@@ -6,6 +6,7 @@ Shared between OGC and build endpoints to avoid code duplication.
 import logging
 import os
 import re
+import subprocess
 import tempfile
 import urllib.parse
 from collections import namedtuple
@@ -147,10 +148,19 @@ def get_cwl_metadata(cwl_link, cwl_text = None):
             tmp.write(cwl_text)
             tmp_path = tmp.name
 
+        result = subprocess.run(
+            ["cwltool", "--validate", tmp_path],
+            capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            raise ValueError(f"CWL validation failed: {result.stderr.strip()}")
+
         cwl_obj = load_document_by_uri(urllib.parse.urlparse(tmp_path).geturl(), load_all=True)
 
     except requests.exceptions.RequestException:
         raise ValueError("Unable to access CWL from the provided href.")
+    except FileNotFoundError:
+        raise ValueError("cwltool is not installed or not found on PATH.")
     except Exception as e:
         log.error(f"Failed to parse CWL: {e}")
         raise ValueError("CWL file is not in the right format or is invalid.")
