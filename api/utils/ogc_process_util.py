@@ -176,7 +176,10 @@ def get_cwl_metadata(cwl_link, cwl_text = None):
 
     fragment = urllib.parse.urlparse(cwl_id).fragment
     cwl_id = os.path.basename(fragment)
-    process_version = version_match.group(1)
+    process_version = version_match.group(1).strip().strip("'\"")
+
+    if not process_version:
+        raise ValueError("Required metadata missing: s:version must have a non-empty value.")
 
     if ":" in process_version:
         raise ValueError("Process version cannot contain a :")
