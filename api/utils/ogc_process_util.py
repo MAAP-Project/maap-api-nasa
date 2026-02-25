@@ -169,14 +169,17 @@ def get_cwl_metadata(cwl_link, cwl_text = None):
         raise ValueError("A valid Workflow object must be defined in the CWL file.")
 
     cwl_id = workflow.id
-    version_match = re.search(r"s:version:\s*(\S+)", cwl_text, re.IGNORECASE)
+    version_match = re.search(r"s:version:[ \t]*(\S+)", cwl_text, re.IGNORECASE)
     
     if not version_match or not cwl_id:
         raise ValueError("Required metadata missing: s:version and a top-level id are required.")
 
     fragment = urllib.parse.urlparse(cwl_id).fragment
     cwl_id = os.path.basename(fragment)
-    process_version = version_match.group(1)
+    process_version = version_match.group(1).strip().strip("'\"")
+
+    if not process_version:
+        raise ValueError("Required metadata missing: s:version must have a non-empty value.")
 
     if ":" in process_version:
         raise ValueError("Process version cannot contain a :")
