@@ -44,6 +44,9 @@ def get_process_from_hysds_name(hysds_name):
     user = db.session.query(Member).filter_by(id=user_id).first()
     return db.session.query(Process_db).filter_by(id=id,version=version,deployer=user.username,status=DEPLOYED_PROCESS_STATUS).first()
 
+def get_process_name_from_hysds_name(hysds_name):
+    return hysds_name.removeprefix("job-")
+
 def generate_error(detail, error_status, error_type=None):
     """Generates a standardized error response body and status code."""
     full_error_type = f"{ERROR_TYPE_PREFIX}{error_type}" if error_type is not None else None

@@ -25,8 +25,9 @@ from api.utils import job_queue
 from api.utils.ogc_process_util import (
     create_process_deployment, get_cwl_metadata,
     trigger_gitlab_pipeline, create_and_commit_deployment, 
-    generate_error, get_hysds_process_name, get_process_from_hysds_name, determineDatetimeInRange, 
-    parse_rfc3339_datetime, DEPLOYED_PROCESS_STATUS, INITIAL_JOB_STATUS, UNDEPLOYED_PROCESS_STATUS, HREF_LANG
+    generate_error, get_hysds_process_name, get_process_from_hysds_name, get_process_name_from_hysds_name, 
+    determineDatetimeInRange, parse_rfc3339_datetime, DEPLOYED_PROCESS_STATUS, INITIAL_JOB_STATUS, 
+    UNDEPLOYED_PROCESS_STATUS, HREF_LANG
 )
 
 log = logging.getLogger(__name__)
@@ -651,7 +652,7 @@ class Status(Resource):
     parser.add_argument("waitForCompletion", default=False, required=False, type=bool,
                         help="Wait for Cancel job to finish")
     parser.add_argument("fields", type=str,
-                        help="Fields separated by commas that you want this response to also return. Options are request, message, created, started, finished, updated, progress, links, title, keywords, description",
+                        help="Fields separated by commas that you want this response to also return. Options are request, message, created, started, finished, updated, progress, links, title, keywords, description, process_name",
                         required=False)
     parser.add_argument("getJobDetails",default=False, required=False, type=bool,help="Return all fields for the job")
 
@@ -737,6 +738,7 @@ class Status(Resource):
             "updated": None,
             "progress": None,
             "tags": tags,
+            "process_name": f"{existing_process.id}:{existing_process.version}" if existing_process else None,
             "links": [
                 {
                     "href": "/"+ns.name+"/jobs/"+str(job_id),
@@ -853,7 +855,7 @@ class Jobs(Resource):
         :param priority: Job priority
         :param queue: Queue
         :param tag: User tag
-        :param fields: Additional fields in response i.e. keywords,description,title,created,started,finished,processID,inputs
+        :param fields: Additional fields in response i.e. keywords,description,title,created,started,finished,processID,inputs,process_name
         :return: List of jobs for a given user that matches query params provided
         """
 
@@ -988,6 +990,8 @@ class Jobs(Resource):
                             job_with_fields[field] = job_info["job"]["job_info"]["time_start"]
                         elif field == "finished":
                             job_with_fields[field] = job_info["job"]["job_info"]["time_end"]
+                        elif field == "process_name":
+                            job_with_fields[field] = get_process_name_from_hysds_name(job_with_fields["job_type"])
                         elif field == "inputs":
                             try:
                                 job_with_fields[field] = job_info["context"]["job_specification"]["params"]
