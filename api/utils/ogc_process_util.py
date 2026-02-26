@@ -6,6 +6,7 @@ Shared between OGC and build endpoints to avoid code duplication.
 import logging
 import os
 import re
+import subprocess
 import tempfile
 import urllib.parse
 from collections import namedtuple
@@ -159,8 +160,28 @@ def get_cwl_metadata(cwl_text, cwl_link=None):
             tmp.write(cwl_text)
             tmp_path = tmp.name
 
+        # Validate with cwltool
+        result = subprocess.run(
+            ["cwltool", "--validate", tmp_path],
+            capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            raise ValueError(f"CWL validation failed: {result.stderr.strip()}")
+
+        # Validate with ap-validator
+        ap_result = subprocess.run(
+            ["ap-validator", tmp_path],
+            capture_output=True, text=True
+        )
+        if ap_result.returncode != 0:
+            raise ValueError(f"Application Package validation failed: {ap_result.stderr.strip()}")
+
         cwl_obj = load_document_by_uri(urllib.parse.urlparse(tmp_path).geturl(), load_all=True)
 
+    except FileNotFoundError as e:
+        if "cwltool" in str(e) or "ap-validator" in str(e):
+            raise ValueError("cwltool or ap-validator is not installed or not found on PATH.")
+        raise ValueError("cwltool or ap-validator is not installed or not found on PATH.")
     except Exception as e:
         log.error(f"Failed to parse CWL: {e}")
         raise ValueError("CWL file is not in the right format or is invalid.")
