@@ -340,13 +340,7 @@ class Describe(Resource):
         }
         
         response_body["inputs"] = {
-            param.get("name"): {
-                "title": param.get("name"), 
-                "description": param.get("description"), 
-                "type": param.get("type"), 
-                "placeholder": param.get("placeholder"), 
-                "default": param.get("default")
-            } for param in hysds_io_result.get("params", [])
+            param.get("name"): param for param in hysds_io_result.get("params", [])
         }
 
         # TODO add outputs to response
