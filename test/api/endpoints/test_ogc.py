@@ -189,10 +189,11 @@ class TestOGCEndpoints(unittest.TestCase):
             # Then authentication should be required
             self.assertEqual(response.status_code, 401)
 
+    @patch('api.utils.ogc_process_util.get_cwl_from_link')
     @patch('api.utils.ogc_process_util.trigger_gitlab_pipeline')
     @patch('api.utils.ogc_process_util.get_cwl_metadata')
     @patch('api.auth.security.get_authorized_user')
-    def test_processes_post_creates_new_process_deployment(self, mock_get_user, mock_metadata, mock_pipeline):
+    def test_processes_post_creates_new_process_deployment(self, mock_get_user, mock_metadata, mock_pipeline, mock_get_cwl_from_link):
         """Test: POST /ogc/processes creates new process deployment"""
         with app.app_context():
             with patch('api.auth.security.validate_proxy') as mock_validate_proxy:
@@ -200,6 +201,10 @@ class TestOGCEndpoints(unittest.TestCase):
                 member = self._create_test_member()
                 mock_get_user.return_value = member
                 mock_validate_proxy.return_value = self._setup_auth_mock(member)
+
+                # Mock CWL text
+                mock_cwl_text = "cwlVersion: v1.2\n$graph:\n  - class: Workflow\n    id: new-process"
+                mock_get_cwl_from_link.return_value = mock_cwl_text
 
                 # Mock CWL metadata
                 mock_metadata.return_value = MagicMock(
@@ -243,29 +248,34 @@ class TestOGCEndpoints(unittest.TestCase):
                 self.assertIn('links', data)
                 self.assertIn('processPipelineLink', data)
 
+    @patch('api.utils.ogc_process_util.get_cwl_from_link')
     @patch('api.auth.security.get_authorized_user')
     @patch('api.utils.ogc_process_util.get_cwl_metadata')
-    def test_processes_post_returns_409_for_duplicate_process(self, mock_metadata, mock_get_user):
+    def test_processes_post_returns_409_for_duplicate_process(self, mock_metadata, mock_get_user, mock_get_cwl_from_link):
         """Test: POST /ogc/processes returns 409 for duplicate process"""
         with app.app_context():
             # Given an authenticated user and existing process
             member = self._create_test_member()
             mock_get_user.return_value = member
             existing_process = self._create_test_process(member)
-            
+
+            # Mock CWL text
+            mock_cwl_text = "cwlVersion: v1.2\n$graph:\n  - class: Workflow\n    id: test-process"
+            mock_get_cwl_from_link.return_value = mock_cwl_text
+
             mock_metadata.return_value = MagicMock()
             mock_metadata.return_value.id = "test-process"
             mock_metadata.return_value.version = "1.0"
-            
+
             # When posting a process with same id and version
             process_data = {
                 "executionUnit": {
                     "href": "https://example.com/test.cwl"
                 }
             }
-            
+
             response = self._make_authenticated_request('POST', '/api/ogc/processes', process_data, member)
-            
+
             # Then conflict should be returned
             self.assertEqual(response.status_code, 409)
             data = response.get_json()
@@ -360,9 +370,12 @@ $graph:
                 self.assertIn('processPipelineLink', data)
 
                 # Verify get_cwl_metadata was called with raw text
-                mock_metadata.assert_called_once_with(None, cwl_raw_text)
-                # Verify trigger_gitlab_pipeline was called
+                mock_metadata.assert_called_once_with(cwl_raw_text, None)
+                # Verify trigger_gitlab_pipeline was called with cwl text (not link)
                 mock_pipeline.assert_called_once()
+                # Verify the first argument is cwl text
+                call_args = mock_pipeline.call_args[0]
+                self.assertEqual(call_args[0], cwl_raw_text)
 
     @patch('api.auth.security.get_authorized_user')
     def test_processes_post_with_both_execution_unit_and_raw_text_returns_400(self, mock_get_user):
