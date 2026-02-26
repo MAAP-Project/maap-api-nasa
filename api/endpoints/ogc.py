@@ -23,10 +23,11 @@ from api.models.member import Member as Member_db
 
 from api.utils import job_queue
 from api.utils.ogc_process_util import (
-    create_process_deployment, get_cwl_metadata,
+    create_process_deployment, get_cwl_metadata, get_cwl_from_link,
     trigger_gitlab_pipeline, create_and_commit_deployment, 
-    generate_error, get_hysds_process_name, get_process_from_hysds_name, determineDatetimeInRange, 
-    parse_rfc3339_datetime, DEPLOYED_PROCESS_STATUS, INITIAL_JOB_STATUS, UNDEPLOYED_PROCESS_STATUS, HREF_LANG
+    generate_error, get_hysds_process_name, get_process_from_hysds_name, get_process_name_from_hysds_name, 
+    determineDatetimeInRange, parse_rfc3339_datetime, DEPLOYED_PROCESS_STATUS, INITIAL_JOB_STATUS, 
+    UNDEPLOYED_PROCESS_STATUS, HREF_LANG
 )
 
 log = logging.getLogger(__name__)
@@ -339,13 +340,7 @@ class Describe(Resource):
         }
         
         response_body["inputs"] = {
-            param.get("name"): {
-                "title": param.get("name"), 
-                "description": param.get("description"), 
-                "type": param.get("type"), 
-                "placeholder": param.get("placeholder"), 
-                "default": param.get("default")
-            } for param in hysds_io_result.get("params", [])
+            param.get("name"): param for param in hysds_io_result.get("params", [])
         }
 
         # TODO add outputs to response
@@ -375,7 +370,6 @@ class Describe(Resource):
         
         req_data = json.loads(req_data_string)
 
-        cwl_link = None
         cwl_raw_text=None
         try:
             if req_data.get("executionUnit") and req_data.get("cwlRawText"):
@@ -387,18 +381,18 @@ class Describe(Resource):
                         return generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
                 except Exception as e:
                     return generate_error("Request body must contain executionUnit with an href.", status.HTTP_400_BAD_REQUEST)
-                metadata = get_cwl_metadata(cwl_link, None)
+                cwl_raw_text = get_cwl_from_link(cwl_link)
             elif req_data.get("cwlRawText"):
                 cwl_raw_text = req_data.get("cwlRawText")
-                metadata = get_cwl_metadata(None, req_data.get("cwlRawText"))
             else:
                 return generate_error("Must pass a request body with a executionUnit or cwlRawText. Other formats not currently supported", status.HTTP_400_BAD_REQUEST)
             
+            metadata = get_cwl_metadata(cwl_raw_text)
             if metadata.id != existing_process.id or metadata.version != existing_process.version:
                 detail = f"Need to provide same id and version as previous process which is {existing_process.id}:{existing_process.version}"
                 return generate_error(detail, status.HTTP_400_BAD_REQUEST)
             
-            pipeline = trigger_gitlab_pipeline(cwl_link, metadata.id, user.id, cwl_raw_text)
+            pipeline = trigger_gitlab_pipeline(cwl_raw_text, metadata.id, user.id)
             deployment = create_and_commit_deployment(metadata, pipeline, user, existing_process)
             
             deployment = db.session.query(Deployment_db).filter_by(pipeline_id=pipeline.id).first()
@@ -651,7 +645,7 @@ class Status(Resource):
     parser.add_argument("waitForCompletion", default=False, required=False, type=bool,
                         help="Wait for Cancel job to finish")
     parser.add_argument("fields", type=str,
-                        help="Fields separated by commas that you want this response to also return. Options are request, message, created, started, finished, updated, progress, links, title, keywords, description",
+                        help="Fields separated by commas that you want this response to also return. Options are request, message, created, started, finished, updated, progress, links, title, keywords, description, process_name",
                         required=False)
     parser.add_argument("getJobDetails",default=False, required=False, type=bool,help="Return all fields for the job")
 
@@ -737,6 +731,7 @@ class Status(Resource):
             "updated": None,
             "progress": None,
             "tags": tags,
+            "process_name": get_process_name_from_hysds_name(job_type),
             "links": [
                 {
                     "href": "/"+ns.name+"/jobs/"+str(job_id),
@@ -853,7 +848,7 @@ class Jobs(Resource):
         :param priority: Job priority
         :param queue: Queue
         :param tag: User tag
-        :param fields: Additional fields in response i.e. keywords,description,title,created,started,finished,processID,inputs
+        :param fields: Additional fields in response i.e. keywords,description,title,created,started,finished,processID,inputs,process_name
         :return: List of jobs for a given user that matches query params provided
         """
 
@@ -988,6 +983,8 @@ class Jobs(Resource):
                             job_with_fields[field] = job_info["job"]["job_info"]["time_start"]
                         elif field == "finished":
                             job_with_fields[field] = job_info["job"]["job_info"]["time_end"]
+                        elif field == "process_name":
+                            job_with_fields[field] = get_process_name_from_hysds_name(job_with_fields["job_type"])
                         elif field == "inputs":
                             try:
                                 job_with_fields[field] = job_info["context"]["job_specification"]["params"]
