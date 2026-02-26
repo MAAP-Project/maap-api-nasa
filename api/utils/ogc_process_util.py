@@ -37,12 +37,20 @@ ERROR_TYPE_PREFIX = "http://www.opengis.net/def/exceptions/"
 def get_hysds_process_name(id, user_id, version):
     return f"{id}_{user_id}:{version}"
 
-def get_process_from_hysds_name(hysds_name):
+def parse_hysds_name(hysds_name):
     main_part, version = hysds_name.rsplit(':', 1)
     id_part, user_id = main_part.rsplit('_', 1)
     id = id_part.replace('job-', '', 1)
+    return id, version, user_id
+
+def get_process_from_hysds_name(hysds_name):
+    id, version, user_id = parse_hysds_name(hysds_name)
     user = db.session.query(Member).filter_by(id=user_id).first()
     return db.session.query(Process_db).filter_by(id=id,version=version,deployer=user.username,status=DEPLOYED_PROCESS_STATUS).first()
+
+def get_process_name_from_hysds_name(hysds_name):
+    id, version, user_id = parse_hysds_name(hysds_name)
+    return f"{id}:{version}"
 
 def generate_error(detail, error_status, error_type=None):
     """Generates a standardized error response body and status code."""
