@@ -65,22 +65,17 @@ def generate_error(detail, error_status, error_type=None):
     return response_body, error_status
 
 
-def trigger_gitlab_pipeline(cwl_link, metadata_id, uuid, cwl_raw_text=None):
+def trigger_gitlab_pipeline(cwl_raw_text, metadata_id, uuid):
     """Triggers the CI/CD pipeline in GitLab to deploy a process."""
     try:
         # random process name to allow algorithms later having the same id/version if the deployer is different 
         process_name_hysds = f"{metadata_id}_{uuid}"
         gl = gitlab.Gitlab(settings.GITLAB_URL, private_token=settings.GITLAB_TOKEN)
         project = gl.projects.get(settings.GITLAB_PROJECT_ID_POST_PROCESS)
-        if cwl_link:
-            pipeline_key = "CWL_URL"
-            pipeline_value = cwl_link
-        else:
-            pipeline_key = "PROCESS"
-            pipeline_value = base64.b64encode(cwl_raw_text.encode()).decode()
+        pipeline_value = base64.b64encode(cwl_raw_text.encode()).decode()
         pipeline = project.pipelines.create({
             "ref": settings.GITLAB_POST_PROCESS_PIPELINE_REF,
-            "variables": [{"key": pipeline_key, "value": pipeline_value}, {"key": "PROCESS_NAME_HYSDS", "value": process_name_hysds}]
+            "variables": [{"key": "PROCESS", "value": pipeline_value}, {"key": "PROCESS_NAME_HYSDS", "value": process_name_hysds}]
         })
         log.info(f"Triggered pipeline ID: {pipeline.id}")
         return pipeline
@@ -120,18 +115,32 @@ CWL_METADATA = namedtuple("CWL_METADATA", [
     "base_command", "author"
 ])
 
-def get_cwl_metadata(cwl_link, cwl_text = None):
+def get_cwl_from_link(cwl_link):
     """
-    Fetches, parses, and extracts metadata from a CWL file. This approach avoids making 
-    two separate web requests for the same file.
+    Fetch the CWL contents from the CWL link
+    """
+    try:
+        response = requests.get(cwl_link)
+        response.raise_for_status()
+        cwl_text = response.text
+
+    except requests.exceptions.RequestException:
+        raise ValueError("Unable to access CWL from the provided href.")
     
+    return cwl_text
+
+def get_cwl_metadata(cwl_text, cwl_link=None):
+    """
+    Fetches, parses, and extracts metadata from a CWL file. This approach avoids making
+    two separate web requests for the same file.
+
     Args:
-        cwl_link (str): URL to the CWL file
-        cwl_raw_text (str): Raw text of CWL file 
-        
+        cwl_text (str): Raw text of CWL file
+        cwl_link (str, optional): URL to the CWL file
+
     Returns:
         CWL_METADATA: Named tuple containing extracted metadata
-        
+
     Raises:
         ValueError: If CWL file is invalid or inaccessible
     """
@@ -141,15 +150,10 @@ def get_cwl_metadata(cwl_link, cwl_text = None):
     base_command = None
     
     try:
-        # 1. Fetch the CWL content once using requests.
-        # 2. Save the content to a temporary file.
-        # 3. Use the local file URI with cwl_utils to parse the object model.
-        # 4. Use the in-memory text for regex-based metadata extraction.
+        # 1. Save the contents of cwl_text to a temporary file.
+        # 2. Use the local file URI with cwl_utils to parse the object model.
+        # 3. Use the in-memory text for regex-based metadata extraction.
         # This is wrapped in a try/finally block to ensure the temp file is cleaned up.
-        if cwl_link:
-            response = requests.get(cwl_link)
-            response.raise_for_status()
-            cwl_text = response.text
 
         with tempfile.NamedTemporaryFile(mode='w', suffix=".cwl", delete=False) as tmp:
             tmp.write(cwl_text)
@@ -157,8 +161,6 @@ def get_cwl_metadata(cwl_link, cwl_text = None):
 
         cwl_obj = load_document_by_uri(urllib.parse.urlparse(tmp_path).geturl(), load_all=True)
 
-    except requests.exceptions.RequestException:
-        raise ValueError("Unable to access CWL from the provided href.")
     except Exception as e:
         log.error(f"Failed to parse CWL: {e}")
         raise ValueError("CWL file is not in the right format or is invalid.")
@@ -279,9 +281,8 @@ def create_process_deployment(cwl_link, user_id, cwl_text = None, ignore_existin
     current_app.logger.debug(f"User ID: {user.id}")
 
     if cwl_link:
-        metadata = get_cwl_metadata(cwl_link, None)
-    else:
-        metadata = get_cwl_metadata(None, cwl_text)
+        cwl_text = get_cwl_from_link(cwl_link)
+    metadata = get_cwl_metadata(cwl_text, cwl_link)
     
     try:
         # Check for existing process
@@ -301,7 +302,7 @@ def create_process_deployment(cwl_link, user_id, cwl_text = None, ignore_existin
         
         # Trigger GitLab pipeline for deployment
         current_app.logger.debug(f"Triggering GitLab pipeline for deployment")
-        pipeline = trigger_gitlab_pipeline(cwl_link, metadata.id, user.id, cwl_text)
+        pipeline = trigger_gitlab_pipeline(cwl_text, metadata.id, user.id)
         current_app.logger.debug(f"Pipeline created with ID: {pipeline.id}")
         
         # Create deployment record

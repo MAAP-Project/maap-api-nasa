@@ -564,15 +564,20 @@ class TestBuildEndpoints(unittest.TestCase):
         response = self._make_authenticated_request('GET', f'/api/build/{build_id}', member_id=user2_id)
         self.assertEqual(response.status_code, 403)
 
+    @patch('api.utils.ogc_process_util.get_cwl_from_link')
     @patch('api.utils.ogc_process_util.get_cwl_metadata')
     @patch('api.utils.ogc_process_util.trigger_gitlab_pipeline')
     @patch('api.utils.ogc_process_util.create_and_commit_deployment')
-    def test_create_process_deployment_success(self, mock_create_deployment, mock_trigger_pipeline, mock_get_cwl):
+    def test_create_process_deployment_success(self, mock_create_deployment, mock_trigger_pipeline, mock_get_cwl, mock_get_cwl_from_link):
         """Test successful OGC process deployment using shared utility function"""
-        
+
         # Create test user
         user_id = self._create_test_user()
-        
+
+        # Mock CWL text
+        mock_cwl_text = "cwlVersion: v1.2\n$graph:\n  - class: Workflow\n    id: test-process"
+        mock_get_cwl_from_link.return_value = mock_cwl_text
+
         # Mock CWL metadata
         mock_metadata = MagicMock()
         mock_metadata.id = 'test-process'
@@ -581,31 +586,31 @@ class TestBuildEndpoints(unittest.TestCase):
         mock_metadata.description = 'Test Description'
         mock_metadata.keywords = 'test,process'
         mock_get_cwl.return_value = mock_metadata
-        
+
         # Mock GitLab pipeline
         mock_pipeline = MagicMock()
         mock_pipeline.id = 12345
         mock_pipeline.web_url = 'https://gitlab.com/pipeline/12345'
         mock_trigger_pipeline.return_value = mock_pipeline
-        
+
         # Mock deployment creation
         mock_deployment = MagicMock()
         mock_deployment.job_id = 999
         mock_deployment.status = 'accepted'
         mock_deployment.created = datetime.now()
         mock_create_deployment.return_value = mock_deployment
-        
+
         # Mock the re-query for deployment
         with patch('api.utils.ogc_process_util.db.session.query') as mock_query:
             mock_query.return_value.filter_by.return_value.first.return_value = mock_deployment
-            
+
             with app.app_context():
                 response_body, status_code = create_process_deployment(
                     cwl_link='https://example.com/test-process.cwl',
                     user_id=user_id,
                     ignore_existing=True
                 )
-        
+
         # Assertions
         self.assertEqual(status_code, 202)
         self.assertIn('deploymentJobID', response_body)
@@ -615,29 +620,35 @@ class TestBuildEndpoints(unittest.TestCase):
         self.assertIn('links', response_body)
         self.assertIn('title', response_body)
         self.assertEqual(response_body['title'], 'Test Process')
-        
-        # Verify function calls
-        mock_get_cwl.assert_called_once_with('https://example.com/test-process.cwl', None)
-        # user.id is mocked due to db.session.query patch, so use mock_any for that argument
-        mock_trigger_pipeline.assert_called_once_with('https://example.com/test-process.cwl', mock_metadata.id, mock_any, None)
 
+        # Verify function calls
+        mock_get_cwl_from_link.assert_called_once_with('https://example.com/test-process.cwl')
+        mock_get_cwl.assert_called_once_with(mock_cwl_text, 'https://example.com/test-process.cwl')
+        # user.id is mocked due to db.session.query patch, so use mock_any for that argument
+        mock_trigger_pipeline.assert_called_once_with(mock_cwl_text, mock_metadata.id, mock_any)
+
+    @patch('api.utils.ogc_process_util.get_cwl_from_link')
     @patch('api.utils.ogc_process_util.get_cwl_metadata')
-    def test_create_process_deployment_invalid_cwl(self, mock_get_cwl):
+    def test_create_process_deployment_invalid_cwl(self, mock_get_cwl, mock_get_cwl_from_link):
         """Test OGC process deployment with invalid CWL link"""
-        
+
         # Create test user
         user_id = self._create_test_user()
-        
+
+        # Mock CWL text
+        mock_cwl_text = "invalid cwl content"
+        mock_get_cwl_from_link.return_value = mock_cwl_text
+
         # Mock CWL metadata to raise ValueError
         mock_get_cwl.side_effect = ValueError("Invalid CWL file")
-        
+
         with app.app_context():
             with self.assertRaises(ValueError) as cm:
                 create_process_deployment(
                     cwl_link='https://example.com/invalid.cwl',
                     user_id=user_id
                 )
-            
+
             self.assertIn("Invalid CWL file", str(cm.exception))
 
     def test_create_process_deployment_missing_cwl_link(self):
