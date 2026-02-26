@@ -685,13 +685,7 @@ class Status(Resource):
             response = hysds.get_mozart_job(job_id)
             if response and response["type"]:
                 job_type = response["type"]
-                logging.error("graceal1 job type")
-                print("graceal1 job type")
-                logging.error(job_type)
-                print(job_type)
                 existing_process = get_process_from_hysds_name(job_type)
-                print(existing_process)
-                logging.error(existing_process)
         except Exception as ex:
             print(ex)
         
@@ -744,7 +738,7 @@ class Status(Resource):
             "updated": None,
             "progress": None,
             "tags": tags,
-            "process_name": f"{existing_process.id}:{existing_process.version}" if existing_process else None,
+            "process_name": get_process_name_from_hysds_name(job_type),
             "links": [
                 {
                     "href": "/"+ns.name+"/jobs/"+str(job_id),
