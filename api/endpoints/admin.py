@@ -12,7 +12,9 @@ from api.schemas.pre_approved_schema import PreApprovedSchema
 from datetime import datetime
 import json
 from api.utils import job_queue
+from api.utils import s3_access
 from api.utils.http_util import err_response
+from api.models.organization_s3_access import OrganizationS3Access
 
 log = logging.getLogger(__name__)
 ns = api.namespace('admin', description='Operations related to the MAAP admin')
@@ -201,3 +203,93 @@ class PreApprovedEmails(Resource):
             raise
 
         return {"code": status.HTTP_200_OK, "message": "Successfully deleted {}.".format(email)}
+
+
+@ns.route('/s3-access')
+class S3AccessList(Resource):
+
+    @api.doc(security='ApiKeyAuth')
+    @login_required(role=Role.ROLE_ADMIN)
+    def get(self):
+        """
+        Lists all organization S3 bucket access entries
+        :return:
+        """
+        return s3_access.get_all_s3_access()
+
+    @api.doc(security='ApiKeyAuth')
+    @login_required(role=Role.ROLE_ADMIN)
+    def post(self):
+        """
+        Create new organization S3 bucket access entry.
+
+        Format of JSON to post:
+        {
+            "org_id": 1,
+            "bucket_name": "my-bucket",
+            "bucket_prefix": "optional/prefix"
+        }
+        """
+
+        req_data = request.get_json()
+        if not isinstance(req_data, dict):
+            return err_response("Valid JSON body object required.")
+
+        org_id = req_data.get("org_id")
+        if not isinstance(org_id, int) or not org_id:
+            return err_response("Valid org_id is required.")
+
+        bucket_name = req_data.get("bucket_name", "")
+        if not isinstance(bucket_name, str) or not bucket_name:
+            return err_response("Valid bucket_name is required.")
+
+        bucket_prefix = req_data.get("bucket_prefix")
+
+        new_entry = s3_access.create_s3_access(org_id, bucket_name, bucket_prefix)
+        return new_entry
+
+
+@ns.route('/s3-access/<int:access_id>')
+class S3AccessEntry(Resource):
+
+    @api.doc(security='ApiKeyAuth')
+    @login_required(role=Role.ROLE_ADMIN)
+    def put(self, access_id):
+        """
+        Update organization S3 bucket access entry. Only supplied fields are updated.
+        """
+
+        if not access_id:
+            return err_response("S3 access id is required.")
+
+        req_data = request.get_json()
+        if not isinstance(req_data, dict):
+            return err_response("Valid JSON body object required.")
+
+        access = db.session.query(OrganizationS3Access).filter_by(id=access_id).first()
+
+        if access is None:
+            return err_response(msg="No S3 access entry found with id " + str(access_id), code=status.HTTP_404_NOT_FOUND)
+
+        org_id = req_data.get("org_id")
+        bucket_name = req_data.get("bucket_name")
+        bucket_prefix = req_data.get("bucket_prefix")
+
+        updated_entry = s3_access.update_s3_access(access, org_id, bucket_name, bucket_prefix)
+        return updated_entry
+
+    @api.doc(security='ApiKeyAuth')
+    @login_required(role=Role.ROLE_ADMIN)
+    def delete(self, access_id):
+        """
+        Delete organization S3 bucket access entry
+        """
+
+        access = db.session.query(OrganizationS3Access).filter_by(id=access_id).first()
+
+        if access is None:
+            return err_response(msg="S3 access entry does not exist", code=status.HTTP_404_NOT_FOUND)
+
+        s3_access.delete_s3_access(access_id)
+
+        return {"code": status.HTTP_200_OK, "message": "Successfully deleted S3 access entry {}.".format(access_id)}

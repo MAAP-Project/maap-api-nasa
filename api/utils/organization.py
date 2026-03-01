@@ -11,6 +11,7 @@ from api.models.member import Member
 from api.models.organization import Organization
 from api.models.organization_job_queue import OrganizationJobQueue
 from api.models.organization_membership import OrganizationMembership
+from api.models.organization_s3_access import OrganizationS3Access
 from api.schemas.organization_schema import OrganizationSchema
 
 log = logging.getLogger(__name__)
@@ -205,6 +206,17 @@ def delete_organization(org_id):
         except Exception as e:
             db.session.rollback()
             app.logger.error(f"Failed to clear job queues for organization {org_id}: {e}")
+            raise
+
+        # Clear S3 access entries
+        try:
+            db.session.execute(
+                db.delete(OrganizationS3Access).filter_by(org_id=org_id)
+            )
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Failed to clear S3 access for organization {org_id}: {e}")
             raise
 
         try:

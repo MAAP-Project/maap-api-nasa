@@ -23,6 +23,7 @@ from api.utils.email_util import send_user_status_update_active_user_email, \
     send_user_status_update_suspended_user_email, send_user_status_change_email, \
     send_welcome_to_maap_active_user_email, send_welcome_to_maap_suspended_user_email
 from api.endpoints.environment import get_config_from_api
+from api.utils.s3_access import get_user_s3_access
 from api.models.pre_approved import PreApproved
 from datetime import datetime, timezone
 import json
@@ -737,58 +738,119 @@ class AwsAccessUserBucketCredentials(Resource):
         if not maap_user:
             return Response('Unauthorized', status=401)
 
-        # Guaranteed to at least always return default 
+        # Guaranteed to at least always return default
         config = get_config_from_api(request.host)
         workspace_bucket = config["workspace_bucket"]
 
-        # Allow bucket access to just the user's workspace directory
-        policy = f'''{{"Version": "2012-10-17",
-            "Statement": [
-                {{
-                    "Sid": "GrantAccessToUserFolder",
-                    "Effect": "Allow",
-                    "Action": [
-                        "s3:ListBucket",
-                        "s3:DeleteObject",
-                        "s3:GetObject",
-                        "s3:PutObject",
-                        "s3:RestoreObject",
-                        "s3:ListMultipartUploadParts",
-                        "s3:AbortMultipartUpload"
-                    ],
-                    "Resource": [
-                        "arn:aws:s3:::{workspace_bucket}/{maap_user.username}/*"
-                    ]
-                }},
-                {{
-                    "Sid": "GrantListAccess",
+        # Build the base policy statements for the user's workspace directory
+        statements = [
+            {
+                "Sid": "GrantAccessToUserFolder",
+                "Effect": "Allow",
+                "Action": [
+                    "s3:ListBucket",
+                    "s3:DeleteObject",
+                    "s3:GetObject",
+                    "s3:PutObject",
+                    "s3:RestoreObject",
+                    "s3:ListMultipartUploadParts",
+                    "s3:AbortMultipartUpload"
+                ],
+                "Resource": [
+                    f"arn:aws:s3:::{workspace_bucket}/{maap_user.username}/*"
+                ]
+            },
+            {
+                "Sid": "GrantListAccess",
+                "Effect": "Allow",
+                "Action": [
+                    "s3:ListBucket"
+                ],
+                "Resource": f"arn:aws:s3:::{workspace_bucket}",
+                "Condition": {
+                    "StringLike": {
+                        "s3:prefix": [
+                            f"{maap_user.username}/*"
+                        ]
+                    }
+                }
+            }
+        ]
+
+        # Track all authorized S3 paths for the response
+        authorized_s3_paths = [
+            f"s3://{workspace_bucket}/{maap_user.username}"
+        ]
+
+        # Add custom org-level S3 bucket access
+        custom_access = get_user_s3_access(maap_user.id)
+        for i, entry in enumerate(custom_access):
+            bucket = entry['bucket_name']
+            prefix = entry['bucket_prefix']
+            resource_path = f"{bucket}/{prefix}/*" if prefix else f"{bucket}/*"
+            s3_path = f"s3://{bucket}/{prefix}" if prefix else f"s3://{bucket}"
+
+            statements.append({
+                "Sid": f"GrantCustomAccess{i}",
+                "Effect": "Allow",
+                "Action": [
+                    "s3:ListBucket",
+                    "s3:DeleteObject",
+                    "s3:GetObject",
+                    "s3:PutObject",
+                    "s3:RestoreObject",
+                    "s3:ListMultipartUploadParts",
+                    "s3:AbortMultipartUpload"
+                ],
+                "Resource": [
+                    f"arn:aws:s3:::{resource_path}"
+                ]
+            })
+
+            # Add list access with prefix condition if a prefix is set
+            if prefix:
+                statements.append({
+                    "Sid": f"GrantCustomListAccess{i}",
                     "Effect": "Allow",
                     "Action": [
                         "s3:ListBucket"
                     ],
-                    "Resource": "arn:aws:s3:::{workspace_bucket}",
-                    "Condition": {{
-                        "StringLike": {{
+                    "Resource": f"arn:aws:s3:::{bucket}",
+                    "Condition": {
+                        "StringLike": {
                             "s3:prefix": [
-                                "{maap_user.username}/*"
+                                f"{prefix}/*"
                             ]
-                        }}
-                    }}
-                }}
-            ]
-        }}'''
+                        }
+                    }
+                })
+            else:
+                statements.append({
+                    "Sid": f"GrantCustomListAccess{i}",
+                    "Effect": "Allow",
+                    "Action": [
+                        "s3:ListBucket"
+                    ],
+                    "Resource": f"arn:aws:s3:::{bucket}"
+                })
+
+            authorized_s3_paths.append(s3_path)
+
+        policy = json.dumps({
+            "Version": "2012-10-17",
+            "Statement": statements
+        })
 
         # Call the assume_role method of the STSConnection object
         assumed_role_object = sts_client.assume_role(
             RoleArn=settings.WORKSPACE_BUCKET_ARN,
             RoleSessionName=f'workspace-session-{maap_user.username}',
             Policy=policy,
-            DurationSeconds=(60 * 60)
+            DurationSeconds=(60 * 60 * 12)  # 12 hours, which is the max allowed by AWS for a custom policy with assume_role
         )
 
         response = jsonify(
-            aws_bucket_name=workspace_bucket,
-            aws_bucket_prefix=maap_user.username,
+            authorized_s3_paths=authorized_s3_paths,
             aws_access_key_id=assumed_role_object['Credentials']['AccessKeyId'],
             aws_secret_access_key=assumed_role_object['Credentials']['SecretAccessKey'],
             aws_session_token=assumed_role_object['Credentials']['SessionToken'],
