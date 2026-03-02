@@ -6,17 +6,14 @@ Shared between OGC and build endpoints to avoid code duplication.
 import logging
 import os
 import re
-import tempfile
 import urllib.parse
 from collections import namedtuple
 from datetime import datetime, timezone
 
 import gitlab
 import requests
-from cwl_utils.parser import load_document_by_uri, cwl_v1_2
-from cwltool.load_tool import load_tool
-from cwltool.context import LoadingContext
-from ap_validator import validate_cwl
+from cwl_utils.parser import cwl_v1_2
+from ap_validator.app_package import AppPackage
 from flask import current_app
 from flask_api import status
 
@@ -153,49 +150,29 @@ def get_cwl_metadata(cwl_text, cwl_link=None):
     base_command = None
     
     try:
-        # 1. Save the contents of cwl_text to a temporary file.
-        # 2. Use the local file URI with cwl_utils to parse the object model.
-        # 3. Use the in-memory text for regex-based metadata extraction.
-        # This is wrapped in a try/finally block to ensure the temp file is cleaned up.
+        # Validate with ap-validator using Python API (works with in-memory string)
+        # Note: ap-validator internally runs cwltool validation first, then checks OGC requirements
+        app_package = AppPackage.from_string(cwl_text)
+        validation_result = app_package.check_all(include=["error", "hint"])
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix=".cwl", delete=False) as tmp:
-            tmp.write(cwl_text)
-            tmp_path = tmp.name
-
-        # Validate with cwltool using Python API
-        try:
-            # Create loading context and enable validation
-            loading_context = LoadingContext()
-            loading_context.do_validate = True
-
-            # load_tool performs validation when do_validate is True
-            load_tool(tmp_path, loading_context)
-        except Exception as e:
-            raise ValueError(f"CWL validation failed: {str(e)}")
-
-        # Validate with ap-validator using Python API
-        try:
-            validation_result = validate_cwl(tmp_path)
-            if not validation_result.get('valid', False):
-                errors = validation_result.get('errors', ['Unknown validation error'])
-                error_msg = '; '.join(str(err) for err in errors)
+        if not validation_result.get('valid', False):
+            issues = validation_result.get('issues', [])
+            error_messages = [issue['message'] for issue in issues if issue['type'] == 'error']
+            if error_messages:
+                error_msg = '; '.join(error_messages)
                 raise ValueError(f"Application Package validation failed: {error_msg}")
-        except ValueError:
-            # Re-raise ValueError from validation failures
-            raise
-        except Exception as e:
-            raise ValueError(f"Application Package validation failed: {str(e)}")
+            else:
+                raise ValueError("Application Package validation failed with unknown errors")
 
-        cwl_obj = load_document_by_uri(urllib.parse.urlparse(tmp_path).geturl(), load_all=True)
+        # Parse CWL object model (already loaded by AppPackage)
+        cwl_obj = app_package.cwl_obj
 
-    except FileNotFoundError as e:
-        raise ValueError(f"Required file not found: {str(e)}")
+    except ValueError:
+        # Re-raise ValueError from validation failures
+        raise
     except Exception as e:
-        log.error(f"Failed to parse CWL: {e}")
-        raise ValueError("CWL file is not in the right format or is invalid.")
-    finally:
-        if 'tmp_path' in locals() and os.path.exists(tmp_path):
-            os.remove(tmp_path)
+        log.error(f"Failed to parse or validate CWL: {e}")
+        raise ValueError(f"CWL file is not in the right format or is invalid: {str(e)}")
 
     # Ensure cwl_obj is iterable (should be a list when load_all=True)
     try:
