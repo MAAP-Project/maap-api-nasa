@@ -157,6 +157,9 @@ def get_cwl_metadata(cwl_text, cwl_link=None):
 
         if not validation_result.get('valid', False):
             issues = validation_result.get('issues', [])
+            print("graceal1 printing issues for app validation")
+            print(issues)
+            logging.error(issues)
             error_messages = [issue['message'] for issue in issues if issue['type'] == 'error']
             if error_messages:
                 error_msg = '; '.join(error_messages)
