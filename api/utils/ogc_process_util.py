@@ -6,7 +6,6 @@ Shared between OGC and build endpoints to avoid code duplication.
 import logging
 import os
 import re
-import subprocess
 import tempfile
 import urllib.parse
 from collections import namedtuple
@@ -15,6 +14,9 @@ from datetime import datetime, timezone
 import gitlab
 import requests
 from cwl_utils.parser import load_document_by_uri, cwl_v1_2
+from cwltool.load_tool import load_tool
+from cwltool.context import LoadingContext
+from ap_validator import validate_cwl
 from flask import current_app
 from flask_api import status
 
@@ -160,28 +162,34 @@ def get_cwl_metadata(cwl_text, cwl_link=None):
             tmp.write(cwl_text)
             tmp_path = tmp.name
 
-        # Validate with cwltool
-        result = subprocess.run(
-            ["cwltool", "--validate", tmp_path],
-            capture_output=True, text=True
-        )
-        if result.returncode != 0:
-            raise ValueError(f"CWL validation failed: {result.stderr.strip()}")
+        # Validate with cwltool using Python API
+        try:
+            # Create loading context and enable validation
+            loading_context = LoadingContext()
+            loading_context.do_validate = True
 
-        # Validate with ap-validator
-        ap_result = subprocess.run(
-            ["ap-validator", tmp_path],
-            capture_output=True, text=True
-        )
-        if ap_result.returncode != 0:
-            raise ValueError(f"Application Package validation failed: {ap_result.stderr.strip()}")
+            # load_tool performs validation when do_validate is True
+            load_tool(tmp_path, loading_context)
+        except Exception as e:
+            raise ValueError(f"CWL validation failed: {str(e)}")
+
+        # Validate with ap-validator using Python API
+        try:
+            validation_result = validate_cwl(tmp_path)
+            if not validation_result.get('valid', False):
+                errors = validation_result.get('errors', ['Unknown validation error'])
+                error_msg = '; '.join(str(err) for err in errors)
+                raise ValueError(f"Application Package validation failed: {error_msg}")
+        except ValueError:
+            # Re-raise ValueError from validation failures
+            raise
+        except Exception as e:
+            raise ValueError(f"Application Package validation failed: {str(e)}")
 
         cwl_obj = load_document_by_uri(urllib.parse.urlparse(tmp_path).geturl(), load_all=True)
 
     except FileNotFoundError as e:
-        if "cwltool" in str(e) or "ap-validator" in str(e):
-            raise ValueError("cwltool or ap-validator is not installed or not found on PATH.")
-        raise ValueError("cwltool or ap-validator is not installed or not found on PATH.")
+        raise ValueError(f"Required file not found: {str(e)}")
     except Exception as e:
         log.error(f"Failed to parse CWL: {e}")
         raise ValueError("CWL file is not in the right format or is invalid.")
