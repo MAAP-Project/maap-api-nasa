@@ -754,11 +754,13 @@ class AwsAccessUserBucketCredentials(Resource):
         )
 
         response = jsonify(
-            authorized_s3_paths=authorized_s3_paths,
-            aws_access_key_id=assumed_role_object['Credentials']['AccessKeyId'],
-            aws_secret_access_key=assumed_role_object['Credentials']['SecretAccessKey'],
-            aws_session_token=assumed_role_object['Credentials']['SessionToken'],
-            aws_session_expiration=assumed_role_object['Credentials']['Expiration'].strftime("%Y-%m-%d %H:%M:%S%z")
+            credentials={
+                "aws_access_key_id": assumed_role_object['Credentials']['AccessKeyId'],
+                "aws_secret_access_key": assumed_role_object['Credentials']['SecretAccessKey'],
+                "aws_session_token": assumed_role_object['Credentials']['SessionToken'],
+                "expires_at": assumed_role_object['Credentials']['Expiration'].strftime("%Y-%m-%dT%H:%M:%S%z")
+            },
+            authorized_s3_paths=authorized_s3_paths
         )
 
         response.headers.add('Access-Control-Allow-Origin', '*')

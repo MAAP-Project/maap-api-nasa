@@ -227,7 +227,8 @@ class S3AccessList(Resource):
         {
             "org_id": 1,
             "bucket_name": "my-bucket",
-            "bucket_prefix": "optional/prefix"
+            "bucket_prefix": "optional/prefix",
+            "readonly": false
         }
         """
 
@@ -244,8 +245,9 @@ class S3AccessList(Resource):
             return err_response("Valid bucket_name is required.")
 
         bucket_prefix = req_data.get("bucket_prefix")
+        readonly = req_data.get("readonly", False)
 
-        new_entry = s3_access.create_s3_access(org_id, bucket_name, bucket_prefix)
+        new_entry = s3_access.create_s3_access(org_id, bucket_name, bucket_prefix, readonly)
         return new_entry
 
 
@@ -274,8 +276,9 @@ class S3AccessEntry(Resource):
         org_id = req_data.get("org_id")
         bucket_name = req_data.get("bucket_name")
         bucket_prefix = req_data.get("bucket_prefix")
+        readonly = req_data.get("readonly")
 
-        updated_entry = s3_access.update_s3_access(access, org_id, bucket_name, bucket_prefix)
+        updated_entry = s3_access.update_s3_access(access, org_id, bucket_name, bucket_prefix, readonly)
         return updated_entry
 
     @api.doc(security='ApiKeyAuth')

@@ -9,6 +9,7 @@ class OrganizationS3Access(Base):
     org_id = db.Column(db.Integer, db.ForeignKey('organization.id'), nullable=False)
     bucket_name = db.Column(db.String(), nullable=False)
     bucket_prefix = db.Column(db.String(), nullable=True)
+    readonly = db.Column(db.Boolean(), nullable=False, default=False)
     creation_date = db.Column(db.DateTime())
 
     def __repr__(self):

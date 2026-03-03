@@ -23,6 +23,7 @@ def get_all_s3_access():
             OrganizationS3Access.org_id,
             OrganizationS3Access.bucket_name,
             OrganizationS3Access.bucket_prefix,
+            OrganizationS3Access.readonly,
             OrganizationS3Access.creation_date,
             Organization.name.label('org_name')
         ).join(
@@ -36,6 +37,7 @@ def get_all_s3_access():
                 'org_name': e.org_name,
                 'bucket_name': e.bucket_name,
                 'bucket_prefix': e.bucket_prefix,
+                'readonly': e.readonly,
                 'creation_date': e.creation_date.strftime('%m/%d/%Y') if e.creation_date else None,
             })
 
@@ -46,7 +48,7 @@ def get_all_s3_access():
 
 def get_user_s3_access(user_id):
     try:
-        query = """select osa.id, osa.bucket_name, osa.bucket_prefix
+        query = """select osa.id, osa.bucket_name, osa.bucket_prefix, osa.readonly
                     from organization_membership m
                     inner join organization_s3_access osa on m.org_id = osa.org_id
                     where m.member_id = {}""".format(user_id)
@@ -60,11 +62,28 @@ def get_user_s3_access(user_id):
             result.append({
                 'bucket_name': r.bucket_name,
                 'bucket_prefix': r.bucket_prefix,
+                'readonly': r.readonly,
             })
 
         return result
     except SQLAlchemyError as ex:
         raise ex
+
+
+S3_READ_WRITE_ACTIONS = [
+    "s3:ListBucket",
+    "s3:DeleteObject",
+    "s3:GetObject",
+    "s3:PutObject",
+    "s3:RestoreObject",
+    "s3:ListMultipartUploadParts",
+    "s3:AbortMultipartUpload"
+]
+
+S3_READ_ONLY_ACTIONS = [
+    "s3:ListBucket",
+    "s3:GetObject"
+]
 
 
 def build_user_s3_policy(workspace_bucket, username, user_id):
@@ -79,15 +98,7 @@ def build_user_s3_policy(workspace_bucket, username, user_id):
         {
             "Sid": "GrantAccessToUserFolder",
             "Effect": "Allow",
-            "Action": [
-                "s3:ListBucket",
-                "s3:DeleteObject",
-                "s3:GetObject",
-                "s3:PutObject",
-                "s3:RestoreObject",
-                "s3:ListMultipartUploadParts",
-                "s3:AbortMultipartUpload"
-            ],
+            "Action": S3_READ_WRITE_ACTIONS,
             "Resource": [
                 f"arn:aws:s3:::{workspace_bucket}/{username}/*"
             ]
@@ -110,28 +121,28 @@ def build_user_s3_policy(workspace_bucket, username, user_id):
     ]
 
     authorized_s3_paths = [
-        f"s3://{workspace_bucket}/{username}"
+        {
+            "bucket": workspace_bucket,
+            "prefix": username,
+            "uri": f"s3://{workspace_bucket}/{username}",
+            "type": "workspace",
+            "access": "read_write"
+        }
     ]
 
     custom_access = get_user_s3_access(user_id)
     for i, entry in enumerate(custom_access):
         bucket = entry['bucket_name']
         prefix = entry['bucket_prefix']
+        readonly = entry.get('readonly', False)
         resource_path = f"{bucket}/{prefix}/*" if prefix else f"{bucket}/*"
-        s3_path = f"s3://{bucket}/{prefix}" if prefix else f"s3://{bucket}"
+        actions = S3_READ_ONLY_ACTIONS if readonly else S3_READ_WRITE_ACTIONS
+        access_level = "read_only" if readonly else "read_write"
 
         statements.append({
             "Sid": f"GrantCustomAccess{i}",
             "Effect": "Allow",
-            "Action": [
-                "s3:ListBucket",
-                "s3:DeleteObject",
-                "s3:GetObject",
-                "s3:PutObject",
-                "s3:RestoreObject",
-                "s3:ListMultipartUploadParts",
-                "s3:AbortMultipartUpload"
-            ],
+            "Action": actions,
             "Resource": [
                 f"arn:aws:s3:::{resource_path}"
             ]
@@ -163,7 +174,13 @@ def build_user_s3_policy(workspace_bucket, username, user_id):
                 "Resource": f"arn:aws:s3:::{bucket}"
             })
 
-        authorized_s3_paths.append(s3_path)
+        authorized_s3_paths.append({
+            "bucket": bucket,
+            "prefix": prefix,
+            "uri": f"s3://{bucket}/{prefix}" if prefix else f"s3://{bucket}",
+            "type": "org",
+            "access": access_level
+        })
 
     policy = json.dumps({
         "Version": "2012-10-17",
@@ -173,12 +190,13 @@ def build_user_s3_policy(workspace_bucket, username, user_id):
     return policy, authorized_s3_paths
 
 
-def create_s3_access(org_id, bucket_name, bucket_prefix):
+def create_s3_access(org_id, bucket_name, bucket_prefix, readonly=False):
     try:
         new_entry = OrganizationS3Access(
             org_id=org_id,
             bucket_name=bucket_name,
             bucket_prefix=bucket_prefix,
+            readonly=readonly,
             creation_date=datetime.utcnow()
         )
 
@@ -197,7 +215,7 @@ def create_s3_access(org_id, bucket_name, bucket_prefix):
         raise ex
 
 
-def update_s3_access(access, org_id, bucket_name, bucket_prefix):
+def update_s3_access(access, org_id, bucket_name, bucket_prefix, readonly=None):
     try:
         if org_id is not None:
             access.org_id = org_id
@@ -205,6 +223,8 @@ def update_s3_access(access, org_id, bucket_name, bucket_prefix):
             access.bucket_name = bucket_name
         if bucket_prefix is not None:
             access.bucket_prefix = bucket_prefix
+        if readonly is not None:
+            access.readonly = readonly
 
         try:
             db.session.commit()
