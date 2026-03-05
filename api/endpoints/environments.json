@@ -35,7 +35,7 @@
         "api_server": "api.dit.maap-project.org",
         "auth_server": "auth.dit.maap-project.org",
         "mas_server": "repo.dit.maap-project.org",
-        "workspace_bucket": "maap-staging-workspace",
+        "workspace_bucket": "maap-uat-workspace",
         "default_host": false
     },
     {
