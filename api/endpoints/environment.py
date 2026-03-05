@@ -1,6 +1,6 @@
 import logging
 from flask_restx import Resource
-from flask import request
+from flask import request, current_app
 from api.restplus import api
 from urllib.parse import urlsplit
 from api import settings
@@ -66,7 +66,7 @@ def get_config_from_api(api_host):
 
 def get_config(host, server_type):
     try:
-        ROOT = os.path.dirname(os.path.abspath(__file__))   
+        ROOT = os.path.dirname(os.path.abspath(__file__))
         with open(os.path.join(ROOT, "environments.json")) as f:
             data = json.load(f)
     except FileNotFoundError:
@@ -74,8 +74,15 @@ def get_config(host, server_type):
         logging.exception(msg)
         raise FileNotFoundError(msg)
 
-    base_url = "{0.netloc}".format(urlsplit(urllib.parse.unquote(host)))
+    unquoted_host = urllib.parse.unquote(host)
+    if "://" not in unquoted_host:
+        unquoted_host = "https://" + unquoted_host
+    base_url = "{0.netloc}".format(urlsplit(unquoted_host))
 
     match = next((x for x in data if base_url == x[server_type]), None)
+
     maap_config = next((x for x in data if x['default_host'] == True), None) if match is None else match
+    if match is None:
+        current_app.logger.debug("No environment.get_config() host match found, falling back to default_host config: %s", maap_config)
+
     return maap_config

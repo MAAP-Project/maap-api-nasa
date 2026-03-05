@@ -38,7 +38,8 @@ This document provides a comprehensive step-by-step plan to implement the tests 
 FROM python:3.9 as test-builder
 
 # Install Poetry
-RUN curl -sSL https://install.python-poetry.org | python3 -
+RUN curl -sSL https://install.python-poetry.org | python3 - --version 2.2.1 && \
+    export PATH="/root/.local/bin:$PATH" 
 
 ENV PATH="${PATH}:/root/.local/bin" \
     POETRY_NO_INTERACTION=1 \
