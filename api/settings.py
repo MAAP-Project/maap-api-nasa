@@ -33,6 +33,7 @@ UMM_G_VERSION = os.getenv('UMM_G_VERSION', '1.6')
 ###
 MAAP_WMTS_XML = os.getenv('MAAP_WMTS_XML', '/maap-api-nasa/api/maap.wmts.xml')
 MAAP_EDL_CREDS = os.getenv('MAAP_EDL_CREDS','')
+MAAP_TEMP_URS_TOKEN = os.getenv('MAAP_TEMP_URS_TOKEN','')
 
 # GIT settings
 GIT_REPO_URL = os.getenv('GIT_REPO_URL','https://gitlab-ci-token:$TOKEN@repo.dit.maap-project.org/root/register-job.git')
@@ -40,13 +41,21 @@ GIT_API_URL = os.getenv('GIT_API_URL', 'https://repo.dit.maap-project.org/api/v4
 REGISTER_JOB_REPO_ID = os.getenv('REGISTER_JOB_REPO_ID', '')  # Enter project ID for register job repo
 
 # GTILAB Settings
+GITLAB_URL = os.getenv('GITLAB_URL', 'https://repo.dit.maap-project.org')
 GITLAB_TOKEN = os.getenv('GITLAB_TOKEN', 'foobar')
 GITLAB_API_TOKEN = os.getenv('GITLAB_API_TOKEN','')  # New setting inherited from sister, remove comment after API is stable
-
+DEPLOY_PROCESS_EXECUTION_VENUE = os.getenv('DEPLOY_PROCESS_EXECUTION_VENUE', 'gitlab')
+GITLAB_PROJECT_ID_POST_PROCESS = os.getenv('GITLAB_PROJECT_ID_POST_PROCESS', 31)
+GITLAB_BUILD_APP_PACK_PROJECT_ID = os.getenv('GITLAB_BUILD_APP_PACK_PROJECT_ID')
+GITLAB_BUILD_APP_PACK_PIPELINE_REF = os.getenv('GITLAB_BUILD_APP_PACK_PIPELINE_REF', 'main')
+GITLAB_BUILD_APP_PACK_PIPELINE_TOKEN = os.getenv('GITLAB_BUILD_APP_PACK_PIPELINE_TOKEN')
+GITLAB_POST_PROCESS_PIPELINE_REF = os.getenv('GITLAB_POST_PROCESS_PIPELINE_REF', 'main')
+GITLAB_OGC_APP_PACK_PROJECT_ID = os.getenv('GITLAB_OGC_APP_PACK_PROJECT_ID')
 REPO_NAME = os.getenv('REPO_NAME', 'register-job')
 REPO_PATH = os.getenv('REPO_PATH', '/home/ubuntu/repo')
-VERSION = os.getenv('VERSION', 'master')
+VERSION = os.getenv('VERSION', 'main')
 SUPPORTED_EXTENSIONS = os.getenv('SUPPORTED_EXTENSIONS', 'py,java,sh').split(',')
+THIRD_PARTY_SECRET_TOKEN_GITLAB = os.getenv('THIRD_PARTY_SECRET_TOKEN_GITLAB', '')
 
 # Docker container URL
 CONTAINER_URL = os.getenv('CONTAINER_URL', 'registry.dit.maap-project.org/root/dps_plot:master')
@@ -143,6 +152,9 @@ CLIENT_SETTINGS = {
         "algorithm_build": "dps/algorithm/build",
         "mas_algo": "mas/algorithm",
         "dps_job": "dps/job",
+        "processes_ogc": "ogc/processes",
+        "deployment_jobs_ogc": "ogc/deploymentJobs",
+        "jobs_ogc": "ogc/jobs",
         "wmts": "wmts",
         "member": "members/self",
         "member_dps_token": "members/dps/userImpersonationToken",

@@ -5,7 +5,7 @@ from flask_api import status
 from werkzeug.exceptions import HTTPException
 from api import settings
 from api.utils.security_utils import AuthenticationError, ExternalServiceError
-from api.auth.cas_auth import start_member_session_jwt, validate_proxy
+from api.auth.cas_auth import start_member_session_jwt, validate_proxy, validate_third_party
 from api.maap_database import db
 from api.models.member import Member
 from api.models.role import Role
@@ -13,12 +13,11 @@ import jwt
 from jwt import PyJWKClient
 
 HEADER_PROXY_TICKET = "proxy-ticket"
+THIRD_PARTY_AUTH_HEADER_GITLAB = "X-Gitlab-Token"
 HEADER_CP_TICKET = "cpticket"
 HEADER_AUTHORIZATION = "Authorization"
 HEADER_CAS_AUTHORIZATION = "cas-authorization"
 HEADER_DPS_TOKEN = "dps-token"
-MEMBER_STATUS_ACTIVE = "active"
-MEMBER_STATUS_SUSPENDED = "suspended"
 
 
 def get_authorized_user():
@@ -71,6 +70,17 @@ def get_authorized_user():
         # current_app.logger.error(f"Unexpected error in get_authorized_user: {e}", exc_info=True)
         return None
 
+def authenticate_third_party():
+    def authenticate_third_party_outer(wrapped_function):
+        @wraps(wrapped_function)
+        def wrap(*args, **kwargs):
+            if THIRD_PARTY_AUTH_HEADER_GITLAB in request.headers and validate_third_party(request.headers[THIRD_PARTY_AUTH_HEADER_GITLAB]):
+                return wrapped_function(*args, **kwargs)
+
+            abort(status.HTTP_401_UNAUTHORIZED, description="Not authorized.")
+
+        return wrap
+    return authenticate_third_party_outer
 
 def login_required(role=Role.ROLE_GUEST):
     def login_required_outer(wrapped_function):
@@ -101,7 +111,7 @@ def login_required(role=Role.ROLE_GUEST):
                         token = auth_header_value.split(" ")[1]
                         decoded = verify_jwt_token(token)
                         if not decoded:
-                            raise AuthenticationError(f"Invalid or expired jwt token. {token[4:]}")
+                            raise AuthenticationError("Invalid or expired jwt token.")
 
                         #request.user = decoded
                         return wrapped_function(*args, **kwargs)
@@ -205,7 +215,7 @@ def verify_jwt_token(token):
             
         return decoded_token
     except Exception as e:
-        print(f"JWT validation error: {e}")
+        print("JWT validation error:", e)
         return None
 
 def jwt_decode(token, signing_key, verify_exp):

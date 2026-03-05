@@ -12,6 +12,7 @@ from api.maap_database import db
 from api.models.member import Member
 from api.models.member_session import MemberSession
 from api import settings
+from api import constants
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_v1_5
 from Crypto import Random
@@ -179,6 +180,8 @@ def validate_bearer(token):
         current_app.logger.error(f"Unexpected error during bearer token validation: {e}")
         raise ExternalServiceError("An unexpected error occurred during token validation.")
 
+def validate_third_party(secret_token):
+    return secret_token == settings.THIRD_PARTY_SECRET_TOKEN_GITLAB
 
 def validate_cas_request(cas_url):
 
@@ -337,5 +340,3 @@ def decrypt_proxy_ticket(ticket):
         except:
             current_app.logger.debug("invalid proxy granting ticket")
             return ''
-
-

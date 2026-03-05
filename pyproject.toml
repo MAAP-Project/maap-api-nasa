@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "maap-api-nasa"
-version = "4.2.3rc1"
+version = "5.0.0rc17"
 description = "NASA Python implementation of the MAAP API specification"
 authors = ["MAAP-Project Platform <platform@MAAP-Project.github.com>"]
 license = "Apache 2.0"
@@ -40,6 +40,8 @@ flask-api = "^3.1"
 flask-sqlalchemy = "^3.1.1"
 cryptography = "^43.0.0"
 cwl-utils = ">0.10"
+cwltool = "^3.1"
+ogc-ap-validator = "^0.5.0"
 python-gitlab = "^4.11.1"
 Flask-JWT-Extended = "^4.6.0"
 python-keycloak = "^4.1.0"
