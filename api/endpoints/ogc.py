@@ -371,6 +371,7 @@ class Describe(Resource):
         req_data = json.loads(req_data_string)
 
         cwl_raw_text=None
+        cwl_link = None
         try:
             if req_data.get("executionUnit") and req_data.get("cwlRawText"):
                 return generate_error("Cannot pass a request body with a executionUnit and cwlRawText. Must choose one to register.", status.HTTP_400_BAD_REQUEST)
@@ -387,7 +388,7 @@ class Describe(Resource):
             else:
                 return generate_error("Must pass a request body with a executionUnit or cwlRawText. Other formats not currently supported", status.HTTP_400_BAD_REQUEST)
             
-            metadata = get_cwl_metadata(cwl_raw_text)
+            metadata = get_cwl_metadata(cwl_raw_text, cwl_link)
             if metadata.id != existing_process.id or metadata.version != existing_process.version:
                 detail = f"Need to provide same id and version as previous process which is {existing_process.id}:{existing_process.version}"
                 return generate_error(detail, status.HTTP_400_BAD_REQUEST)
