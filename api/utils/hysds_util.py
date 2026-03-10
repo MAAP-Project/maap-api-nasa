@@ -598,8 +598,7 @@ def validate_job_submit(hysds_io, user_params, username):
             if known_params.get(p).get("default") is not None:
                 validated_params[p] = known_params.get(p).get("default")
             else:
-                raise ValueError("Parameter {} missing from inputs. Didn't find any default set for it in "
-                                 "algorithm specification. Please specify it and attempt to submit.".format(p))
+                raise ValueError("Parameter {} missing from inputs. No default set in algorithm spec. Please specify and resubmit.".format(p))
     return validated_params
 
 
