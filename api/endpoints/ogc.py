@@ -675,6 +675,7 @@ class Status(Resource):
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
 
         try:
+            job_type=None
             response = hysds.get_mozart_job(job_id)
             if response and response["type"]:
                 job_type = response["type"]
@@ -722,6 +723,15 @@ class Status(Resource):
         # job_info represents all additional fields a user can request about the job
         job_info.update(response_body)
         fields_to_specify = request.args.get("fields").split(',') if request.args.get("fields") else []
+
+        # Assign the process name which is only available once the job status is finished 
+        print("graceal1 pending status names")
+        print(ogc.OGC_PENDING_STATUSES)
+        process_name = None
+        if ogc.OGC_PENDING_STATUSES.includes(current_status):
+            process_name = "Pending job completion"
+        else:
+            process_name = get_process_name_from_hysds_name(job_type) if job_type else "Error"
         job_info.update({
             "request": None,
             "message": None,
@@ -731,7 +741,7 @@ class Status(Resource):
             "updated": None,
             "progress": None,
             "tags": tags,
-            "process_name": get_process_name_from_hysds_name(job_type),
+            "process_name": process_name,
             "links": [
                 {
                     "href": "/"+ns.name+"/jobs/"+str(job_id),
