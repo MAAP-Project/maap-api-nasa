@@ -775,7 +775,10 @@ class Status(Resource):
                 response_body[field] = job_info[field]
             elif field == "inputs":
                 try:
-                    response_body[field] = response["job"]["params"]["job_specification"]["params"]
+                    if current_status == ogc.DEDUPED_OGC_STATUS:
+                        response_body[field] = response["job"]["job_info"]["payload"]["job_specification"]["params"]
+                    else:
+                        response_body[field] = response["job"]["params"]["job_specification"]["params"]
                 except Exception as ex:
                     print("Error finding job inputs")
                     print(ex)
@@ -1014,7 +1017,10 @@ class Jobs(Resource):
                             job_with_fields[field] = job_info["job"]["job_info"]["metrics"]["products_staged"][0]["urls"][0]
                         elif field == "inputs":
                             try:
-                                job_with_fields[field] = job_info["job"]["params"]["job_specification"]["params"]
+                                if ogc_status == ogc.DEDUPED_OGC_STATUS:
+                                    response_body[field] = job_info["job"]["job_info"]["payload"]["job_specification"]["params"]
+                                else:
+                                    response_body[field] = job_info["job"]["params"]["job_specification"]["params"]
                             except Exception as ex:
                                 print("Error finding job inputs")
                                 print(ex)
