@@ -675,6 +675,7 @@ class Status(Resource):
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
 
         try:
+            job_type=None
             response = hysds.get_mozart_job(job_id)
             if response and response["type"]:
                 job_type = response["type"]
@@ -714,7 +715,7 @@ class Status(Resource):
         # Bare minimum response body to pass back
         response_body = {
             "jobID": job_id,
-            "processID": existing_process.process_id if existing_process else None,
+            "processID": existing_process.process_id if existing_process else "Error getting process ID",
             # TODO graceal should this be hard coded in if the example options are process, wps, openeo?
             "type": None,
             "status": current_status
@@ -722,6 +723,7 @@ class Status(Resource):
         # job_info represents all additional fields a user can request about the job
         job_info.update(response_body)
         fields_to_specify = request.args.get("fields").split(',') if request.args.get("fields") else []
+
         job_info.update({
             "request": None,
             "message": None,
@@ -731,7 +733,7 @@ class Status(Resource):
             "updated": None,
             "progress": None,
             "tags": tags,
-            "process_name": get_process_name_from_hysds_name(job_type),
+            "process_name": get_process_name_from_hysds_name(job_type) if job_type else "Error getting process name",
             "links": [
                 {
                     "href": "/"+ns.name+"/jobs/"+str(job_id),
