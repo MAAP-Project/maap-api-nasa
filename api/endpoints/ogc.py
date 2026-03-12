@@ -646,7 +646,7 @@ class Status(Resource):
     parser.add_argument("waitForCompletion", default=False, required=False, type=bool,
                         help="Wait for Cancel job to finish")
     parser.add_argument("fields", type=str,
-                        help="Fields separated by commas that you want this response to also return. Options are request, message, created, started, finished, updated, progress, links, title, keywords, description, process_name",
+                        help="Fields separated by commas that you want this response to also return. Options are request, message, created, started, finished, updated, progress, links, title, keywords, description, process_name, job_queue",
                         required=False)
     parser.add_argument("getJobDetails",default=False, required=False, type=bool,help="Return all fields for the job")
 
@@ -674,9 +674,10 @@ class Status(Resource):
                                             " please contact administrator " \
                                             "of DPS".format(job_id)
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
-
+        
+        # initialize job information
+        job_type = job_queue = tags = None
         try:
-            job_type=None
             response = hysds.get_mozart_job(job_id)
             if response and response["type"]:
                 job_type = response["type"]
@@ -706,7 +707,12 @@ class Status(Resource):
             print(ex)
             print(f"ERROR getting times status for job {job_id}")
 
-        tags = None
+        try:
+            job_queue = response["job"]["job_info"]["job_queue"]
+        except Exception as ex:
+            print(ex)
+            print(f"ERROR getting job queue for job {job_id}")
+
         try:
             tags = response["tags"]
         except Exception as ex:
@@ -734,6 +740,7 @@ class Status(Resource):
             "updated": None,
             "progress": None,
             "tags": tags,
+            "job_queue": job_queue,
             "process_name": get_process_name_from_hysds_name(job_type) if job_type else "Error getting process name",
             "links": [
                 {
@@ -831,7 +838,7 @@ class Jobs(Resource):
     parser.add_argument("priority", type=int, help="Job priority, 0-9", required=False)
     parser.add_argument("getJobDetails", type=bool, help="Return full details if True. "
                                                            "List of job id's if false. Default True.", required=False)
-    parser.add_argument("fields", type=int, help="Fields to specify in the job response", required=False)
+    parser.add_argument("fields", type=int, help="Fields to specify in the job response. Options are request, message, created, started, finished, updated, progress, links, title, keywords, description, process_name, queue, job_queue", required=False)
 
     @api.doc(security="ApiKeyAuth")
     @login_required()
@@ -998,7 +1005,8 @@ class Jobs(Resource):
                         elif field not in ["type", "status", "jobID"]:
                             return generate_error(f"Invalid field requested {field}. Remember to separate fields with commas", status.HTTP_400_BAD_REQUEST)
                 except Exception as ex:
-                    print("Error getting requested field from job")
+                    # graceal make sure this works
+                    print(f"Error getting requested field {field} from job")
                 existing_process = None
 
                 job_list.append(job_with_fields)
