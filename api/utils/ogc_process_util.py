@@ -125,9 +125,12 @@ def get_cwl_from_link(cwl_link):
         response.raise_for_status()
         cwl_text = response.text
 
-    except requests.exceptions.RequestException:
-        raise ValueError("Unable to access CWL from the provided href.")
-    
+    except requests.exceptions.HTTPError as e:
+        status_code = e.response.status_code if e.response else "Unknown"
+        raise ValueError(f"Unable to access CWL from the provided href. HTTP {status_code}: {str(e)}")
+    except requests.exceptions.RequestException as e:
+        raise ValueError(f"Unable to access CWL from the provided href. {str(e)}")
+
     return cwl_text
 
 def get_cwl_metadata(cwl_text, cwl_link=None):
