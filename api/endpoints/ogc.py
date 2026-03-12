@@ -646,7 +646,7 @@ class Status(Resource):
     parser.add_argument("waitForCompletion", default=False, required=False, type=bool,
                         help="Wait for Cancel job to finish")
     parser.add_argument("fields", type=str,
-                        help="Fields separated by commas that you want this response to also return. Options are request, message, created, started, finished, updated, progress, links, title, keywords, description, process_name, job_queue",
+                        help="Fields separated by commas that you want this response to also return. Options are request, message, created, started, finished, updated, progress, links, title, keywords, description, process_name, job_queue, inputs, products",
                         required=False)
     parser.add_argument("getJobDetails",default=False, required=False, type=bool,help="Return all fields for the job")
 
@@ -676,7 +676,7 @@ class Status(Resource):
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
         
         # initialize job information
-        job_type = job_queue = tags = None
+        job_type = job_queue = tags = products = None
         try:
             response = hysds.get_mozart_job(job_id)
             if response and response["type"]:
@@ -719,6 +719,12 @@ class Status(Resource):
             print(ex)
             print(f"ERROR getting tags for job {job_id}")
 
+        try:
+            products = response["job"]["job_info"]["metrics"]["products_staged"][0]["urls"][0]
+        except Exception as ex:
+            print(ex)
+            print(f"ERROR getting products for job {job_id}")
+
         # Bare minimum response body to pass back
         response_body = {
             "jobID": job_id,
@@ -748,6 +754,7 @@ class Status(Resource):
             "tags": tags,
             "job_queue": job_queue,
             "process_name": process_name,
+            "products": products,
             "links": [
                 {
                     "href": "/"+ns.name+"/jobs/"+str(job_id),
@@ -768,7 +775,7 @@ class Status(Resource):
                 response_body[field] = job_info[field]
             elif field == "inputs":
                 try:
-                    response_body[field] = response["context"]["job_specification"]["params"]
+                    response_body[field] = response["job"]["params"]["job_specification"]["params"]
                 except Exception as ex:
                     print("Error finding job inputs")
                     print(ex)
@@ -844,7 +851,7 @@ class Jobs(Resource):
     parser.add_argument("priority", type=int, help="Job priority, 0-9", required=False)
     parser.add_argument("getJobDetails", type=bool, help="Return full details if True. "
                                                            "List of job id's if false. Default True.", required=False)
-    parser.add_argument("fields", type=int, help="Fields to specify in the job response. Options are request, message, created, started, finished, updated, progress, links, title, keywords, description, process_name, queue, job_queue", required=False)
+    parser.add_argument("fields", type=int, help="Fields to specify in the job response. Options are created, started, finished, title, keywords, description, process_name, queue, job_queue, inputs, products", required=False)
 
     @api.doc(security="ApiKeyAuth")
     @login_required()
@@ -1003,9 +1010,11 @@ class Jobs(Resource):
                             job_with_fields[field] = job_info["job"]["job_info"]["job_queue"]
                         elif field == "process_name":
                             job_with_fields[field] = get_process_name_from_hysds_name(job_with_fields["job_type"])
+                        elif field == "products":
+                            job_with_fields[field] = job_info["job"]["job_info"]["metrics"]["products_staged"][0]["urls"][0]
                         elif field == "inputs":
                             try:
-                                job_with_fields[field] = job_info["context"]["job_specification"]["params"]
+                                job_with_fields[field] = job_info["job"]["params"]["job_specification"]["params"]
                             except Exception as ex:
                                 print("Error finding job inputs")
                                 print(ex)
