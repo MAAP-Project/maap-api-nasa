@@ -1007,8 +1007,7 @@ class Jobs(Resource):
                         elif field not in ["type", "status", "jobID"]:
                             return generate_error(f"Invalid field requested {field}. Remember to separate fields with commas", status.HTTP_400_BAD_REQUEST)
                 except Exception as ex:
-                    # graceal make sure this works
-                    print(f"Error getting requested field {field} from job")
+                    print(f"Error getting requested field from job")
                 existing_process = None
 
                 job_list.append(job_with_fields)
