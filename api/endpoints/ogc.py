@@ -712,14 +712,10 @@ class Status(Resource):
             print(ex)
             print(f"ERROR getting tags for job {job_id}")
 
-        # Assign the process name/ ID which is only available once the job status is finished 
-        process_name = get_process_name_from_hysds_name(job_type) if job_type else "Error getting process name"
-        processID = existing_process.process_id if existing_process else "Error getting process ID"
-
         # Bare minimum response body to pass back
         response_body = {
             "jobID": job_id,
-            "processID": processID,
+            "processID": existing_process.process_id if existing_process else "Error getting process ID",
             # TODO graceal should this be hard coded in if the example options are process, wps, openeo?
             "type": None,
             "status": current_status
@@ -728,7 +724,6 @@ class Status(Resource):
         job_info.update(response_body)
         fields_to_specify = request.args.get("fields").split(',') if request.args.get("fields") else []
 
-        # Assign the process name which is only available once the job status is finished 
         job_info.update({
             "request": None,
             "message": None,
@@ -738,7 +733,7 @@ class Status(Resource):
             "updated": None,
             "progress": None,
             "tags": tags,
-            "process_name": process_name,
+            "process_name": get_process_name_from_hysds_name(job_type) if job_type else "Error getting process name",
             "links": [
                 {
                     "href": "/"+ns.name+"/jobs/"+str(job_id),

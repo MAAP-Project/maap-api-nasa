@@ -39,8 +39,6 @@ GITLAB_PIPELINE_EVENT_STATUS_MAP = {
  "pending": "accepted"
 }
 
-OGC_PENDING_STATUSES = ["accepted", "running", "offline"]
-
 def get_ogc_status_from_gitlab(gitlab_status):
     return GITLAB_PIPELINE_EVENT_STATUS_MAP.get(gitlab_status)
 
