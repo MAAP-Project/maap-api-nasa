@@ -731,6 +731,12 @@ class Status(Resource):
         job_info.update(response_body)
         fields_to_specify = request.args.get("fields").split(',') if request.args.get("fields") else []
 
+        try:
+            process_name = get_process_name_from_hysds_name(job_type) if job_type else "Error getting process name"
+        except Exception as ex:
+            print(ex)
+            process_name = "Error getting process name"
+
         job_info.update({
             "request": None,
             "message": None,
@@ -741,7 +747,7 @@ class Status(Resource):
             "progress": None,
             "tags": tags,
             "job_queue": job_queue,
-            "process_name": get_process_name_from_hysds_name(job_type) if job_type else "Error getting process name",
+            "process_name": process_name,
             "links": [
                 {
                     "href": "/"+ns.name+"/jobs/"+str(job_id),
