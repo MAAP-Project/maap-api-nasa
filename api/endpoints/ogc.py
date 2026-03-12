@@ -993,6 +993,8 @@ class Jobs(Resource):
                             job_with_fields[field] = job_info["job"]["job_info"]["time_start"]
                         elif field == "finished":
                             job_with_fields[field] = job_info["job"]["job_info"]["time_end"]
+                        elif field == "job_queue":
+                            job_with_fields[field] = job_info["job"]["job_info"]["job_queue"]
                         elif field == "process_name":
                             job_with_fields[field] = get_process_name_from_hysds_name(job_with_fields["job_type"])
                         elif field == "inputs":
