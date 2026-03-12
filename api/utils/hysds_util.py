@@ -656,16 +656,12 @@ def get_mozart_jobs_from_query_params(query_params, user):
         return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
 
 def get_mozart_job(job_id):
-    job_status = mozart_job_status(job_id).get("status")
-    if job_status == "job-completed" or job_status == "job-failed":
-        try:
-            mozart_response = get_mozart_job_info(job_id)
-            result = mozart_response.get("result")
-            return result
-        except Exception as ex:
-            raise ex
-    else:
-        raise Exception("Aborting retrieving information of job because status is {}".format(job_status))
+    try:
+        mozart_response = get_mozart_job_info(job_id)
+        result = mozart_response.get("result")
+        return result
+    except Exception as ex:
+        raise ex
 
 
 def get_mozart_queues():
