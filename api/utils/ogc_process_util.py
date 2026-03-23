@@ -9,16 +9,15 @@ import re
 import urllib.parse
 from collections import namedtuple
 from datetime import datetime, timezone
-from contextlib import redirect_stderr
-from io import StringIO
 
 import gitlab
 import requests
 import yaml
 from schema_salad.exceptions import ValidationException
 from cwltool.process import shortname
+from cwltool.load_tool import load_tool
+from cwltool.context import LoadingContext
 from cwl_utils.parser import cwl_v1_2
-from ap_validator.app_package import AppPackage
 from flask import current_app
 from flask_api import status
 
@@ -37,112 +36,6 @@ DEPLOYED_PROCESS_STATUS = "deployed"
 UNDEPLOYED_PROCESS_STATUS = "undeployed"
 HREF_LANG = "en"
 ERROR_TYPE_PREFIX = "http://www.opengis.net/def/exceptions/"
-
-
-def validate_cwl_with_detailed_errors(cwl_text):
-    """
-    Use ap-validator but capture all error details including cwltool errors.
-
-    This captures stderr and logging to get detailed error messages that don't appear
-    in the validation_result (e.g., JavaScript/Node.js engine errors).
-
-    Args:
-        cwl_text (str): Raw CWL text to validate
-
-    Returns:
-        tuple: (is_valid: bool, app_package: AppPackage or None, error_details: str or None)
-    """
-    # Buffers for capturing output
-    stderr_buffer = StringIO()
-    log_buffer = StringIO()
-
-    # Create a temporary handler for cwltool logger
-    log_handler = logging.StreamHandler(log_buffer)
-    log_handler.setLevel(logging.ERROR)  # Only capture ERROR and above for efficiency
-
-    # Get cwltool logger and save original state
-    cwltool_logger = logging.getLogger('cwltool')
-    original_level = cwltool_logger.level
-    cwltool_logger.addHandler(log_handler)
-    cwltool_logger.setLevel(logging.ERROR)
-
-    try:
-        # Use context manager for thread-safer stderr redirection
-        with redirect_stderr(stderr_buffer):
-            # Validate with ap-validator
-            app_package = AppPackage.from_string(cwl_text)
-            validation_result = app_package.check_all(include=["error"])
-
-        is_valid = validation_result.get('valid', False)
-
-        if not is_valid:
-            # Build error message from multiple sources
-            error_parts = []
-
-            # 1. Get issues from validation result
-            issues = validation_result.get('issues', [])
-            error_issues = [i['message'].strip() for i in issues
-                          if i.get('type') == 'error' and i.get('message', '').strip()]
-
-            if error_issues:
-                error_parts.append("Validation errors:\n" + "\n".join(f"- {msg}" for msg in error_issues))
-
-            # 2. Get stderr output (often contains critical error details)
-            stderr_content = stderr_buffer.getvalue().strip()
-            if stderr_content:
-                error_parts.append(f"Details: {stderr_content}")
-
-            # 3. Get log output (contains JavaScript/Node.js errors, etc.)
-            log_content = log_buffer.getvalue().strip()
-            if log_content:
-                # Filter out noise - only keep lines with actual error info
-                log_lines = [line for line in log_content.split('\n')
-                           if any(keyword in line.lower()
-                                for keyword in ['error', 'failed', "couldn't", 'requires', 'missing'])]
-                if log_lines:
-                    error_parts.append("Error details:\n" + "\n".join(log_lines))
-
-            full_error = "\n\n".join(error_parts) if error_parts else "CWL validation failed"
-            return False, None, full_error
-
-        return True, app_package, None
-
-    except ValidationException as e:
-        # Validation exception with captured output
-        error_msg = f"ValidationException: {str(e)}"
-        stderr_content = stderr_buffer.getvalue().strip()
-        log_content = log_buffer.getvalue().strip()
-
-        if stderr_content or log_content:
-            details = []
-            if stderr_content:
-                details.append(stderr_content)
-            if log_content:
-                details.append(log_content)
-            error_msg += "\n" + "\n".join(details)
-
-        return False, None, error_msg
-
-    except Exception as e:
-        # Generic exception with captured output
-        error_msg = f"CWL validation error: {str(e)}"
-        stderr_content = stderr_buffer.getvalue().strip()
-        log_content = log_buffer.getvalue().strip()
-
-        if stderr_content or log_content:
-            details = []
-            if stderr_content:
-                details.append(stderr_content)
-            if log_content:
-                details.append(log_content)
-            error_msg += "\n" + "\n".join(details)
-
-        return False, None, error_msg
-
-    finally:
-        # Always clean up logging handler
-        cwltool_logger.removeHandler(log_handler)
-        cwltool_logger.setLevel(original_level)
 
 
 def get_hysds_process_name(id, user_id, version):
@@ -259,26 +152,28 @@ def get_cwl_metadata(cwl_text, cwl_link=None):
     ram_min = None
     cores_min = None
     base_command = None
-    
+
     try:
-        # Validate with ap-validator using Python API with detailed error capture
-        # Note: ap-validator internally runs cwltool validation first, then checks OGC requirements
-        is_valid, app_package, error_details = validate_cwl_with_detailed_errors(cwl_text)
+        # Parse YAML
+        cwl_dict = yaml.safe_load(cwl_text)
 
-        if not is_valid:
-            # Raise ValueError with detailed error message
-            if error_details:
-                log.error(f"CWL validation failed: {error_details}")
-                raise ValueError(error_details)
-            else:
-                raise ValueError("CWL validation failed with unknown errors")
+        # Validate using cwltool's load_tool - this validates and provides detailed errors
+        loading_context = LoadingContext()
+        loading_context.do_validate = True
+        loading_context.strict = True
 
-        # Parse CWL object model (already loaded by AppPackage during validation)
-        cwl_obj = app_package.cwl_obj
+        # This will raise ValidationException with detailed error messages if invalid
+        load_tool(cwl_dict, loading_context)
 
-    except ValueError:
-        # Re-raise ValueError from validation failures
-        raise
+        # Parse CWL object model using cwl_utils
+        cwl_obj = cwl_v1_2.load_document_by_yaml(cwl_dict, cwl_link or "file:///cwl")
+
+    except yaml.YAMLError as e:
+        log.error(f"Failed to parse CWL YAML: {e}")
+        raise ValueError(f"CWL file is not valid YAML: {str(e)}")
+    except ValidationException as e:
+        log.error(f"CWL validation failed: {e}")
+        raise ValueError(f"CWL validation failed: {str(e)}")
     except Exception as e:
         log.error(f"Failed to parse or validate CWL: {e}")
         raise ValueError(f"CWL file is not in the right format or is invalid: {str(e)}")
