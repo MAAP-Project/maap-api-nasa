@@ -14,9 +14,9 @@ import gitlab
 import requests
 import yaml
 from schema_salad.exceptions import ValidationException
-from cwltool.process import shortname
 from cwltool.load_tool import load_tool
 from cwltool.context import LoadingContext
+from cwltool.workflow import default_make_tool
 from cwl_utils.parser import cwl_v1_2
 from flask import current_app
 from flask_api import status
@@ -154,19 +154,133 @@ def get_cwl_metadata(cwl_text, cwl_link=None):
     base_command = None
 
     try:
-        # Parse YAML
-        cwl_dict = yaml.safe_load(cwl_text)
+        # Parse YAML - use a custom loader to prevent date string conversion
+        class NoDatesSafeLoader(yaml.SafeLoader):
+            pass
 
-        # Validate using cwltool's load_tool - this validates and provides detailed errors
+        # Remove timestamp resolver to keep dates as strings
+        NoDatesSafeLoader.yaml_implicit_resolvers = {
+            k: [r for r in v if r[0] != 'tag:yaml.org,2002:timestamp']
+            for k, v in NoDatesSafeLoader.yaml_implicit_resolvers.items()
+        }
+
+        cwl_dict = yaml.load(cwl_text, Loader=NoDatesSafeLoader)
+
+        # Find the Workflow document in the CWL
+        # CWL files can have a $graph with multiple documents, or be a single document
+        workflow_dict = None
+
+        if '$graph' in cwl_dict:
+            # Multiple documents - find the Workflow
+            for doc in cwl_dict['$graph']:
+                if doc.get('class') == 'Workflow':
+                    workflow_dict = doc
+                    break
+            if not workflow_dict:
+                raise ValueError("A valid Workflow object must be defined in the CWL file.")
+        elif cwl_dict.get('class') == 'Workflow':
+            # Single document that is a Workflow
+            workflow_dict = cwl_dict
+        else:
+            raise ValueError("A valid Workflow object must be defined in the CWL file.")
+
+        # Set up LoadingContext to avoid fetching external files
         loading_context = LoadingContext()
-        loading_context.do_validate = True
-        loading_context.strict = True
+        loading_context.do_update = False  # Don't update schemas
+        loading_context.disable_js_validation = False  # Keep JS validation
+        loading_context.construct_tool_object = default_make_tool  # Use default tool factory
+        loading_context.fetcher_constructor = None  # Don't fetch external schemas
 
-        # This will raise ValidationException with detailed error messages if invalid
-        load_tool(cwl_dict, loading_context)
+        # Validate the entire CWL document with load_tool
+        # This validates the structure but we'll extract metadata from our parsed dict
+        try:
+            load_tool(cwl_dict, loading_context)
+        except ValidationException as val_err:
+            log.error(f"CWL validation failed: {val_err}")
+            raise ValueError(f"CWL validation failed: {str(val_err)}")
 
-        # Parse CWL object model using cwl_utils
-        cwl_obj = cwl_v1_2.load_document_by_yaml(cwl_dict, cwl_link or "file:///cwl")
+        # Extract workflow metadata from the workflow_dict we found
+        cwl_id = workflow_dict.get('id', '')
+        title = workflow_dict.get('label', '')
+        description = workflow_dict.get('doc', '')
+
+        # Extract version from text (schema.org annotation)
+        version_match = re.search(r"s:version:[ \t]*(\S+)", cwl_text, re.IGNORECASE)
+
+        if not version_match or not cwl_id:
+            raise ValueError("Required metadata missing: s:version and a top-level id are required.")
+
+        fragment = urllib.parse.urlparse(cwl_id).fragment
+        cwl_id = os.path.basename(fragment) if fragment else os.path.basename(cwl_id)
+        process_version = version_match.group(1).strip().strip("'\"")
+
+        if not process_version:
+            raise ValueError("Required metadata missing: s:version must have a non-empty value.")
+
+        if ":" in process_version:
+            raise ValueError("Process version cannot contain a :")
+
+        # Get git information
+        github_url = re.search(r"s:codeRepository:\s*(\S+)", cwl_text, re.IGNORECASE)
+        github_url = github_url.group(1) if github_url else None
+        git_commit_hash = re.search(r"s:commitHash:\s*(\S+)", cwl_text, re.IGNORECASE)
+        git_commit_hash = git_commit_hash.group(1) if git_commit_hash else None
+
+        keywords_match = re.search(r"s:keywords:\s*(.*)", cwl_text, re.IGNORECASE)
+        keywords = keywords_match.group(1).replace(" ", "") if keywords_match else None
+
+        try:
+            author_match = re.search(
+                r"s:author:.*?s:name:\s*(\S+)",
+                cwl_text,
+                re.DOTALL | re.IGNORECASE
+            )
+            author = author_match.group(1) if author_match else None
+        except Exception as e:
+            author = None
+            log.error(f"Failed to get author name: {e}")
+
+        # Find the CommandLineTool run by the first step of the workflow
+        workflow_steps = workflow_dict.get('steps', [])
+        if workflow_steps:
+            # Get the first step - could be a list or dict
+            if isinstance(workflow_steps, list):
+                first_step = workflow_steps[0]
+            else:
+                first_step = list(workflow_steps.values())[0]
+
+            # Get the tool reference from the step
+            tool_ref = first_step.get('run', {})
+
+            # If tool_ref is a dict, it's an embedded CommandLineTool
+            if isinstance(tool_ref, dict):
+                command_line_tool = tool_ref
+            else:
+                # It's a reference - we need to resolve it from the $graph or loaded tools
+                # For now, we'll search in the original dict for the tool
+                tool_id = os.path.basename(tool_ref.split('#')[-1]) if isinstance(tool_ref, str) else None
+                command_line_tool = None
+
+                # Check if there's a $graph with multiple documents
+                if '$graph' in cwl_dict:
+                    for doc in cwl_dict['$graph']:
+                        if doc.get('class') == 'CommandLineTool':
+                            doc_id = doc.get('id', '')
+                            if tool_id and (doc_id.endswith(tool_id) or doc_id.endswith('#' + tool_id)):
+                                command_line_tool = doc
+                                break
+
+            if command_line_tool:
+                # Extract baseCommand
+                base_command = command_line_tool.get('baseCommand')
+
+                # Find ResourceRequirement
+                requirements = command_line_tool.get('requirements', [])
+                for req in requirements:
+                    if req.get('class') == 'ResourceRequirement':
+                        ram_min = req.get('ramMin')
+                        cores_min = req.get('coresMin')
+                        break
 
     except yaml.YAMLError as e:
         log.error(f"Failed to parse CWL YAML: {e}")
@@ -178,79 +292,11 @@ def get_cwl_metadata(cwl_text, cwl_link=None):
         log.error(f"Failed to parse or validate CWL: {e}")
         raise ValueError(f"CWL file is not in the right format or is invalid: {str(e)}")
 
-    # Ensure cwl_obj is iterable (should be a list when load_all=True)
-    try:
-        cwl_obj = list(cwl_obj) if hasattr(cwl_obj, '__iter__') and not isinstance(cwl_obj, str) else [cwl_obj]
-    except TypeError:
-        raise ValueError("CWL file structure is invalid: unable to parse CWL document.")
-
-    workflow = next((obj for obj in cwl_obj if isinstance(obj, cwl_v1_2.Workflow)), None)
-    if not workflow:
-        raise ValueError("A valid Workflow object must be defined in the CWL file.")
-
-    cwl_id = workflow.id
-    version_match = re.search(r"s:version:[ \t]*(\S+)", cwl_text, re.IGNORECASE)
-    
-    if not version_match or not cwl_id:
-        raise ValueError("Required metadata missing: s:version and a top-level id are required.")
-
-    fragment = urllib.parse.urlparse(cwl_id).fragment
-    cwl_id = os.path.basename(fragment)
-    process_version = version_match.group(1).strip().strip("'\"")
-
-    if not process_version:
-        raise ValueError("Required metadata missing: s:version must have a non-empty value.")
-
-    if ":" in process_version:
-        raise ValueError("Process version cannot contain a :")
-
-    # Get git information
-    github_url = re.search(r"s:codeRepository:\s*(\S+)", cwl_text, re.IGNORECASE)
-    github_url = github_url.group(1) if github_url else None
-    git_commit_hash = re.search(r"s:commitHash:\s*(\S+)", cwl_text, re.IGNORECASE)
-    git_commit_hash = git_commit_hash.group(1) if git_commit_hash else None
-
-    keywords_match = re.search(r"s:keywords:\s*(.*)", cwl_text, re.IGNORECASE)
-    keywords = keywords_match.group(1).replace(" ", "") if keywords_match else None
-
-    try:
-        author_match = re.search(
-            r"s:author:.*?s:name:\s*(\S+)",
-            cwl_text,
-            re.DOTALL | re.IGNORECASE
-        )
-        author = author_match.group(1) if author_match else None
-    except Exception as e:
-        author = None
-        log.error(f"Failed to get author name: {e}")
-
-    # Find the CommandLineTool run by the first step of the workflow
-    if workflow.steps:
-        # Get the ID of the tool to run (e.g., '#main')
-        tool_id_ref = workflow.steps[0].run
-        # The actual ID is the part after the '#'
-        tool_id = os.path.basename(tool_id_ref)
-
-        # Find the CommandLineTool object in the parsed CWL graph
-        command_line_tool = next((obj for obj in cwl_obj if isinstance(obj, cwl_v1_2.CommandLineTool) and obj.id.endswith(tool_id)), None)
-    
-        if command_line_tool:
-            # Extract the baseCommand directly
-            base_command = command_line_tool.baseCommand
-    
-            # Find the ResourceRequirement to extract ramMin and coresMin
-            if command_line_tool.requirements:
-                for req in command_line_tool.requirements:
-                    if isinstance(req, cwl_v1_2.ResourceRequirement):
-                        ram_min = req.ramMin if req.ramMin else ram_min
-                        cores_min = req.coresMin if req.coresMin else cores_min
-                        break  # Stop after finding the first ResourceRequirement
-
     return CWL_METADATA(
         id=cwl_id,
         version=process_version,
-        title=workflow.label,
-        description=workflow.doc,
+        title=title,
+        description=description,
         keywords=keywords,
         raw_text=cwl_text,
         github_url=github_url,
