@@ -189,7 +189,6 @@ def get_cwl_metadata(cwl_text, cwl_link=None):
         loading_context.do_update = False  # Don't update schemas
         loading_context.disable_js_validation = False  # Keep JS validation
         loading_context.construct_tool_object = default_make_tool  # Use default tool factory
-        loading_context.fetcher_constructor = None  # Don't fetch external schemas
 
         # Validate the entire CWL document with load_tool
         # This validates the structure but we'll extract metadata from our parsed dict
@@ -276,11 +275,10 @@ def get_cwl_metadata(cwl_text, cwl_link=None):
 
                 # Find ResourceRequirement
                 requirements = command_line_tool.get('requirements', [])
-                for req in requirements:
-                    if req.get('class') == 'ResourceRequirement':
-                        ram_min = req.get('ramMin')
-                        cores_min = req.get('coresMin')
-                        break
+                resource_reqs = requirements.get('ResourceRequirement')
+                if resource_reqs:
+                    ram_min = resource_reqs.get('ramMin')
+                    cores_min = resource_reqs.get('coresMin')
 
     except yaml.YAMLError as e:
         log.error(f"Failed to parse CWL YAML: {e}")
