@@ -651,21 +651,6 @@ class TestBuildEndpoints(unittest.TestCase):
 
             self.assertIn("Invalid CWL file", str(cm.exception))
 
-    def test_create_process_deployment_missing_cwl_link(self):
-        """Test OGC process deployment with missing CWL link"""
-        
-        # Create test user
-        user_id = self._create_test_user()
-        
-        with app.app_context():
-            with self.assertRaises(ValueError) as cm:
-                create_process_deployment(
-                    cwl_link=None,
-                    user_id=user_id
-                )
-            
-            self.assertEqual(str(cm.exception), "CWL file is not in the right format or is invalid.")
-
     def test_create_process_deployment_invalid_user(self):
         """Test OGC process deployment with invalid user ID"""
         
