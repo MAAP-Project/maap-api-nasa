@@ -317,7 +317,7 @@ def create_process_deployment(cwl_link, user_id, cwl_text = None, ignore_existin
         if not ignore_existing and existing_process and existing_process.deployer == user.username:
             current_app.logger.debug(f"Duplicate process found for user {user.id}")
             response_body, code = generate_error(
-                "Duplicate process. Use PUT to modify existing process if you originally published it.", 
+                f"Duplicate process. Use PUT to modify existing process with process ID {existing_process.process_id}", 
                 status.HTTP_409_CONFLICT, 
                 "ogcapi-processes-2/1.0/duplicated-process"
             )
