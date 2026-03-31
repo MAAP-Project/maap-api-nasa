@@ -16,6 +16,7 @@ import yaml
 from cwltool.load_tool import load_tool
 from cwltool.context import LoadingContext
 from cwltool.workflow import default_make_tool
+from cwl_utils.parser import load_document_by_string, cwl_v1_2
 from flask import current_app
 from flask_api import status
 
@@ -152,35 +153,15 @@ def get_cwl_metadata(cwl_text, cwl_link=None):
     base_command = None
 
     try:
+        # Check for cwltool errors (i.e. JSX error when NodeJS missing)
         # Parse YAML - use a custom loader to prevent date string conversion
         class NoDatesSafeLoader(yaml.SafeLoader):
             pass
-
-        # Remove timestamp resolver to keep dates as strings
         NoDatesSafeLoader.yaml_implicit_resolvers = {
             k: [r for r in v if r[0] != 'tag:yaml.org,2002:timestamp']
             for k, v in NoDatesSafeLoader.yaml_implicit_resolvers.items()
         }
-
         cwl_dict = yaml.load(cwl_text, Loader=NoDatesSafeLoader)
-
-        # Find the Workflow document in the CWL
-        # CWL files can have a $graph with multiple documents, or be a single document
-        workflow_dict = None
-
-        if '$graph' in cwl_dict:
-            # Multiple documents - find the Workflow
-            for doc in cwl_dict['$graph']:
-                if doc.get('class') == 'Workflow':
-                    workflow_dict = doc
-                    break
-            if not workflow_dict:
-                raise ValueError("A valid Workflow object must be defined in the CWL file.")
-        elif cwl_dict.get('class') == 'Workflow':
-            # Single document that is a Workflow
-            workflow_dict = cwl_dict
-        else:
-            raise ValueError("A valid Workflow object must be defined in the CWL file.")
 
         # Set up LoadingContext to avoid fetching external files
         loading_context = LoadingContext()
@@ -188,27 +169,39 @@ def get_cwl_metadata(cwl_text, cwl_link=None):
         loading_context.disable_js_validation = False  # Keep JS validation
         loading_context.construct_tool_object = default_make_tool  # Use default tool factory
 
-        # Validate the entire CWL document with load_tool
-        # This validates the structure but we'll extract metadata from our parsed dict
+        uri = cwl_link if cwl_link else "api://user-submitted-raw-text.cwl"
+
+        # Validate the entire CWL document (load_tool is what catches JSX errors)
         try:
             load_tool(cwl_dict, loading_context)
+            cwl_obj = load_document_by_string(cwl_text, uri=uri, load_all=True)
         except Exception as err:
             log.error(f"CWL validation failed: {err}")
             raise ValueError(f"CWL validation failed: {str(err)}")
+        
+        # Now parse the CWL document for relevant metadata and throw errors if required fields missing
+        # Ensure cwl_obj is iterable (should be a list when load_all=True)
+        try:
+            cwl_obj = list(cwl_obj) if hasattr(cwl_obj, '__iter__') and not isinstance(cwl_obj, str) else [cwl_obj]
+        except TypeError:
+            raise ValueError("CWL file structure is invalid: unable to parse CWL document.")
 
-        # Extract workflow metadata from the workflow_dict we found
-        cwl_id = workflow_dict.get('id', '')
-        title = workflow_dict.get('label', '')
-        description = workflow_dict.get('doc', '')
+        workflow = next((obj for obj in cwl_obj if isinstance(obj, cwl_v1_2.Workflow)), None)
+        if not workflow:
+            raise ValueError("A valid Workflow object must be defined in the CWL file.")
 
-        # Extract version from text 
+        cwl_id = workflow.id
         version_match = re.search(r"s:version:[ \t]*(\S+)", cwl_text, re.IGNORECASE)
-
+        
         if not version_match or not cwl_id:
             raise ValueError("Required metadata missing: s:version and a top-level id are required.")
 
         fragment = urllib.parse.urlparse(cwl_id).fragment
-        cwl_id = os.path.basename(fragment) if fragment else os.path.basename(cwl_id)
+        cwl_id = os.path.basename(fragment)
+        print("graceal1 cwl_id is ")
+        print(cwl_id)
+        logging.error("graceal1 cwl id is ")
+        logging.error(cwl_id)
         process_version = version_match.group(1).strip().strip("'\"")
 
         if not process_version:
@@ -238,42 +231,27 @@ def get_cwl_metadata(cwl_text, cwl_link=None):
             log.error(f"Failed to get author name: {e}")
 
         # Find the CommandLineTool run by the first step of the workflow
-        workflow_steps = workflow_dict.get('steps', [])
-        if workflow_steps:
-            # Get the first step - could be a list or dict
-            if isinstance(workflow_steps, list):
-                first_step = workflow_steps[0]
-            else:
-                first_step = list(workflow_steps.values())[0]
+        if workflow.steps:
+            # Get the ID of the tool to run (e.g., '#main')
+            tool_id_ref = workflow.steps[0].run
+            # The actual ID is the part after the '#'
+            tool_id = os.path.basename(tool_id_ref)
 
-            # Get the tool reference from the step
-            tool_ref = first_step.get('run', {})
-            tool_id = os.path.basename(tool_ref.split('#')[-1]) if isinstance(tool_ref, str) else None
-            command_line_tool = None
-
-            # Check if there's a $graph with multiple documents
-            if '$graph' in cwl_dict:
-                for doc in cwl_dict['$graph']:
-                    if doc.get('class') == 'CommandLineTool':
-                        doc_id = doc.get('id', '')
-                        if tool_id and (doc_id.endswith(tool_id) or doc_id.endswith('#' + tool_id)):
-                            command_line_tool = doc
-                            break
-
+            # Find the CommandLineTool object in the parsed CWL graph
+            command_line_tool = next((obj for obj in cwl_obj if isinstance(obj, cwl_v1_2.CommandLineTool) and obj.id.endswith(tool_id)), None)
+        
             if command_line_tool:
-                # Extract baseCommand
-                base_command = command_line_tool.get('baseCommand')
+                # Extract the baseCommand directly
+                base_command = command_line_tool.baseCommand
+        
+                # Find the ResourceRequirement to extract ramMin and coresMin
+                if command_line_tool.requirements:
+                    for req in command_line_tool.requirements:
+                        if isinstance(req, cwl_v1_2.ResourceRequirement):
+                            ram_min = req.ramMin if req.ramMin else ram_min
+                            cores_min = req.coresMin if req.coresMin else cores_min
+                            break  # Stop after finding the first ResourceRequirement
 
-                # Find ResourceRequirement
-                requirements = command_line_tool.get('requirements', [])
-                resource_reqs = requirements.get('ResourceRequirement')
-                if resource_reqs:
-                    ram_min = resource_reqs.get('ramMin')
-                    cores_min = resource_reqs.get('coresMin')
-
-    except yaml.YAMLError as e:
-        log.error(f"Failed to parse CWL YAML: {e}")
-        raise ValueError(f"CWL file is not valid YAML: {str(e)}")
     except Exception as e:
         log.error(f"Failed to parse or validate CWL: {e}")
         raise ValueError(f"CWL file is not in the right format or is invalid: {str(e)}")
@@ -281,8 +259,8 @@ def get_cwl_metadata(cwl_text, cwl_link=None):
     return CWL_METADATA(
         id=cwl_id,
         version=process_version,
-        title=title,
-        description=description,
+        title=workflow.label,
+        description=workflow.doc,
         keywords=keywords,
         raw_text=cwl_text,
         github_url=github_url,
