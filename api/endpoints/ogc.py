@@ -173,7 +173,7 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
             db.session.commit()
 
         if current_status == OGC_SUCCESS:
-            existing_process = db.session.query(Process_db).filter_by(id=deployment.id, version=deployment.version, status=DEPLOYED_PROCESS_STATUS).first()
+            existing_process = db.session.query(Process_db).filter_by(id=deployment.id, version=deployment.version, deployer=deployment.deployer, status=DEPLOYED_PROCESS_STATUS).first()
             
             if existing_process:
                 existing_process.cwl_link = deployment.cwl_link
@@ -208,7 +208,7 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
                 db.session.add(process)
                 db.session.commit()
                 # Re-query to get the auto-generated process_id
-                process = db.session.query(Process_db).filter_by(id=deployment.id, version=deployment.version, status=DEPLOYED_PROCESS_STATUS).first()
+                process = db.session.query(Process_db).filter_by(id=deployment.id, version=deployment.version, deployer=deployment.deployer, status=DEPLOYED_PROCESS_STATUS).first()
                 process_id = process.process_id
 
             status_code = status.HTTP_201_CREATED
