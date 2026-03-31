@@ -13,11 +13,9 @@ from datetime import datetime, timezone
 import gitlab
 import requests
 import yaml
-from schema_salad.exceptions import ValidationException
 from cwltool.load_tool import load_tool
 from cwltool.context import LoadingContext
 from cwltool.workflow import default_make_tool
-from cwl_utils.parser import cwl_v1_2
 from flask import current_app
 from flask_api import status
 
@@ -186,7 +184,7 @@ def get_cwl_metadata(cwl_text, cwl_link=None):
 
         # Set up LoadingContext to avoid fetching external files
         loading_context = LoadingContext()
-        loading_context.do_update = False  # Don't update schemas
+        loading_context.do_update = False  # Don't update schemas, this causes unnecessary calls 
         loading_context.disable_js_validation = False  # Keep JS validation
         loading_context.construct_tool_object = default_make_tool  # Use default tool factory
 
@@ -194,16 +192,16 @@ def get_cwl_metadata(cwl_text, cwl_link=None):
         # This validates the structure but we'll extract metadata from our parsed dict
         try:
             load_tool(cwl_dict, loading_context)
-        except ValidationException as val_err:
-            log.error(f"CWL validation failed: {val_err}")
-            raise ValueError(f"CWL validation failed: {str(val_err)}")
+        except Exception as err:
+            log.error(f"CWL validation failed: {err}")
+            raise ValueError(f"CWL validation failed: {str(err)}")
 
         # Extract workflow metadata from the workflow_dict we found
         cwl_id = workflow_dict.get('id', '')
         title = workflow_dict.get('label', '')
         description = workflow_dict.get('doc', '')
 
-        # Extract version from text (schema.org annotation)
+        # Extract version from text 
         version_match = re.search(r"s:version:[ \t]*(\S+)", cwl_text, re.IGNORECASE)
 
         if not version_match or not cwl_id:
@@ -250,24 +248,17 @@ def get_cwl_metadata(cwl_text, cwl_link=None):
 
             # Get the tool reference from the step
             tool_ref = first_step.get('run', {})
+            tool_id = os.path.basename(tool_ref.split('#')[-1]) if isinstance(tool_ref, str) else None
+            command_line_tool = None
 
-            # If tool_ref is a dict, it's an embedded CommandLineTool
-            if isinstance(tool_ref, dict):
-                command_line_tool = tool_ref
-            else:
-                # It's a reference - we need to resolve it from the $graph or loaded tools
-                # For now, we'll search in the original dict for the tool
-                tool_id = os.path.basename(tool_ref.split('#')[-1]) if isinstance(tool_ref, str) else None
-                command_line_tool = None
-
-                # Check if there's a $graph with multiple documents
-                if '$graph' in cwl_dict:
-                    for doc in cwl_dict['$graph']:
-                        if doc.get('class') == 'CommandLineTool':
-                            doc_id = doc.get('id', '')
-                            if tool_id and (doc_id.endswith(tool_id) or doc_id.endswith('#' + tool_id)):
-                                command_line_tool = doc
-                                break
+            # Check if there's a $graph with multiple documents
+            if '$graph' in cwl_dict:
+                for doc in cwl_dict['$graph']:
+                    if doc.get('class') == 'CommandLineTool':
+                        doc_id = doc.get('id', '')
+                        if tool_id and (doc_id.endswith(tool_id) or doc_id.endswith('#' + tool_id)):
+                            command_line_tool = doc
+                            break
 
             if command_line_tool:
                 # Extract baseCommand
@@ -283,9 +274,6 @@ def get_cwl_metadata(cwl_text, cwl_link=None):
     except yaml.YAMLError as e:
         log.error(f"Failed to parse CWL YAML: {e}")
         raise ValueError(f"CWL file is not valid YAML: {str(e)}")
-    except ValidationException as e:
-        log.error(f"CWL validation failed: {e}")
-        raise ValueError(f"CWL validation failed: {str(e)}")
     except Exception as e:
         log.error(f"Failed to parse or validate CWL: {e}")
         raise ValueError(f"CWL file is not in the right format or is invalid: {str(e)}")
