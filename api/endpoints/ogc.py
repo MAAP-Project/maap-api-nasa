@@ -54,13 +54,32 @@ class Processes(Resource):
     def get(self):
         """
         Search all processes
+        Query Parameters:
+        - username: Filter by the username who deployed the process
+        - process_name: Filter by the process name (id)
+        - process_version: Filter by the process version
         :return:
         """
         response_body = dict()
         existing_processes_return = []
         existing_links_return = []
 
-        existing_processes = db.session.query(Process_db).filter_by(status=DEPLOYED_PROCESS_STATUS).all()
+        # Start with base query filtering by deployed status
+        query = db.session.query(Process_db).filter_by(status=DEPLOYED_PROCESS_STATUS)
+
+        # Apply filters based on query parameters
+        username = request.args.get('username')
+        process_name = request.args.get('process_name')
+        process_version = request.args.get('process_version')
+
+        if username:
+            query = query.filter_by(deployer=username)
+        if process_name:
+            query = query.filter_by(id=process_name)
+        if process_version:
+            query = query.filter_by(version=process_version)
+
+        existing_processes = query.all()
 
         for process in existing_processes:
             link_obj_process = {
