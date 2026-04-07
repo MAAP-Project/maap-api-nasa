@@ -13,6 +13,8 @@ ns = {
 WPS_STATUSES = ["Accepted", "Running", "Succeeded", "Failed", "Dismissed", "Deduped", "Deleted", "Offline"]
 HYSDS_STATUSES= ["job-started", "job-completed", "job-queued", "job-failed", "job-deduped", "job-revoked", "job-offline"]
 
+DEDUPED_OGC_STATUS = "deduped"
+
 WPS_TO_HYSDS_JOB_STATUS_MAP = {
  "Accepted": "job-queued",
  "Running": "job-started",
