@@ -94,6 +94,7 @@ class Processes(Resource):
                 "description": process.description,
                 "keywords": process.keywords.split(",") if process.keywords is not None else [],
                 "metadata": [], # TODO Unsure what we want this to be yet
+                "processID": process.process_id,
                 "id": process.id,
                 "version": process.version,
                 "jobControlOptions": [], # TODO Unsure what we want this to be yet
