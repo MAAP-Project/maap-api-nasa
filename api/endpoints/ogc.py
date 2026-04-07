@@ -69,8 +69,8 @@ class Processes(Resource):
 
         # Apply filters based on query parameters
         username = request.args.get('username')
-        process_name = request.args.get('process_name')
-        process_version = request.args.get('process_version')
+        process_name = request.args.get('processName')
+        process_version = request.args.get('processVersion')
 
         if username:
             query = query.filter_by(deployer=username)
