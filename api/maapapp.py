@@ -19,6 +19,7 @@ from api.endpoints.environment import ns as environment_namespace
 from api.endpoints.organizations import ns as organizations_namespace
 from api.endpoints.admin import ns as admin_namespace
 from api.endpoints.build import ns as build_namespace
+from api.endpoints.gateway import ns as gateway_namespace
 from api.restplus import api
 from api.maap_database import db
 from api.models import initialize_sql
@@ -123,6 +124,7 @@ def initialize_app(flask_app):
     api.add_namespace(organizations_namespace)
     api.add_namespace(admin_namespace)
     api.add_namespace(build_namespace)
+    api.add_namespace(gateway_namespace)
     flask_app.register_blueprint(blueprint)
 
 

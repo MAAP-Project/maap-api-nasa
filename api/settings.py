@@ -134,6 +134,13 @@ PORTAL_ADMIN_DASHBOARD_PATH = os.getenv('PORTAL_ADMIN_DASHBOARD_PATH', '')
 ESA_ISS_HOST = os.getenv('ESA_ISS_HOST', "")
 ESA_EDL_SYS_ACCOUNT = os.getenv('ESA_EDL_SYS_ACCOUNT', "")
 
+# ESA Gateway - Joint Token Exchange
+ESA_GATEWAY_BASE_URL = os.getenv('ESA_GATEWAY_BASE_URL', "")
+ESA_ADMIN_API_KEY = os.getenv('ESA_ADMIN_API_KEY', "")
+NASA_ADMIN_API_KEY = os.getenv('NASA_ADMIN_API_KEY', "")
+NASA_CAS_OIDC_ORIGIN = os.getenv('NASA_CAS_OIDC_ORIGIN', "https://auth.maap-project.org/cas/oidc")
+TOKEN_DEFAULT_EXPIRY_SECONDS = int(os.getenv('TOKEN_DEFAULT_EXPIRY_SECONDS', '86400'))
+
 # Keycloak Configuration
 KEYCLOAK_SERVER_URL = os.getenv('KEYCLOAK_SERVER_URL', "")
 KEYCLOAK_REALM = os.getenv('KEYCLOAK_REALM', "")
