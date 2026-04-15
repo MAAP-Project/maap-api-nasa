@@ -8,9 +8,11 @@ from flask_api import status
 from flask_restx import Resource
 
 import api.settings as settings
+from api import constants
 from api.restplus import api
-from api.auth.security import get_authorized_user, login_required
+from api.auth.security import get_authorized_user, login_required, verify_jwt_token
 from api.maap_database import db
+from api.models.member import Member
 from api.models.personal_access_token import PersonalAccessToken
 from api.utils.http_util import err_response
 
@@ -49,6 +51,32 @@ def _get_admin_identity():
         return None
 
     return user_identifier, user_origin
+
+
+def _is_jwt_auth():
+    """Check if the current request is authenticated via JWT (not a personal access token)."""
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1)[1]
+        return verify_jwt_token(token) is not None
+
+    # proxy-ticket or cpticket with jwt: prefix
+    for header_name in ("proxy-ticket", "cpticket"):
+        value = request.headers.get(header_name, "")
+        if value.lower().startswith("jwt:"):
+            return verify_jwt_token(value) is not None
+
+    return False
+
+
+def _verify_member_exists(user_identifier):
+    """Check that a member with the given email exists and is active.
+    Returns the Member or None."""
+    return (
+        db.session.query(Member)
+        .filter_by(email=user_identifier, status=constants.STATUS_ACTIVE)
+        .first()
+    )
 
 
 def _create_token_for_user(user_identifier, user_origin):
@@ -99,8 +127,11 @@ def _create_token_for_user(user_identifier, user_origin):
     }, status.HTTP_201_CREATED
 
 
-def _list_tokens_for_user(user_identifier, user_origin):
+def _list_tokens_for_user(user_identifier, user_origin, check_member=False):
     """Core token listing logic shared by self-service and admin endpoints."""
+    if check_member and _verify_member_exists(user_identifier) is None:
+        return err_response("User not found.", status.HTTP_404_NOT_FOUND)
+
     page = request.args.get("page", 1, type=int)
     size = request.args.get("size", 20, type=int)
     size = min(size, 100)
@@ -159,7 +190,10 @@ class SelfTokens(Resource):
     @api.doc(security='ApiKeyAuth')
     @login_required()
     def post(self):
-        """Create a personal access token for the authenticated user."""
+        """Create a personal access token for the authenticated user. Requires JWT authentication."""
+        if not _is_jwt_auth():
+            return err_response("JWT authentication required to create tokens.", status.HTTP_403_FORBIDDEN)
+
         authorized_user = get_authorized_user()
         if authorized_user is None:
             return err_response("Could not identify user.", status.HTTP_401_UNAUTHORIZED)
@@ -187,7 +221,10 @@ class SelfTokenRevoke(Resource):
     @api.doc(security='ApiKeyAuth')
     @login_required()
     def delete(self, token_id):
-        """Revoke a personal access token for the authenticated user."""
+        """Revoke a personal access token for the authenticated user. Requires JWT authentication."""
+        if not _is_jwt_auth():
+            return err_response("JWT authentication required to delete tokens.", status.HTTP_403_FORBIDDEN)
+
         authorized_user = get_authorized_user()
         if authorized_user is None:
             return err_response("Could not identify user.", status.HTTP_401_UNAUTHORIZED)
@@ -232,7 +269,7 @@ class AdminTokens(Resource):
             return err_response("Missing or invalid authorization.", status.HTTP_403_FORBIDDEN)
 
         user_identifier, user_origin = identity
-        return _list_tokens_for_user(user_identifier, user_origin)
+        return _list_tokens_for_user(user_identifier, user_origin, check_member=True)
 
 
 @ns.route('/members/tokens/<string:token_id>')
