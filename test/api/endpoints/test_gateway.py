@@ -1,10 +1,13 @@
 import json
 import pytest
+from datetime import datetime, timezone
 from unittest.mock import patch, MagicMock
 from api.maapapp import app
 from api.maap_database import db
 from api.models import initialize_sql
+from api.models.member import Member
 from api.models.personal_access_token import PersonalAccessToken
+from api.models.role import Role
 
 
 @pytest.fixture(scope="module")
@@ -35,6 +38,31 @@ ADMIN_HEADERS = {
     "X-MAAP-User-Origin": "https://esa-oidc.example.org",
     "Content-Type": "application/json",
 }
+
+
+def _ensure_test_member(email="user@esa.int"):
+    """Create a test member in the DB if one doesn't already exist."""
+    member = db.session.query(Member).filter_by(email=email).first()
+    if member is None:
+        # Ensure the guest role exists
+        role = db.session.query(Role).filter_by(id=Role.ROLE_GUEST).first()
+        if role is None:
+            role = Role(id=Role.ROLE_GUEST, role_name="guest")
+            db.session.add(role)
+            db.session.commit()
+
+        member = Member(
+            username=email.split("@")[0],
+            email=email,
+            first_name="Test",
+            last_name="User",
+            status="active",
+            role_id=Role.ROLE_GUEST,
+            creation_date=datetime.now(timezone.utc),
+        )
+        db.session.add(member)
+        db.session.commit()
+    return member
 
 
 class TestAdminCreateToken:
@@ -106,10 +134,26 @@ class TestAdminListTokens:
     """Tests for GET /api/gateway/members/tokens (admin endpoint)."""
 
     @patch("api.endpoints.gateway.settings")
+    def test_list_tokens_nonexistent_user_returns_404(self, mock_settings, client):
+        mock_settings.NASA_ADMIN_API_KEY = "test-admin-key"
+        mock_settings.ESA_ADMIN_API_KEY = "esa-admin-key"
+        mock_settings.NASA_CAS_OIDC_ORIGIN = "https://auth.maap-project.org/cas/oidc"
+
+        headers = {
+            "X-MAAP-API-Key": "test-admin-key",
+            "X-MAAP-User-Identifier": "nobody@example.com",
+            "X-MAAP-User-Origin": "https://esa-oidc.example.org",
+        }
+        resp = client.get("/api/gateway/members/tokens", headers=headers)
+        assert resp.status_code == 404
+
+    @patch("api.endpoints.gateway.settings")
     def test_list_tokens_empty(self, mock_settings, client):
         mock_settings.NASA_ADMIN_API_KEY = "test-admin-key"
         mock_settings.ESA_ADMIN_API_KEY = "esa-admin-key"
         mock_settings.NASA_CAS_OIDC_ORIGIN = "https://auth.maap-project.org/cas/oidc"
+
+        _ensure_test_member("user@esa.int")
 
         resp = client.get(
             "/api/gateway/members/tokens",
@@ -125,6 +169,8 @@ class TestAdminListTokens:
         mock_settings.ESA_ADMIN_API_KEY = "esa-admin-key"
         mock_settings.TOKEN_DEFAULT_EXPIRY_SECONDS = 86400
         mock_settings.NASA_CAS_OIDC_ORIGIN = "https://auth.maap-project.org/cas/oidc"
+
+        _ensure_test_member("user@esa.int")
 
         # Create a token
         client.post(

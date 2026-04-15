@@ -8,9 +8,11 @@ from flask_api import status
 from flask_restx import Resource
 
 import api.settings as settings
+from api import constants
 from api.restplus import api
 from api.auth.security import get_authorized_user, login_required
 from api.maap_database import db
+from api.models.member import Member
 from api.models.personal_access_token import PersonalAccessToken
 from api.utils.http_util import err_response
 
@@ -49,6 +51,16 @@ def _get_admin_identity():
         return None
 
     return user_identifier, user_origin
+
+
+def _verify_member_exists(user_identifier):
+    """Check that a member with the given email exists and is active.
+    Returns the Member or None."""
+    return (
+        db.session.query(Member)
+        .filter_by(email=user_identifier, status=constants.STATUS_ACTIVE)
+        .first()
+    )
 
 
 def _create_token_for_user(user_identifier, user_origin):
@@ -99,8 +111,11 @@ def _create_token_for_user(user_identifier, user_origin):
     }, status.HTTP_201_CREATED
 
 
-def _list_tokens_for_user(user_identifier, user_origin):
+def _list_tokens_for_user(user_identifier, user_origin, check_member=False):
     """Core token listing logic shared by self-service and admin endpoints."""
+    if check_member and _verify_member_exists(user_identifier) is None:
+        return err_response("User not found.", status.HTTP_404_NOT_FOUND)
+
     page = request.args.get("page", 1, type=int)
     size = request.args.get("size", 20, type=int)
     size = min(size, 100)
@@ -232,7 +247,7 @@ class AdminTokens(Resource):
             return err_response("Missing or invalid authorization.", status.HTTP_403_FORBIDDEN)
 
         user_identifier, user_origin = identity
-        return _list_tokens_for_user(user_identifier, user_origin)
+        return _list_tokens_for_user(user_identifier, user_origin, check_member=True)
 
 
 @ns.route('/members/tokens/<string:token_id>')
