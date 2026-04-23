@@ -288,7 +288,7 @@ def start_member_session(cas_response, ticket, auto_create_member=False):
 
 def _jwt_has_compute_role(decoded_jwt):
     """Check if the JWT role array includes at least one role starting with 'CPU:' or 'GPU:'."""
-    roles = decoded_jwt.get("role", [])
+    roles = decoded_jwt.get("roles", [])
     if isinstance(roles, str):
         roles = [roles]
     return any(r.startswith("CPU:") or r.startswith("GPU:") for r in roles if isinstance(r, str))
@@ -314,6 +314,7 @@ def start_member_session_jwt(decoded_jwt, token_string, auto_create_member=False
                         creation_date=datetime.utcnow())
         try:
             db.session.add(member)
+            db.session.commit()
         except Exception as e:
             db.session.rollback()
             current_app.logger.error(f"Failed to add new member {usr}: {e}")
