@@ -127,7 +127,7 @@ def _create_token_for_user(user_identifier, user_origin):
     }, status.HTTP_201_CREATED
 
 
-def _list_tokens_for_user(user_identifier, user_origin, check_member=False):
+def _list_tokens_for_user(user_identifier, user_origin=None, check_member=False):
     """Core token listing logic shared by self-service and admin endpoints."""
     if check_member and _verify_member_exists(user_identifier) is None:
         return err_response("User not found.", status.HTTP_404_NOT_FOUND)
@@ -138,10 +138,12 @@ def _list_tokens_for_user(user_identifier, user_origin, check_member=False):
 
     query = (
         db.session.query(PersonalAccessToken)
-        .filter_by(user_identifier=user_identifier, user_origin=user_origin)
+        .filter_by(user_identifier=user_identifier)
         .filter(PersonalAccessToken.revoked_at.is_(None))
         .order_by(PersonalAccessToken.created_at.desc())
     )
+    if user_origin is not None:
+        query = query.filter_by(user_origin=user_origin)
 
     tokens = query.offset((page - 1) * size).limit(size).all()
 
@@ -149,6 +151,7 @@ def _list_tokens_for_user(user_identifier, user_origin, check_member=False):
         {
             "token_id": t.token_id,
             "token_name": t.token_name,
+            "user_origin": t.user_origin,
             "expires_at": t.expires_at.isoformat() if t.expires_at else None,
             "created_at": t.created_at.isoformat() if t.created_at else None,
             "is_active": t.is_active,
@@ -205,14 +208,13 @@ class SelfTokens(Resource):
     @api.doc(security='ApiKeyAuth')
     @login_required()
     def get(self):
-        """List personal access tokens for the authenticated user."""
+        """List personal access tokens for the authenticated user (all origins)."""
         authorized_user = get_authorized_user()
         if authorized_user is None:
             return err_response("Could not identify user.", status.HTTP_401_UNAUTHORIZED)
 
         user_identifier = authorized_user.email
-        user_origin = settings.NASA_CAS_OIDC_ORIGIN
-        return _list_tokens_for_user(user_identifier, user_origin)
+        return _list_tokens_for_user(user_identifier)
 
 
 @ns.route('/members/self/tokens/<string:token_id>')
