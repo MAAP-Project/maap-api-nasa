@@ -286,17 +286,32 @@ def start_member_session(cas_response, ticket, auto_create_member=False):
     return member_session
 
 
+def _jwt_has_compute_role(decoded_jwt):
+    """Check if the JWT role array includes at least one role starting with 'CPU:' or 'GPU:'."""
+    roles = decoded_jwt.get("role", [])
+    if isinstance(roles, str):
+        roles = [roles]
+    return any(r.startswith("CPU:") or r.startswith("GPU:") for r in roles if isinstance(r, str))
+
+
 def start_member_session_jwt(decoded_jwt, token_string, auto_create_member=False):
 
     usr = decoded_jwt.get("preferred_username")
 
     member = db.session.query(Member).filter_by(username=usr).first()
 
-    if member is None and (auto_create_member):
+    # Auto-create member if JWT contains a valid compute role (CPU: or GPU:)
+    if not auto_create_member:
+        auto_create_member = _jwt_has_compute_role(decoded_jwt)
+
+    if member is None and auto_create_member:
         member = Member(first_name=decoded_jwt.get("given_name"),
                         last_name=decoded_jwt.get("family_name"),
                         username=usr,
-                        email=decoded_jwt.get("email"))
+                        email=decoded_jwt.get("email"),
+                        role_id=Role.ROLE_MEMBER,
+                        status=MEMBER_STATUS_ACTIVE,
+                        creation_date=datetime.utcnow())
         try:
             db.session.add(member)
         except Exception as e:
