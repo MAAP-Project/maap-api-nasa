@@ -623,9 +623,7 @@ class Result(Resource):
                     prod["id"] = product.get("id")
                     prod_list.append(prod)
                     if traceback is not None:
-                        # TODO graceal pass prod_list even if failed??
                         response_body["detail"] = "Job failed and traceback is " + str(traceback)
-                        return response_body, status.HTTP_200_OK 
                 count = 1
                 for prod_item in prod_list:
                     response_body["additionalProp"+str(count)] = prod_item
