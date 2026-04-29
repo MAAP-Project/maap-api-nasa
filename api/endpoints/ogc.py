@@ -55,9 +55,9 @@ class Processes(Resource):
         """
         Search all processes
         Query Parameters:
-        - username: Filter by the username who deployed the process
-        - process_name: Filter by the process name (id)
-        - process_version: Filter by the process version
+        - deployer: Filter by the deployer who deployed the process
+        - algorithmName: Filter by the algorithm name (id)
+        - algorithmVersion: Filter by the algorithm version
         :return:
         """
         response_body = dict()
@@ -68,12 +68,12 @@ class Processes(Resource):
         query = db.session.query(Process_db).filter_by(status=DEPLOYED_PROCESS_STATUS)
 
         # Apply filters based on query parameters
-        username = request.args.get('username')
-        process_name = request.args.get('processName')
-        process_version = request.args.get('processVersion')
+        deployer = request.args.get('deployer')
+        process_name = request.args.get('algorithmName')
+        process_version = request.args.get('algorithmVersion')
 
-        if username:
-            query = query.filter_by(deployer=username)
+        if deployer:
+            query = query.filter_by(deployer=deployer)
         if process_name:
             query = query.filter_by(id=process_name)
         if process_version:
