@@ -6,15 +6,17 @@ Shared between OGC and build endpoints to avoid code duplication.
 import logging
 import os
 import re
-import subprocess
-import tempfile
 import urllib.parse
 from collections import namedtuple
 from datetime import datetime, timezone
 
 import gitlab
 import requests
-from cwl_utils.parser import load_document_by_uri, cwl_v1_2
+from cwl_utils.parser import load_document_by_string, cwl_v1_2
+import yaml
+from cwltool.load_tool import load_tool
+from cwltool.context import LoadingContext
+from cwltool.workflow import default_make_tool
 from flask import current_app
 from flask_api import status
 
@@ -152,46 +154,34 @@ def get_cwl_metadata(cwl_text, cwl_link=None):
     ram_min = None
     cores_min = None
     base_command = None
-    
+
+    # Check for cwltool errors (i.e. JSX error when NodeJS missing)
+    # Parse YAML - use a custom loader to prevent date string conversion
+    class NoDatesSafeLoader(yaml.SafeLoader):
+        pass
+    NoDatesSafeLoader.yaml_implicit_resolvers = {
+        k: [r for r in v if r[0] != 'tag:yaml.org,2002:timestamp']
+        for k, v in NoDatesSafeLoader.yaml_implicit_resolvers.items()
+    }
+
+    # Set up LoadingContext to avoid fetching external files
+    loading_context = LoadingContext()
+    loading_context.do_update = False  # Don't update schemas, this causes unnecessary calls 
+    loading_context.disable_js_validation = False  # Keep JS validation
+    loading_context.construct_tool_object = default_make_tool  # Use default tool factory
+
+    uri = cwl_link if cwl_link else "api://user-submitted-raw-text.cwl"
+
+    # Validate the entire CWL document (load_tool is what catches JSX errors)
     try:
-        # 1. Save the contents of cwl_text to a temporary file.
-        # 2. Use the local file URI with cwl_utils to parse the object model.
-        # 3. Use the in-memory text for regex-based metadata extraction.
-        # This is wrapped in a try/finally block to ensure the temp file is cleaned up.
-
-        with tempfile.NamedTemporaryFile(mode='w', suffix=".cwl", delete=False) as tmp:
-            tmp.write(cwl_text)
-            tmp_path = tmp.name
-
-        # Validate with cwltool
-        result = subprocess.run(
-            ["cwltool", "--validate", tmp_path],
-            capture_output=True, text=True
-        )
-        if result.returncode != 0:
-            raise ValueError(f"CWL validation failed: {result.stderr.strip()}")
-
-        # Validate with ap-validator
-        ap_result = subprocess.run(
-            ["ap-validator", tmp_path],
-            capture_output=True, text=True
-        )
-        if ap_result.returncode != 0:
-            raise ValueError(f"Application Package validation failed: {ap_result.stderr.strip()}")
-
-        cwl_obj = load_document_by_uri(urllib.parse.urlparse(tmp_path).geturl(), load_all=True)
-
-    except FileNotFoundError as e:
-        if "cwltool" in str(e) or "ap-validator" in str(e):
-            raise ValueError("cwltool or ap-validator is not installed or not found on PATH.")
-        raise ValueError("cwltool or ap-validator is not installed or not found on PATH.")
-    except Exception as e:
-        log.error(f"Failed to parse CWL: {e}")
-        raise ValueError("CWL file is not in the right format or is invalid.")
-    finally:
-        if 'tmp_path' in locals() and os.path.exists(tmp_path):
-            os.remove(tmp_path)
-
+        cwl_dict = yaml.load(cwl_text, Loader=NoDatesSafeLoader)
+        load_tool(cwl_dict, loading_context)
+        cwl_obj = load_document_by_string(cwl_text, uri=uri, load_all=True)
+    except Exception as err:
+        log.error(f"CWL validation failed: {err}")
+        raise ValueError(f"CWL validation failed: {str(err)}")
+    
+    # Now parse the CWL document for relevant metadata and throw errors if required fields missing
     # Ensure cwl_obj is iterable (should be a list when load_all=True)
     try:
         cwl_obj = list(cwl_obj) if hasattr(cwl_obj, '__iter__') and not isinstance(cwl_obj, str) else [cwl_obj]
