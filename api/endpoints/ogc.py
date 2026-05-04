@@ -173,7 +173,7 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
             db.session.commit()
 
         if current_status == OGC_SUCCESS:
-            existing_process = db.session.query(Process_db).filter_by(id=deployment.id, version=deployment.version, status=DEPLOYED_PROCESS_STATUS).first()
+            existing_process = db.session.query(Process_db).filter_by(id=deployment.id, version=deployment.version, deployer=deployment.deployer, status=DEPLOYED_PROCESS_STATUS).first()
             
             if existing_process:
                 existing_process.cwl_link = deployment.cwl_link
@@ -208,7 +208,7 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
                 db.session.add(process)
                 db.session.commit()
                 # Re-query to get the auto-generated process_id
-                process = db.session.query(Process_db).filter_by(id=deployment.id, version=deployment.version, status=DEPLOYED_PROCESS_STATUS).first()
+                process = db.session.query(Process_db).filter_by(id=deployment.id, version=deployment.version, deployer=deployment.deployer, status=DEPLOYED_PROCESS_STATUS).first()
                 process_id = process.process_id
 
             status_code = status.HTTP_201_CREATED
@@ -371,6 +371,7 @@ class Describe(Resource):
         req_data = json.loads(req_data_string)
 
         cwl_raw_text=None
+        cwl_link = None
         try:
             if req_data.get("executionUnit") and req_data.get("cwlRawText"):
                 return generate_error("Cannot pass a request body with a executionUnit and cwlRawText. Must choose one to register.", status.HTTP_400_BAD_REQUEST)
@@ -387,7 +388,7 @@ class Describe(Resource):
             else:
                 return generate_error("Must pass a request body with a executionUnit or cwlRawText. Other formats not currently supported", status.HTTP_400_BAD_REQUEST)
             
-            metadata = get_cwl_metadata(cwl_raw_text)
+            metadata = get_cwl_metadata(cwl_raw_text, cwl_link)
             if metadata.id != existing_process.id or metadata.version != existing_process.version:
                 detail = f"Need to provide same id and version as previous process which is {existing_process.id}:{existing_process.version}"
                 return generate_error(detail, status.HTTP_400_BAD_REQUEST)
@@ -622,9 +623,7 @@ class Result(Resource):
                     prod["id"] = product.get("id")
                     prod_list.append(prod)
                     if traceback is not None:
-                        # TODO graceal pass prod_list even if failed??
                         response_body["detail"] = "Job failed and traceback is " + str(traceback)
-                        return response_body, status.HTTP_200_OK 
                 count = 1
                 for prod_item in prod_list:
                     response_body["additionalProp"+str(count)] = prod_item
@@ -645,7 +644,7 @@ class Status(Resource):
     parser.add_argument("waitForCompletion", default=False, required=False, type=bool,
                         help="Wait for Cancel job to finish")
     parser.add_argument("fields", type=str,
-                        help="Fields separated by commas that you want this response to also return. Options are request, message, created, started, finished, updated, progress, links, title, keywords, description, process_name",
+                        help="Fields separated by commas that you want this response to also return. Options are request, message, created, started, finished, updated, progress, links, title, keywords, description, process_name, job_queue, inputs, products",
                         required=False)
     parser.add_argument("getJobDetails",default=False, required=False, type=bool,help="Return all fields for the job")
 
@@ -673,7 +672,9 @@ class Status(Resource):
                                             " please contact administrator " \
                                             "of DPS".format(job_id)
             return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR 
-
+        
+        # initialize job information
+        job_type = job_queue = tags = products = None
         try:
             response = hysds.get_mozart_job(job_id)
             if response and response["type"]:
@@ -704,17 +705,28 @@ class Status(Resource):
             print(ex)
             print(f"ERROR getting times status for job {job_id}")
 
-        tags = None
+        try:
+            job_queue = response["job"]["job_info"]["job_queue"]
+        except Exception as ex:
+            print(ex)
+            print(f"ERROR getting job queue for job {job_id}")
+
         try:
             tags = response["tags"]
         except Exception as ex:
             print(ex)
             print(f"ERROR getting tags for job {job_id}")
 
+        try:
+            products = response["job"]["job_info"]["metrics"]["products_staged"][0]["urls"][0]
+        except Exception as ex:
+            print(ex)
+            print(f"ERROR getting products for job {job_id}")
+
         # Bare minimum response body to pass back
         response_body = {
             "jobID": job_id,
-            "processID": existing_process.process_id if existing_process else None,
+            "processID": existing_process.process_id if existing_process else "Error getting process ID",
             # TODO graceal should this be hard coded in if the example options are process, wps, openeo?
             "type": None,
             "status": current_status
@@ -722,6 +734,13 @@ class Status(Resource):
         # job_info represents all additional fields a user can request about the job
         job_info.update(response_body)
         fields_to_specify = request.args.get("fields").split(',') if request.args.get("fields") else []
+
+        try:
+            process_name = get_process_name_from_hysds_name(job_type) if job_type else "Error getting process name"
+        except Exception as ex:
+            print(ex)
+            process_name = "Error getting process name"
+
         job_info.update({
             "request": None,
             "message": None,
@@ -731,7 +750,9 @@ class Status(Resource):
             "updated": None,
             "progress": None,
             "tags": tags,
-            "process_name": get_process_name_from_hysds_name(job_type),
+            "job_queue": job_queue,
+            "process_name": process_name,
+            "products": products,
             "links": [
                 {
                     "href": "/"+ns.name+"/jobs/"+str(job_id),
@@ -752,7 +773,10 @@ class Status(Resource):
                 response_body[field] = job_info[field]
             elif field == "inputs":
                 try:
-                    response_body[field] = response["context"]["job_specification"]["params"]
+                    if current_status == ogc.DEDUPED_OGC_STATUS:
+                        response_body[field] = response["job"]["job_info"]["payload"]["job_specification"]["params"]
+                    else:
+                        response_body[field] = response["job"]["params"]["job_specification"]["params"]
                 except Exception as ex:
                     print("Error finding job inputs")
                     print(ex)
@@ -828,7 +852,7 @@ class Jobs(Resource):
     parser.add_argument("priority", type=int, help="Job priority, 0-9", required=False)
     parser.add_argument("getJobDetails", type=bool, help="Return full details if True. "
                                                            "List of job id's if false. Default True.", required=False)
-    parser.add_argument("fields", type=int, help="Fields to specify in the job response", required=False)
+    parser.add_argument("fields", type=int, help="Fields to specify in the job response. Options are created, started, finished, title, keywords, description, process_name, queue, job_queue, inputs, products", required=False)
 
     @api.doc(security="ApiKeyAuth")
     @login_required()
@@ -983,11 +1007,18 @@ class Jobs(Resource):
                             job_with_fields[field] = job_info["job"]["job_info"]["time_start"]
                         elif field == "finished":
                             job_with_fields[field] = job_info["job"]["job_info"]["time_end"]
+                        elif field == "job_queue":
+                            job_with_fields[field] = job_info["job"]["job_info"]["job_queue"]
                         elif field == "process_name":
                             job_with_fields[field] = get_process_name_from_hysds_name(job_with_fields["job_type"])
+                        elif field == "products":
+                            job_with_fields[field] = job_info["job"]["job_info"]["metrics"]["products_staged"][0]["urls"][0]
                         elif field == "inputs":
                             try:
-                                job_with_fields[field] = job_info["context"]["job_specification"]["params"]
+                                if ogc_status == ogc.DEDUPED_OGC_STATUS:
+                                    response_body[field] = job_info["job"]["job_info"]["payload"]["job_specification"]["params"]
+                                else:
+                                    response_body[field] = job_info["job"]["params"]["job_specification"]["params"]
                             except Exception as ex:
                                 print("Error finding job inputs")
                                 print(ex)

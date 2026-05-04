@@ -23,6 +23,7 @@ from api.utils.email_util import send_user_status_update_active_user_email, \
     send_user_status_update_suspended_user_email, send_user_status_change_email, \
     send_welcome_to_maap_active_user_email, send_welcome_to_maap_suspended_user_email
 from api.endpoints.environment import get_config_from_api
+from api.utils.s3_access import build_user_s3_policy
 from api.models.pre_approved import PreApproved
 from datetime import datetime, timezone
 import json
@@ -412,7 +413,7 @@ class Self(Resource):
         member_result = json.loads(member_schema.dumps(member))
         result = json.loads(json.dumps(dict(member_result.items() | pgt_result.items())))
 
-        if 'proxy-ticket' in request.headers:
+        if 'proxy-ticket' in request.headers or 'cpticket' in request.headers:
             result['organizations'] = get_member_organizations(member.id)
             return result
 
@@ -737,62 +738,29 @@ class AwsAccessUserBucketCredentials(Resource):
         if not maap_user:
             return Response('Unauthorized', status=401)
 
-        # Guaranteed to at least always return default 
+        # Guaranteed to at least always return default
         config = get_config_from_api(request.host)
         workspace_bucket = config["workspace_bucket"]
 
-        # Allow bucket access to just the user's workspace directory
-        policy = f'''{{"Version": "2012-10-17",
-            "Statement": [
-                {{
-                    "Sid": "GrantAccessToUserFolder",
-                    "Effect": "Allow",
-                    "Action": [
-                        "s3:ListBucket",
-                        "s3:DeleteObject",
-                        "s3:GetObject",
-                        "s3:PutObject",
-                        "s3:RestoreObject",
-                        "s3:ListMultipartUploadParts",
-                        "s3:AbortMultipartUpload"
-                    ],
-                    "Resource": [
-                        "arn:aws:s3:::{workspace_bucket}/{maap_user.username}/*"
-                    ]
-                }},
-                {{
-                    "Sid": "GrantListAccess",
-                    "Effect": "Allow",
-                    "Action": [
-                        "s3:ListBucket"
-                    ],
-                    "Resource": "arn:aws:s3:::{workspace_bucket}",
-                    "Condition": {{
-                        "StringLike": {{
-                            "s3:prefix": [
-                                "{maap_user.username}/*"
-                            ]
-                        }}
-                    }}
-                }}
-            ]
-        }}'''
+        # Build the STS policy and collect authorized paths
+        policy, authorized_s3_paths = build_user_s3_policy(workspace_bucket, maap_user.username, maap_user.id)
 
         # Call the assume_role method of the STSConnection object
         assumed_role_object = sts_client.assume_role(
             RoleArn=settings.WORKSPACE_BUCKET_ARN,
             RoleSessionName=f'workspace-session-{maap_user.username}',
             Policy=policy,
-            DurationSeconds=(60 * 60)
+            DurationSeconds=(60 * 60 * 12)  # 12 hours, which is the max allowed by AWS for a custom policy with assume_role
         )
 
         response = jsonify(
-            aws_bucket_name=workspace_bucket,
-            aws_bucket_prefix=maap_user.username,
-            aws_access_key_id=assumed_role_object['Credentials']['AccessKeyId'],
-            aws_secret_access_key=assumed_role_object['Credentials']['SecretAccessKey'],
-            aws_session_token=assumed_role_object['Credentials']['SessionToken'],
-            aws_session_expiration=assumed_role_object['Credentials']['Expiration'].strftime("%Y-%m-%d %H:%M:%S%z")
+            credentials={
+                "aws_access_key_id": assumed_role_object['Credentials']['AccessKeyId'],
+                "aws_secret_access_key": assumed_role_object['Credentials']['SecretAccessKey'],
+                "aws_session_token": assumed_role_object['Credentials']['SessionToken'],
+                "expires_at": assumed_role_object['Credentials']['Expiration'].strftime("%Y-%m-%dT%H:%M:%S%z")
+            },
+            authorized_s3_paths=authorized_s3_paths
         )
 
         response.headers.add('Access-Control-Allow-Origin', '*')

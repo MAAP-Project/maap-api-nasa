@@ -1,13 +1,15 @@
+import hashlib
 from functools import wraps
 import requests
 from flask import request, abort
 from flask_api import status
 from werkzeug.exceptions import HTTPException
-from api import settings
+from api import settings, constants
 from api.utils.security_utils import AuthenticationError, ExternalServiceError
 from api.auth.cas_auth import start_member_session_jwt, validate_proxy, validate_third_party
 from api.maap_database import db
 from api.models.member import Member
+from api.models.personal_access_token import PersonalAccessToken
 from api.models.role import Role
 import jwt
 from jwt import PyJWKClient
@@ -18,6 +20,7 @@ HEADER_CP_TICKET = "cpticket"
 HEADER_AUTHORIZATION = "Authorization"
 HEADER_CAS_AUTHORIZATION = "cas-authorization"
 HEADER_DPS_TOKEN = "dps-token"
+HEADER_MAAP_API_KEY = "X-MAAP-API-Key"
 
 
 def get_authorized_user():
@@ -42,15 +45,28 @@ def get_authorized_user():
         elif auth_header_name == HEADER_AUTHORIZATION:
             if auth_header_value and auth_header_value.lower().startswith('bearer '):
                 token = auth_header_value.split(" ")[1]
+
+                # Try JWT first, then fall back to personal access token
                 decoded = verify_jwt_token(token)
-                if not decoded:
-                    raise AuthenticationError("Invalid or expired jwt token.")
+                if decoded:
+                    _member = start_member_session_jwt(decoded, token)
+                    return _member
 
-                _member = start_member_session_jwt(decoded, token)
+                # Not a valid JWT — try as a personal access token
+                _member = validate_personal_access_token(token)
+                if _member is not None:
+                    return _member
 
-                return _member
+                raise AuthenticationError("Invalid or expired token.")
             else: # Malformed Authorization header
                 raise AuthenticationError("Malformed Authorization header.")
+
+        elif auth_header_name == HEADER_MAAP_API_KEY:
+            # Personal access token passed directly via X-MAAP-API-Key
+            _member = validate_personal_access_token(auth_header_value)
+            if _member is not None:
+                return _member
+            raise AuthenticationError("Invalid or expired API key.")
 
         # If no valid auth method found or successfully processed
         return None
@@ -69,6 +85,37 @@ def get_authorized_user():
     except Exception: # Catch any other unexpected error during auth processing
         # current_app.logger.error(f"Unexpected error in get_authorized_user: {e}", exc_info=True)
         return None
+
+def validate_personal_access_token(raw_token):
+    """Validate a personal access token and return the corresponding Member.
+
+    Hashes the raw token, looks it up in personal_access_token,
+    verifies it is active (not revoked, not expired), then joins
+    against the member table via user_identifier = member.email
+    to confirm the member exists and has status = 'active'.
+
+    Returns the Member on success, or None on failure.
+    """
+    token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+
+    pat = (
+        db.session.query(PersonalAccessToken)
+        .filter_by(token_hash=token_hash)
+        .filter(PersonalAccessToken.revoked_at.is_(None))
+        .first()
+    )
+
+    if pat is None or not pat.is_active:
+        return None
+
+    member = (
+        db.session.query(Member)
+        .filter_by(email=pat.user_identifier, status=constants.STATUS_ACTIVE)
+        .first()
+    )
+
+    return member
+
 
 def authenticate_third_party():
     def authenticate_third_party_outer(wrapped_function):
@@ -109,15 +156,32 @@ def login_required(role=Role.ROLE_GUEST):
                 elif auth_header_name == HEADER_AUTHORIZATION:
                     if auth_header_value and auth_header_value.lower().startswith('bearer '):
                         token = auth_header_value.split(" ")[1]
-                        decoded = verify_jwt_token(token)
-                        if not decoded:
-                            raise AuthenticationError("Invalid or expired jwt token.")
 
-                        #request.user = decoded
-                        return wrapped_function(*args, **kwargs)
+                        # Try JWT first
+                        decoded = verify_jwt_token(token)
+                        if decoded:
+                            return wrapped_function(*args, **kwargs)
+
+                        # Not a valid JWT — try as a personal access token
+                        _member = validate_personal_access_token(token)
+                        if _member is not None and _member.role_id >= role:
+                            return wrapped_function(*args, **kwargs)
+                        elif _member is not None:
+                            raise AuthenticationError("Insufficient permissions.")
+
+                        raise AuthenticationError("Invalid or expired token.")
 
                     else: # Malformed Authorization header
                         raise AuthenticationError("Malformed Authorization header.")
+
+                elif auth_header_name == HEADER_MAAP_API_KEY:
+                    # Personal access token passed via X-MAAP-API-Key
+                    _member = validate_personal_access_token(auth_header_value)
+                    if _member is not None and _member.role_id >= role:
+                        return wrapped_function(*args, **kwargs)
+                    elif _member is not None:
+                        raise AuthenticationError("Insufficient permissions.")
+                    raise AuthenticationError("Invalid or expired API key.")
 
                 elif auth_header_name == HEADER_CAS_AUTHORIZATION:
                     # Validate CAS SECRET KEY
@@ -177,6 +241,8 @@ def get_auth_header():
         return HEADER_CAS_AUTHORIZATION
     if HEADER_DPS_TOKEN in request.headers:
         return HEADER_DPS_TOKEN
+    if HEADER_MAAP_API_KEY in request.headers:
+        return HEADER_MAAP_API_KEY
     return None
 
 

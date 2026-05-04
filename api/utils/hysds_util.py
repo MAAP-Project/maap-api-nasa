@@ -579,6 +579,7 @@ def validate_job_submit(hysds_io, user_params, username):
         param_name = param.get("name")
         param_info["from"] = param.get("from")
         param_info["default"] = param.get("default", None)
+        param_info["optional"] = param.get("optional", False)
         param_info["type"] = param.get("type", str)
         known_params[param_name] = param_info
 
@@ -597,9 +598,9 @@ def validate_job_submit(hysds_io, user_params, username):
         else:
             if known_params.get(p).get("default") is not None:
                 validated_params[p] = known_params.get(p).get("default")
-            else:
-                raise ValueError("Parameter {} missing from inputs. Didn't find any default set for it in "
-                                 "algorithm specification. Please specify it and attempt to submit.".format(p))
+            # only raise an error when no default and not optional. If optional and no default, don't pass anything
+            elif not known_params.get(p).get("optional"):
+                raise ValueError("Parameter {} missing from inputs. No default set in algorithm spec. Please specify and resubmit.".format(p))
     return validated_params
 
 
@@ -657,16 +658,12 @@ def get_mozart_jobs_from_query_params(query_params, user):
         return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
 
 def get_mozart_job(job_id):
-    job_status = mozart_job_status(job_id).get("status")
-    if job_status == "job-completed" or job_status == "job-failed":
-        try:
-            mozart_response = get_mozart_job_info(job_id)
-            result = mozart_response.get("result")
-            return result
-        except Exception as ex:
-            raise ex
-    else:
-        raise Exception("Aborting retrieving information of job because status is {}".format(job_status))
+    try:
+        mozart_response = get_mozart_job_info(job_id)
+        result = mozart_response.get("result")
+        return result
+    except Exception as ex:
+        raise ex
 
 
 def get_mozart_queues():
