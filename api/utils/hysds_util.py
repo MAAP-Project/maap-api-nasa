@@ -222,9 +222,7 @@ def create_job_spec(run_command, inputs, disk_usage, queue_name, verified=False)
     job_spec["command"] = "/app/dps_wrapper.sh '{}'".format(run_command)
     job_spec["disk_usage"] = disk_usage
     job_spec["imported_worker_files"] = {
-        "$HOME/.netrc": "/home/ops/.netrc",
-        "$HOME/.aws": "/home/ops/.aws",
-        "$HOME/verdi/etc/maap-dps.env": "/home/ops/.maap-dps.env",
+        "${DATA_DIR}/work/etc/maap-dps.env": "/home/ops/.maap-dps.env",
         "/tmp": ["/tmp", "rw"]
     }
     job_spec["post"] = ["hysds.triage.triage"]
