@@ -54,13 +54,32 @@ class Processes(Resource):
     def get(self):
         """
         Search all processes
+        Query Parameters:
+        - deployer: Filter by the deployer who deployed the process
+        - algorithmName: Filter by the algorithm name (id)
+        - algorithmVersion: Filter by the algorithm version
         :return:
         """
         response_body = dict()
         existing_processes_return = []
         existing_links_return = []
 
-        existing_processes = db.session.query(Process_db).filter_by(status=DEPLOYED_PROCESS_STATUS).all()
+        # Start with base query filtering by deployed status
+        query = db.session.query(Process_db).filter_by(status=DEPLOYED_PROCESS_STATUS)
+
+        # Apply filters based on query parameters
+        deployer = request.args.get('deployer')
+        process_name = request.args.get('algorithmName')
+        process_version = request.args.get('algorithmVersion')
+
+        if deployer:
+            query = query.filter_by(deployer=deployer)
+        if process_name:
+            query = query.filter_by(id=process_name)
+        if process_version:
+            query = query.filter_by(version=process_version)
+
+        existing_processes = query.all()
 
         for process in existing_processes:
             link_obj_process = {
@@ -75,6 +94,7 @@ class Processes(Resource):
                 "description": process.description,
                 "keywords": process.keywords.split(",") if process.keywords is not None else [],
                 "metadata": [], # TODO Unsure what we want this to be yet
+                "processID": process.process_id,
                 "id": process.id,
                 "version": process.version,
                 "jobControlOptions": [], # TODO Unsure what we want this to be yet
