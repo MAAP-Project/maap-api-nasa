@@ -308,7 +308,7 @@ class Register(Resource):
             else:
                 response_body["code"] = status.HTTP_500_INTERNAL_SERVER_ERROR
                 response_body["message"] = "Please include repo URL in the request"
-                response_body["error"] = "Missing key repo_url in request: {}".format(req_data)
+                response_body["error"] = "Missing key repository_url in request: {}".format(req_data)
                 return response_body, status.HTTP_500_INTERNAL_SERVER_ERROR
 
             # creating file whose contents are returned on ci build success
