@@ -13,6 +13,8 @@ ns = {
 WPS_STATUSES = ["Accepted", "Running", "Succeeded", "Failed", "Dismissed", "Deduped", "Deleted", "Offline"]
 HYSDS_STATUSES= ["job-started", "job-completed", "job-queued", "job-failed", "job-deduped", "job-revoked", "job-offline"]
 
+DEDUPED_OGC_STATUS = "deduped"
+
 WPS_TO_HYSDS_JOB_STATUS_MAP = {
  "Accepted": "job-queued",
  "Running": "job-started",
@@ -22,6 +24,53 @@ WPS_TO_HYSDS_JOB_STATUS_MAP = {
  "Deduped": "job-deduped",
  "Deleted": None, 
  "Offline": "job-offline"}
+
+OGC_TO_HYSDS_JOB_STATUS_MAP = {
+ "accepted": "job-queued",
+ "running": "job-started",
+ "successful": "job-completed",
+ "failed": "job-failed",
+ "dismissed": "job-revoked",
+ "deduped": "job-deduped",
+ "deleted": None, 
+ "offline": "job-offline"}
+
+GITLAB_PIPELINE_EVENT_STATUS_MAP = {
+ "running": "running",
+ "success": "successful",
+ "pending": "accepted"
+}
+
+def get_ogc_status_from_gitlab(gitlab_status):
+    return GITLAB_PIPELINE_EVENT_STATUS_MAP.get(gitlab_status)
+
+def hysds_to_ogc_status(hysds_status):
+    for status in OGC_TO_HYSDS_JOB_STATUS_MAP:
+        if OGC_TO_HYSDS_JOB_STATUS_MAP.get(status) == hysds_status:
+            return status
+    return None 
+
+def get_hysds_status_from_ogc(ogc_status):
+    """
+    Translate WPS job status to HySDS job status
+
+    NOTE: HySDS does not support job status 'Deleted' and this status is not one of the base WPS job statuses.
+    Treating this status as a pass-through until there is consensus on HySDS-WPS mapping.
+
+    :param status: (str) WPS job status
+    :return status: (str) HySDS job status
+    """
+    ogc_status = ogc_status.lower()
+    if ogc_status not in OGC_TO_HYSDS_JOB_STATUS_MAP:
+        statuses = ", ".join(str(status) for status in list(OGC_TO_HYSDS_JOB_STATUS_MAP.keys()))
+        return None, "Invalid WPS status: {}. Valid values are: {}".format(ogc_status, statuses)
+    return OGC_TO_HYSDS_JOB_STATUS_MAP.get(ogc_status), None
+
+def hysds_to_wps_status(hysds_status):
+    for status in WPS_TO_HYSDS_JOB_STATUS_MAP:
+        if WPS_TO_HYSDS_JOB_STATUS_MAP.get(status) == hysds_status:
+            return status
+    return None 
 
 def set_namespaces(xml_element):
     xml_element.set("xmlns:wps", "http://www.opengis.net/wps/2.0")
@@ -163,7 +212,7 @@ def execute_response(job_id, job_status, output):
 
 def parse_status_request(request_xml):
     """
-    OCG GetStatus REQUEST EXAMPLE
+    OGC GetStatus REQUEST EXAMPLE
 
     <wps:GetStatus service="WPS" version="2.0.0" xmlns:wps="http://www.opengis.net/wps/2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.opengis.net/wps/2.0 ../wps.xsd ">
     <wps:JobID>336d5fa5-3bd6-4ee9-81ea-c6bccd2d443e</wps:JobID>
@@ -179,7 +228,7 @@ def parse_status_request(request_xml):
 
 def parse_result_request(request_xml):
     """
-    OCG GetResult REQUEST EXAMPLE
+    OGC GetResult REQUEST EXAMPLE
 
     <wps:GetResult service="WPS" version="2.0.0"
       xmlns:wps="http://www.opengis.net/wps/2.0"
@@ -207,7 +256,7 @@ def construct_product(xml_element, product):
 
 def result_response(job_id, job_result=None, error=None):
     """
-    OCG GetResult Response
+    OGC GetResult Response
     <wps:Result xsi:schemaLocation="http://www.opengis.net/wps/2.0 http://schemas.opengis.net/wps/2.0/wps.xsd" xmlns:wps="http://www.opengis.net/wps/2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
     <wps:JobID>336d5fa5-3bd6-4ee9-81ea-c6bccd2d443e</wps:JobID>
     <wps:Output id="filename">
@@ -293,13 +342,13 @@ def get_capabilities(base_url, job_list):
 
     serv_id = ET.SubElement(response, "ows:ServiceIdentification")
     ET.SubElement(serv_id, "ows:Title").text = "Multi Mission Analysis Platform"
-    ET.SubElement(serv_id, "ows:Abstract").text = "The MAAP Services are based on the OCG REST Specifications"
+    ET.SubElement(serv_id, "ows:Abstract").text = "The MAAP Services are based on the OGC REST Specifications"
     keywords = ET.SubElement(serv_id, "ows:Keywords")
     ET.SubElement(keywords, "ows:Keyword").text = "MAAP"
     ET.SubElement(keywords, "ows:Keyword").text = "NASA"
     ET.SubElement(keywords, "ows:Keyword").text = "ESA"
     ET.SubElement(keywords, "ows:Keyword").text = "API"
-    ET.SubElement(serv_id, "ows:ServiceType").text = "OCG"
+    ET.SubElement(serv_id, "ows:ServiceType").text = "OGC"
     ET.SubElement(serv_id, "ows:ServiceTypeVersion").text = "0.0.1"
     ET.SubElement(serv_id, "ows:Fees").text = "NONE"
     ET.SubElement(serv_id, "ows:AccessConstraints").text = "NONE"

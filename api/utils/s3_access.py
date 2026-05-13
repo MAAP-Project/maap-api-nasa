@@ -71,13 +71,7 @@ def get_user_s3_access(user_id):
 
 
 S3_READ_WRITE_ACTIONS = [
-    "s3:ListBucket",
-    "s3:DeleteObject",
-    "s3:GetObject",
-    "s3:PutObject",
-    "s3:RestoreObject",
-    "s3:ListMultipartUploadParts",
-    "s3:AbortMultipartUpload"
+    "s3:*"
 ]
 
 S3_READ_ONLY_ACTIONS = [

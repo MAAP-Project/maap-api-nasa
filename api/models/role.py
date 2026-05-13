@@ -8,6 +8,11 @@ class Role(Base):
     ROLE_GUEST = 1
     ROLE_MEMBER = 2
     ROLE_ADMIN = 3
+    
+    ROLE_NAME_GUEST = 'GUEST'
+    ROLE_NAME_MEMBER = 'MEMBER'
+    ROLE_NAME_ADMIN = 'ADMIN'
+
 
     id = db.Column(db.Integer, primary_key=True)
     role_name = db.Column(db.String())

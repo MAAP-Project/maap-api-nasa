@@ -502,78 +502,28 @@ class Jobs(Resource):
         :return: List of jobs for a given user that matches query params provided
         """
 
-        defaults = {
-            "username": None,
-            "get_job_details": True,
-            # To preserve existing behavior, set default to True. In the future, we should set this to False.
-            "page_size": 10,
-            "offset": 0,
-            "status": None,
-            "end_time": None,
-            "start_time": None,
-            "priority": None,
-            "queue": None,
-            "tag": None,
-            "job_type": None
-        }
-
-        # Get params and set default values
-        params = {key: request.args.get(key, default) for key, default in defaults.items()}
-
         user = get_authorized_user()
-        username = user.username
-
-        # Allow the username to be changed for admin roles using the username param
-        if user.is_admin() and params['username'] is not None:
-            username = params['username']
-
-        is_param_true = lambda x: x if isinstance(x, bool) else x.lower() == 'true'
-        get_job_details = is_param_true(params['get_job_details'])
-
+        params = dict(request.args)
         # If status is provided, make sure it is HySDS-compliant
-        if params['status'] is not None:
+        if params.get('status') is not None:
             params['status'] = ogc.get_hysds_status_from_wps(params['status'])
 
-        # Filter out the non-query params for the Mozart request
-        exclude_list = ["username", "get_job_details"]
-        filtered_query_params = {k: v for k, v in params.items() if k not in exclude_list and v is not None}
-
-        try:
-            logging.info("Finding jobs for user: {}".format(username))
-            # Get list of jobs ids for the user
-            response = hysds.get_mozart_jobs(username, **filtered_query_params)
-            job_list = response.get("result")
-            logging.info("Found Jobs: {}".format(job_list))
-
-            if get_job_details:
-                # Get job info per job
-                job_list = hysds.get_jobs_info(x.get("id") for x in job_list)
-
-            response_body = dict()
-            response_body["code"] = status.HTTP_200_OK
-            response_body["jobs"] = job_list
-            response_body["message"] = "success"
-            """
-                        <?xml version="1.0" encoding="UTF-8"?>
-                        <Jobs>
-                        <Job>
-                            <JobID></JobID>
-                            <JobStatus></JobStatus>
-                            <JobType></JobType>
-                            <JobParams></JobParams>
-                        </Job>
-                        <Job>...</Job>
-                        <Job>...</Job>
-                        ...
-                        <Jobs>
-            """
-            return response_body
-        except Exception as ex:
-            return Response(ogc.get_exception(type="FailedGetJobs", origin_process="GetJobs",
-                                              ex_message="Failed to get jobs for user {}. " \
-                                                         " please contact administrator " \
-                                                         "of DPS".format(username)), mimetype='text/xml',
-                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        response_body, status = hysds.get_mozart_jobs_from_query_params(params, user)
+        """
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <Jobs>
+                    <Job>
+                        <JobID></JobID>
+                        <JobStatus></JobStatus>
+                        <JobType></JobType>
+                        <JobParams></JobParams>
+                    </Job>
+                    <Job>...</Job>
+                    <Job>...</Job>
+                    ...
+                    <Jobs>
+        """
+        return response_body, status
 
 
 @ns.route(

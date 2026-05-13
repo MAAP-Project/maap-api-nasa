@@ -12,6 +12,7 @@ from api.maap_database import db
 from api.models.member import Member
 from api.models.member_session import MemberSession
 from api import settings
+from api import constants
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_v1_5
 from Crypto import Random
@@ -179,6 +180,8 @@ def validate_bearer(token):
         current_app.logger.error(f"Unexpected error during bearer token validation: {e}")
         raise ExternalServiceError("An unexpected error occurred during token validation.")
 
+def validate_third_party(secret_token):
+    return secret_token == settings.THIRD_PARTY_SECRET_TOKEN_GITLAB
 
 def validate_cas_request(cas_url):
 
@@ -283,19 +286,35 @@ def start_member_session(cas_response, ticket, auto_create_member=False):
     return member_session
 
 
+def _jwt_has_compute_role(decoded_jwt):
+    """Check if the JWT role array includes at least one role starting with 'CPU:' or 'GPU:'."""
+    roles = decoded_jwt.get("roles", [])
+    if isinstance(roles, str):
+        roles = [roles]
+    return any(r.startswith("CPU:") or r.startswith("GPU:") for r in roles if isinstance(r, str))
+
+
 def start_member_session_jwt(decoded_jwt, token_string, auto_create_member=False):
 
     usr = decoded_jwt.get("preferred_username")
 
     member = db.session.query(Member).filter_by(username=usr).first()
 
-    if member is None and (auto_create_member):
+    # Auto-create member if JWT contains a valid compute role (CPU: or GPU:)
+    if not auto_create_member:
+        auto_create_member = _jwt_has_compute_role(decoded_jwt)
+
+    if member is None and auto_create_member:
         member = Member(first_name=decoded_jwt.get("given_name"),
                         last_name=decoded_jwt.get("family_name"),
                         username=usr,
-                        email=decoded_jwt.get("email"))
+                        email=decoded_jwt.get("email"),
+                        role_id=Role.ROLE_MEMBER,
+                        status=MEMBER_STATUS_ACTIVE,
+                        creation_date=datetime.utcnow())
         try:
             db.session.add(member)
+            db.session.commit()
         except Exception as e:
             db.session.rollback()
             current_app.logger.error(f"Failed to add new member {usr}: {e}")
@@ -337,5 +356,3 @@ def decrypt_proxy_ticket(ticket):
         except:
             current_app.logger.debug("invalid proxy granting ticket")
             return ''
-
-
