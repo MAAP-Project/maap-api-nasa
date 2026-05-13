@@ -388,6 +388,7 @@ class Self(Resource):
             Member_db.last_name,
             Member_db.email,
             Member_db.status,
+            Member_db.urs_token,
             Member_db.public_ssh_key,
             Member_db.public_ssh_key_name,
             Member_db.public_ssh_key_modified_date,
