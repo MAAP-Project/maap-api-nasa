@@ -822,11 +822,20 @@ def get_edc_credentials(endpoint_uri, user_id):
     )
 
     endpoint = parse.unquote(endpoint_uri)
-    login_resp = s.get(endpoint, allow_redirects=False)
+    edl_response = s.get(endpoint, allow_redirects=False)
 
-    if login_resp.status_code == status.HTTP_307_TEMPORARY_REDIRECT:
-        edl_response = s.get(url=login_resp.headers['location'])
-    else:
-        edl_response = edl_federated_request(url=endpoint)
+    if not edl_response.ok:
+        log.error(f"EDL credentials request failed with status {edl_response.status_code} for endpoint {endpoint}: {edl_response.text}")
+        raise Exception(f"EDL credentials request failed with status {edl_response.status_code}")
 
-    return edl_response.json()
+    if not edl_response.text:
+        log.error(f"EDL credentials request returned empty response for endpoint {endpoint}")
+        raise Exception("EDL credentials request returned an empty response")
+
+    try:
+        return edl_response.json()
+    except requests.exceptions.JSONDecodeError:
+        log.error(f"EDL credentials response is not valid JSON for endpoint {endpoint}. "
+                   f"Content-Type: {edl_response.headers.get('Content-Type')}. "
+                   f"Response body: {edl_response.text[:500]}")
+        raise Exception("EDL credentials response is not valid JSON")
