@@ -1,4 +1,4 @@
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 
 import flask
 import requests
@@ -348,7 +348,7 @@ def refresh_urs_token(member, kc_access_token):
     missing or close to expiring. Expirations are cached per-process by member id,
     so the broker is not called on every authenticated request. Failures are logged
     and leave the existing token in place — they must not break authentication."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     cached_expiration = _edl_token_expiration_cache.get(member.id)
     if member.urs_token and cached_expiration is not None \
             and now < cached_expiration - EDL_TOKEN_REFRESH_BUFFER:
@@ -364,7 +364,7 @@ def refresh_urs_token(member, kc_access_token):
 
     # Prefer the absolute expiration epoch; fall back to expires_in if absent.
     if broker_token.get("accessTokenExpiration") is not None:
-        _edl_token_expiration_cache[member.id] = datetime.utcfromtimestamp(broker_token["accessTokenExpiration"])
+        _edl_token_expiration_cache[member.id] = datetime.fromtimestamp(broker_token["accessTokenExpiration"], timezone.utc)
     elif broker_token.get("expires_in") is not None:
         _edl_token_expiration_cache[member.id] = now + timedelta(seconds=int(broker_token["expires_in"]))
 
@@ -372,9 +372,9 @@ def refresh_urs_token(member, kc_access_token):
         member.urs_token = new_token
         try:
             db.session.commit()
-        except Exception as e:
+        except Exception:
             db.session.rollback()
-            current_app.logger.error(f"Failed to persist refreshed URS token for {member.username}: {e}")
+            current_app.logger.exception(f"Failed to persist refreshed URS token for {member.username}")
 
 
 def fetch_edl_broker_token(kc_access_token):
