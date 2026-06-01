@@ -85,7 +85,7 @@ poetry run pylint api/
 
 ### Configuration
 - Environment-based configuration in `api/settings.py`
-- Poetry dependency management (Python 3.9+)
+- Poetry dependency management (Python 3.10+)
 - Docker multi-stage builds for deployment
 - AWS CodeDeploy integration via `appspec.yml`
 
