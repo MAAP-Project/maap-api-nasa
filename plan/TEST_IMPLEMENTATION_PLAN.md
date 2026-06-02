@@ -35,7 +35,7 @@ This document provides a comprehensive step-by-step plan to implement the tests 
 
 **Create `docker/Dockerfile.test`**
 ```dockerfile
-FROM python:3.9 as test-builder
+FROM python:3.10 as test-builder
 
 # Install Poetry
 RUN curl -sSL https://install.python-poetry.org | python3 - --version 2.2.1 && \
@@ -55,7 +55,7 @@ RUN touch README.md
 # Install with dev dependencies for testing
 RUN poetry install --with dev --no-root && rm -rf $POETRY_CACHE_DIR
 
-FROM python:3.9-slim as test-runtime
+FROM python:3.10-slim as test-runtime
 
 ENV VIRTUAL_ENV=/maap-api-nasa/.venv \
     PATH="/maap-api-nasa/.venv/bin:$PATH" \
