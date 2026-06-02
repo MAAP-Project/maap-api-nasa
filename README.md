@@ -25,7 +25,7 @@ If you make changes to the settings, rebuild with `docker-compose -f docker-comp
 * postgresql
   * Linux: `sudo apt-get install postgresql python-psycopy2 libpq-dev`
   * Mac OSx: `brew install postgresql`
-* python3.9+
+* python3.10+
 
 ```bash
 cd maap-api-nasa
@@ -49,7 +49,7 @@ poetry install
 
 - Script path: `./api/maapapp.py`
 - Environment variables: `PYTHONUNBUFFERED=1`
-- Python interpreter: `Python 3.9`
+- Python interpreter: `Python 3.10`
 - Working directory: `./api`
 
 #### (Obsolete?) Config Titiler endpoint and maap-api-host
