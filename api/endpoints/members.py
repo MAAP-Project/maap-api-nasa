@@ -18,7 +18,7 @@ from api.models.member_session import MemberSession as MemberSession_db
 from api.models.member_secret import MemberSecret as MemberSecret_db
 from api.schemas.member_schema import MemberSchema
 from api.schemas.member_session_schema import MemberSessionSchema
-from api.utils.security_utils import validate_ssh_key_file, sanitize_filename, InvalidFileTypeError, FileSizeTooLargeError, EmptyFileError
+from api.utils.security_utils import validate_ssh_key_file, sanitize_filename, InvalidFileTypeError, FileSizeTooLargeError, EmptyFileError, ExternalServiceError
 from api.utils.email_util import send_user_status_update_active_user_email, \
     send_user_status_update_suspended_user_email, send_user_status_change_email, \
     send_welcome_to_maap_active_user_email, send_welcome_to_maap_suspended_user_email
@@ -816,17 +816,26 @@ def get_edc_credentials(endpoint_uri, user_id):
 
     s.headers.update(
         {
-            'Authorization': f'Bearer {urs_token},Basic {settings.MAAP_EDL_CREDS}',
+            'Authorization': f'Bearer {urs_token}',
             'Connection': 'close'
         }
     )
 
     endpoint = parse.unquote(endpoint_uri)
-    login_resp = s.get(endpoint, allow_redirects=False)
+    edl_response = s.get(endpoint, allow_redirects=False)
 
-    if login_resp.status_code == status.HTTP_307_TEMPORARY_REDIRECT:
-        edl_response = s.get(url=login_resp.headers['location'])
-    else:
-        edl_response = edl_federated_request(url=endpoint)
+    if not edl_response.ok:
+        log.error(f"EDL credentials request failed with status {edl_response.status_code} for endpoint {endpoint}: {edl_response.text}")
+        raise ExternalServiceError(f"EDL credentials request failed with status {edl_response.status_code}")
 
-    return edl_response.json()
+    if not edl_response.text:
+        log.error(f"EDL credentials request returned empty response for endpoint {endpoint}")
+        raise ExternalServiceError("EDL credentials request returned an empty response")
+
+    try:
+        return edl_response.json()
+    except requests.exceptions.JSONDecodeError:
+        log.error(f"EDL credentials response is not valid JSON for endpoint {endpoint}. "
+                   f"Content-Type: {edl_response.headers.get('Content-Type')}. "
+                   f"Response body: {edl_response.text[:500]}")
+        raise ExternalServiceError("EDL credentials response is not valid JSON")
