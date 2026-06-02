@@ -1,5 +1,5 @@
 
-FROM python:3.9 as builder
+FROM python:3.10 as builder
 
 # Install Poetry!
 RUN curl -sSL https://install.python-poetry.org | python3 - --version 2.2.1 && \
@@ -18,7 +18,7 @@ RUN touch README.md
 
 RUN poetry install --without dev --no-root && rm -rf $POETRY_CACHE_DIR
 
-FROM python:3.9-slim as runtime
+FROM python:3.10-slim as runtime
 
 ENV VIRTUAL_ENV=/maap-api-nasa/.venv \
     PATH="/maap-api-nasa/.venv/bin:$PATH" \
