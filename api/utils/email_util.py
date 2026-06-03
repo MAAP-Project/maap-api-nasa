@@ -273,10 +273,10 @@ def get_environment_info(base_url):
                 'open_policies': portal_base_url + "/open-policies/",
                 'privacy_policy': 'https://www.nasa.gov/about/highlights/HP_Privacy.html',
                 'tos': portal_base_url + "/terms-of-service/",
-                'user_guides': portal_base_url + "/user-guides/",
+                'user_guides': "https://docs.maap-project.org/en/latest/getting_started.html",
             },
             'github': {
-                'issues': 'https://github.com/MAAP-Project/ZenHub/issues'
+                'issues': 'https://github.com/MAAP-Project/Community/issues'
             },
         },
     }
