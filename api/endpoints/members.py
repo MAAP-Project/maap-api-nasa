@@ -450,7 +450,12 @@ class PublicSshKeyUpload(Resource):
                 update({Member_db.public_ssh_key: file_content,
                         Member_db.public_ssh_key_name: safe_filename, # Use sanitized filename
                         Member_db.public_ssh_key_modified_date: datetime.utcnow()})
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"Failed to upload SSH key for member {member.id}: {e}")
+                raise
 
             # Re-fetch member to get updated data for the response
             updated_member = db.session.query(Member_db).filter_by(id=member.id).first()
@@ -553,7 +558,12 @@ class Secrets(Resource):
                                          creation_date=datetime.utcnow())
 
             db.session.add(new_secret)
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"Failed to create secret '{secret_name}' for member {member.id}: {e}")
+                raise
 
             return {
                 'secret_name': secret_name
@@ -604,7 +614,12 @@ class Secrets(Resource):
                 return err_response(msg="No secret exists with name " + name)
 
             db.session.delete(secret)
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"Failed to delete secret '{name}' for member {member.id}: {e}")
+                raise
 
             return custom_response("Successfully deleted secret {}".format(name))
         except SQLAlchemyError as ex:
