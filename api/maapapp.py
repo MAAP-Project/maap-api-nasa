@@ -65,6 +65,24 @@ def add_security_headers(response):
     return response
 
 
+@app.teardown_request
+def teardown_request(exception):
+    """
+    Global teardown hook to ensure database sessions are properly cleaned up after each request.
+    
+    This prevents dirty sessions from leaking between requests by:
+    1. Rolling back any uncommitted transactions if an exception occurred
+    2. Removing the session from the registry and returning the connection to the pool
+    
+    This acts as a safety net for any unhandled database errors, preventing cascading
+    PendingRollbackError issues across multiple requests.
+    """
+    if exception:
+        db.session.rollback()
+        log.error(f"Request failed with exception, rolling back database session: {exception}")
+    db.session.remove()
+
+
 @app.route('/')
 def index():
 
