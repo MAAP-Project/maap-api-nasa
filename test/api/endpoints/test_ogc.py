@@ -560,10 +560,11 @@ $graph:
             # Given a process owned by authenticated user
             member = self._create_test_member()
             process = self._create_test_process(member)
+            process_id = process.process_id  # Capture ID before request detaches the object
             mock_get_user.return_value = member
             
             # When deleting the process
-            response = self._make_authenticated_request('DELETE', f'/api/ogc/processes/{process.process_id}', None, member)
+            response = self._make_authenticated_request('DELETE', f'/api/ogc/processes/{process_id}', None, member)
             
             # Then process should be marked as undeployed
             self.assertEqual(response.status_code, 200)
@@ -571,7 +572,7 @@ $graph:
             self.assertIn('Deleted process', data['detail'])
             
             # And process status should be updated
-            updated_process = db.session.query(Process).filter_by(process_id=process.process_id).first()
+            updated_process = db.session.query(Process).filter_by(process_id=process_id).first()
             self.assertEqual(updated_process.status, 'undeployed')
 
     def test_process_package_returns_execution_unit(self):
