@@ -607,7 +607,7 @@ def get_mozart_jobs_from_query_params(query_params, user):
         "username": None,
         "get_job_details": True,
         # To preserve existing behavior, set default to True. In the future, we should set this to False.
-        "page_size": 10,
+        "page_size": 100,
         "offset": 0,
         "status": None,
         "end_time": None,
