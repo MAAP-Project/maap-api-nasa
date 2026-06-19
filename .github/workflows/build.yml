@@ -99,8 +99,9 @@ jobs:
         run: |
           echo "TARGET_ENV_UPPERCASE=${{ github.event.inputs.venue }}" >> $GITHUB_ENV
       - name: Bump pre-alpha version
-        # If triggered by push to a non-tracked branch
+        # If triggered by push to a non-tracked branch (but not manual dispatch)
         if: |
+          github.event_name != 'workflow_dispatch' &&
           github.ref != 'refs/heads/develop' &&
           github.ref != 'refs/heads/main' &&
           !startsWith(github.ref, 'refs/heads/release/')
