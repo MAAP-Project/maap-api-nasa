@@ -883,7 +883,6 @@ class Jobs(Resource):
         :param minDuration: Minimum duration in seconds
         :param maxDuration: Maximum duration in seconds
         :param processID: Process ID
-        :param limit: Limit of jobs to send back
         :param type: Type, available values: process
         :param datetime: Either a date-time or an interval, half-bounded or bounded. Date and time expressions adhere to RFC 3339. Half-bounded intervals are expressed using double-dots.
         :param getJobDetails: Boolean that returns job details if set to True or just job ID's if set to False. Default is True.
@@ -972,14 +971,6 @@ class Jobs(Resource):
                     print(ex)
                     print("Unable to determine if job falls in min/max duration range because not in correct format")
             response_body["jobs"] = jobs_in_duration_range
-                
-        
-        # Apply the limit if it was passed as a param
-        if response_body["jobs"] and request.args.get("limit"):
-            limit = request.args.get("limit")
-            if limit.isdigit():
-                limit = int(limit)
-                response_body["jobs"] = response_body["jobs"][:limit]
 
         links = []
         job_list = []
