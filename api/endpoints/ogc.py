@@ -1055,6 +1055,31 @@ class Jobs(Resource):
         response_body["links"] = links
         response_body["jobs"] = job_list
         return response_body, status.HTTP_200_OK
+
+@ns.route("/jobs/count")
+class JobsCount(Resource):
+    @api.doc(security="ApiKeyAuth")
+    @login_required()
+    def get(self):
+        """
+        Returns the total count of all jobs for the authenticated user
+        :return: Total job count
+        """
+        user = get_authorized_user()
+        
+        try:
+            # Get total count of all jobs for the user (use page_size=1 to minimize data transfer)
+            total_count_response = hysds.get_mozart_jobs(user.username, page_size=1, offset=0)
+            print("graceal1 response is")
+            print(total_count_response)
+            total_count = total_count_response.get("count", 0)
+            
+            response_body = {
+                "totalJobCount": total_count
+            }
+            return response_body, status.HTTP_200_OK
+        except Exception as ex:
+            return generate_error(f"Failed to get job count for user {user.username}. {str(ex)}", status.HTTP_500_INTERNAL_SERVER_ERROR)
     
 @ns.route("/jobs/<string:job_id>/metrics")
 class Metrics(Resource):
