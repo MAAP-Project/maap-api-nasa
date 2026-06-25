@@ -101,6 +101,7 @@ jobs:
       - name: Bump pre-alpha version
         # If triggered by push to a non-tracked branch
         if: |
+          github.event_name != 'workflow_dispatch' &&
           github.ref != 'refs/heads/develop' &&
           github.ref != 'refs/heads/main' &&
           !startsWith(github.ref, 'refs/heads/release/')
