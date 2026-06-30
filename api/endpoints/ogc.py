@@ -189,8 +189,13 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
         current_status = ogc_status if ogc_status else updated_status
 
         if current_status in OGC_FINISHED_STATUSES:
-            deployment.status = current_status
-            db.session.commit()
+            try:
+                deployment.status = current_status
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                log.error(f"Failed to update deployment status to {current_status} for deployment {deployment.deployment_id}: {e}")
+                raise
 
         if current_status == OGC_SUCCESS:
             existing_process = db.session.query(Process_db).filter_by(id=deployment.id, version=deployment.version, deployer=deployment.deployer, status=DEPLOYED_PROCESS_STATUS).first()
@@ -226,14 +231,24 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
                                 cores_min=deployment.cores_min,
                                 base_command=deployment.base_command)
                 db.session.add(process)
-                db.session.commit()
+                try:
+                    db.session.commit()
+                except Exception as e:
+                    db.session.rollback()
+                    log.error(f"Failed to create new process record for {deployment.id} v{deployment.version}: {e}")
+                    raise
                 # Re-query to get the auto-generated process_id
                 process = db.session.query(Process_db).filter_by(id=deployment.id, version=deployment.version, deployer=deployment.deployer, status=DEPLOYED_PROCESS_STATUS).first()
                 process_id = process.process_id
 
             status_code = status.HTTP_201_CREATED
-            deployment.process_id = process_id
-            db.session.commit()
+            try:
+                deployment.process_id = process_id
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                log.error(f"Failed to update deployment with process_id {process_id} for deployment {deployment.deployment_id}: {e}")
+                raise
 
     pipeline_url = PIPELINE_URL_TEMPLATE.format(pipeline_id=deployment.pipeline_id)
     
@@ -467,7 +482,12 @@ class Describe(Resource):
             # hysds.delete_mozart_job_type(job_type)
             # Delete from database after successfully deleted from HySDS 
             existing_process.status = UNDEPLOYED_PROCESS_STATUS
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                log.error(f"Failed to mark process {process_id} as undeployed in database: {e}")
+                raise
             return {"detail": "Deleted process"}, status.HTTP_200_OK 
         except Exception as e:
             log.error(f"Failed to delete process {process_id}: {traceback.format_exc()}")
