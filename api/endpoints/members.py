@@ -629,7 +629,13 @@ class PresignedUrlS3(Resource):
 
         # Verify that this key exists in the bucket before returning presigned s3 url
         try:
-            s3_client.head_object(Bucket=bucket, Key=decoded_s3_path)
+            head_object_params = {'Bucket': bucket, 'Key': decoded_s3_path}
+            # Extract AWS account ID from ARN (format: arn:aws:iam::ACCOUNT_ID:role/...)
+            if settings.WORKSPACE_BUCKET_ARN and '::' in settings.WORKSPACE_BUCKET_ARN:
+                account_id = settings.WORKSPACE_BUCKET_ARN.split('::')[1].split(':')[0]
+                if account_id and account_id != '???':
+                    head_object_params['ExpectedBucketOwner'] = account_id
+            s3_client.head_object(**head_object_params)
         except Exception as e:
             error_code = e.response['Error']['Code']
 
