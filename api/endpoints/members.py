@@ -625,6 +625,19 @@ class PresignedUrlS3(Resource):
         expiration = request.args['exp']
         che_ws_namespace = request.args['ws'] if 'ws' in request.args else ''
         s3_path = self.mount_key_to_bucket(key, che_ws_namespace) if che_ws_namespace else key
+        decoded_s3_path = parse.unquote(s3_path)
+
+        # Verify that this key exists in the bucket before returning presigned s3 url
+        try:
+            s3_client.head_object(Bucket=bucket, Key=decoded_s3_path)
+        except Exception as e:
+            error_code = e.response['Error']['Code']
+
+            if error_code == "404":
+                return err_response(msg=f"Error: The file '{decoded_s3_path}' does not exist in bucket '{bucket}'.", code=status.HTTP_404_NOT_FOUND)
+            else:
+                print(f"AWS Security/Network Error: {e}")
+                return err_response(msg=f"Error getting presigned url for file '{decoded_s3_path}' in bucket '{bucket}'.", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         url = s3_client.generate_presigned_url(
             'get_object',
