@@ -640,10 +640,12 @@ class PresignedUrlS3(Resource):
             head_object_params = {
                 'Bucket': bucket,
                 'Key': decoded_s3_path,
-                'ExpectedBucketOwner': account_id
+                'ExpectedBucketOwner': "123"
             }
             s3_client.head_object(**head_object_params)
         except Exception as e:
+            print("graceal1 error response is ")
+            print(e.response)
             error_code = e.response['Error']['Code']
 
             if error_code == "404":
