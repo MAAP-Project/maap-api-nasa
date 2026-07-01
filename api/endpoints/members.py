@@ -640,7 +640,7 @@ class PresignedUrlS3(Resource):
             head_object_params = {
                 'Bucket': bucket,
                 'Key': decoded_s3_path,
-                'ExpectedBucketOwner': "123"
+                'ExpectedBucketOwner': account_id
             }
             s3_client.head_object(**head_object_params)
         except Exception as e:
