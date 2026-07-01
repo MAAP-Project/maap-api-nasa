@@ -644,7 +644,9 @@ class PresignedUrlS3(Resource):
             }
             s3_client.head_object(**head_object_params)
         except Exception as e:
+            logging.info("graceal1 error response is ")
             print("graceal1 error response is ")
+            logging.error(e.response)
             print(e.response)
             error_code = e.response['Error']['Code']
 
