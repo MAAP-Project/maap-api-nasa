@@ -644,14 +644,14 @@ class PresignedUrlS3(Resource):
             }
             s3_client.head_object(**head_object_params)
         except Exception as e:
-            logging.info("graceal1 error response is ")
-            print("graceal1 error response is ")
-            logging.error(e.response)
-            print(e.response)
             error_code = e.response['Error']['Code']
 
             if error_code == "404":
                 return err_response(msg=f"Error: The file '{decoded_s3_path}' does not exist in bucket '{bucket}'.", code=status.HTTP_404_NOT_FOUND)
+            elif error_code == "403":
+                return err_response(msg=f"Permission denied accessing file '{decoded_s3_path}'. Verify bucket access and the AWS account ID in settings.WORKSPACE_BUCKET_ARN", code=status.HTTP_403_FORBIDDEN)
+            elif error_code == "400":
+                return err_response(msg=f"Bad request error checking S3 for requested file. Verify AWS account ID in settings.WORKSPACE_BUCKET_ARN", code=status.HTTP_400_BAD_REQUEST)
             else:
                 print(f"AWS Security/Network Error: {e}")
                 return err_response(msg=f"Error getting presigned url for file '{decoded_s3_path}' in bucket '{bucket}'.", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
