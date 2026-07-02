@@ -640,6 +640,36 @@ class PresignedUrlS3(Resource):
         expiration = request.args['exp']
         che_ws_namespace = request.args['ws'] if 'ws' in request.args else ''
         s3_path = self.mount_key_to_bucket(key, che_ws_namespace) if che_ws_namespace else key
+        decoded_s3_path = parse.unquote(s3_path)
+
+        # Extract AWS account ID from ARN (format: arn:aws:iam::ACCOUNT_ID:role/...)
+        if not settings.WORKSPACE_BUCKET_ARN or '::' not in settings.WORKSPACE_BUCKET_ARN:
+            return err_response(msg="Server configuration error: WORKSPACE_BUCKET_ARN not properly configured in API settings", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        account_id = settings.WORKSPACE_BUCKET_ARN.split('::')[1].split(':')[0]
+        if not account_id or account_id == '???':
+            return err_response(msg="Server configuration error: Unable to extract AWS account ID from WORKSPACE_BUCKET_ARN in API settings", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # Verify that this key exists in the bucket before returning presigned s3 url
+        try:
+            head_object_params = {
+                'Bucket': bucket,
+                'Key': decoded_s3_path,
+                'ExpectedBucketOwner': account_id
+            }
+            s3_client.head_object(**head_object_params)
+        except Exception as e:
+            error_code = e.response['Error']['Code']
+
+            if error_code == "404":
+                return err_response(msg=f"Error: The bucket '{bucket}' does not contain the file '{decoded_s3_path}'", code=status.HTTP_404_NOT_FOUND)
+            elif error_code == "403":
+                # If getting this error message, verify correct AWS account ID in settings.WORKSPACE_BUCKET_ARN
+                return err_response(msg=f"Permission denied accessing '{decoded_s3_path}'", code=status.HTTP_403_FORBIDDEN)
+            else:
+                # If getting a 400 error, should verify AWS account ID in API settings.WORKSPACE_BUCKET_ARN
+                print(f"AWS Security/Network Error: {e}")
+                return err_response(msg=f"Error getting presigned url in bucket '{bucket}' for file '{decoded_s3_path}'", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         url = s3_client.generate_presigned_url(
             'get_object',
