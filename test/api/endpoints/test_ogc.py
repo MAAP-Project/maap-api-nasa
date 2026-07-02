@@ -560,10 +560,11 @@ $graph:
             # Given a process owned by authenticated user
             member = self._create_test_member()
             process = self._create_test_process(member)
+            process_id = process.process_id  # Capture ID before request detaches the object
             mock_get_user.return_value = member
             
             # When deleting the process
-            response = self._make_authenticated_request('DELETE', f'/api/ogc/processes/{process.process_id}', None, member)
+            response = self._make_authenticated_request('DELETE', f'/api/ogc/processes/{process_id}', None, member)
             
             # Then process should be marked as undeployed
             self.assertEqual(response.status_code, 200)
@@ -571,7 +572,7 @@ $graph:
             self.assertIn('Deleted process', data['detail'])
             
             # And process status should be updated
-            updated_process = db.session.query(Process).filter_by(process_id=process.process_id).first()
+            updated_process = db.session.query(Process).filter_by(process_id=process_id).first()
             self.assertEqual(updated_process.status, 'undeployed')
 
     def test_process_package_returns_execution_unit(self):
@@ -1166,13 +1167,14 @@ $graph:
 
     @patch('api.auth.security.get_authorized_user')
     def test_jobs_list_applies_limit(self, mock_get_user):
-        """Test: GET /ogc/jobs applies limit parameter"""
+        """Test: GET /ogc/jobs passes limit parameter to Mozart as page_size"""
         with app.app_context():
             # Given an authenticated user and multiple jobs
             member = self._create_test_member()
             mock_get_user.return_value = member
             
             with patch('api.utils.hysds_util.get_mozart_jobs_from_query_params') as mock_jobs:
+                # Mozart returns only 2 jobs because page_size=2 was passed
                 mock_jobs.return_value = (
                     {
                         'jobs': [
@@ -1189,24 +1191,22 @@ $graph:
                                     'type': 'job-test-process',
                                     'job_id': 'job-2'
                                 }
-                            },
-                            {
-                                'job-3': {
-                                    'status': 'job-completed',
-                                    'type': 'job-test-process',
-                                    'job_id': 'job-3'
-                                }
                             }
                         ]
                     },
                     200
                 )
                 
-                # When requesting jobs with limit
+                # When requesting jobs with limit=2 (even though 3+ jobs exist in Mozart)
                 response = self._make_authenticated_request('GET', '/api/ogc/jobs?limit=2', None, member)
                 
-                # Then only limited number of jobs should be returned
+                # Then limit should be passed to Mozart as page_size
                 self.assertEqual(response.status_code, 200)
+                mock_jobs.assert_called_once()
+                call_args = mock_jobs.call_args[0][0]
+                self.assertEqual(call_args.get('page_size'), '2')
+                
+                # And only 2 jobs should be returned (Mozart handles the limiting)
                 data = response.get_json()
                 self.assertIn('jobs', data)
                 self.assertEqual(len(data['jobs']), 2)

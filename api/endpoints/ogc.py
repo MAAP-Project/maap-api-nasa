@@ -189,8 +189,13 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
         current_status = ogc_status if ogc_status else updated_status
 
         if current_status in OGC_FINISHED_STATUSES:
-            deployment.status = current_status
-            db.session.commit()
+            try:
+                deployment.status = current_status
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                log.error(f"Failed to update deployment status to {current_status} for deployment {deployment.deployment_id}: {e}")
+                raise
 
         if current_status == OGC_SUCCESS:
             existing_process = db.session.query(Process_db).filter_by(id=deployment.id, version=deployment.version, deployer=deployment.deployer, status=DEPLOYED_PROCESS_STATUS).first()
@@ -226,14 +231,24 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
                                 cores_min=deployment.cores_min,
                                 base_command=deployment.base_command)
                 db.session.add(process)
-                db.session.commit()
+                try:
+                    db.session.commit()
+                except Exception as e:
+                    db.session.rollback()
+                    log.error(f"Failed to create new process record for {deployment.id} v{deployment.version}: {e}")
+                    raise
                 # Re-query to get the auto-generated process_id
                 process = db.session.query(Process_db).filter_by(id=deployment.id, version=deployment.version, deployer=deployment.deployer, status=DEPLOYED_PROCESS_STATUS).first()
                 process_id = process.process_id
 
             status_code = status.HTTP_201_CREATED
-            deployment.process_id = process_id
-            db.session.commit()
+            try:
+                deployment.process_id = process_id
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                log.error(f"Failed to update deployment with process_id {process_id} for deployment {deployment.deployment_id}: {e}")
+                raise
 
     pipeline_url = PIPELINE_URL_TEMPLATE.format(pipeline_id=deployment.pipeline_id)
     
@@ -467,7 +482,12 @@ class Describe(Resource):
             # hysds.delete_mozart_job_type(job_type)
             # Delete from database after successfully deleted from HySDS 
             existing_process.status = UNDEPLOYED_PROCESS_STATUS
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                log.error(f"Failed to mark process {process_id} as undeployed in database: {e}")
+                raise
             return {"detail": "Deleted process"}, status.HTTP_200_OK 
         except Exception as e:
             log.error(f"Failed to delete process {process_id}: {traceback.format_exc()}")
@@ -858,14 +878,13 @@ class Status(Resource):
 @ns.route("/jobs")
 class Jobs(Resource):
     parser = api.parser()
-    parser.add_argument("limit", required=False, type=int, help="Limit for number of jobs returned")
+    parser.add_argument("limit", required=False, type=int, help="Limit for number of jobs returned per page (default 100)")
     parser.add_argument("processID", type=str, help="Only jobs run on this process id will be returned", required=False)
     parser.add_argument("minDuration", type=int, help="Min duration of the job in seconds", required=False)
     parser.add_argument("maxDuration", type=int, help="Max duration of the job in seconds", required=False)
     parser.add_argument("type", type=str, help="Type, since currently the only available option is process this doesn't filter. Keeping parameter for OGC compliance", required=False)
     parser.add_argument("datetime", type=str, help="Either a date-time or an interval, half-bounded or bounded. Date and time expressions adhere to RFC 3339. Half-bounded intervals are expressed using double-dots.", required=False)
     parser.add_argument("status", type=str, help="Job status e.g. accepted, running, successful, failed, dismissed, deduped, offline", required=False)
-    parser.add_argument("pageSize", required=False, type=int, help="Job Listing Pagination Size")
     parser.add_argument("offset", required=False, type=int, help="Job Listing Pagination Offset")
     parser.add_argument("tag", type=str, help="User-defined job tag", required=False)
     parser.add_argument("queue", type=str, help="Submitted job queue", required=False)
@@ -883,11 +902,10 @@ class Jobs(Resource):
         :param minDuration: Minimum duration in seconds
         :param maxDuration: Maximum duration in seconds
         :param processID: Process ID
-        :param limit: Limit of jobs to send back
         :param type: Type, available values: process
         :param datetime: Either a date-time or an interval, half-bounded or bounded. Date and time expressions adhere to RFC 3339. Half-bounded intervals are expressed using double-dots.
         :param getJobDetails: Boolean that returns job details if set to True or just job ID's if set to False. Default is True.
-        :param pageSize: Page size for pagination
+        :param limit: Number of jobs to return per page (default 100)
         :param offset: Offset for pagination
         :param priority: Job priority
         :param queue: Queue
@@ -922,6 +940,10 @@ class Jobs(Resource):
             if not hysds_status:
                 return generate_error(error_message, status.HTTP_400_BAD_REQUEST)
             params["status"] = hysds_status
+        
+        # Translate limit to page_size for Mozart compatibility
+        if "limit" in params:
+            params["page_size"] = params.pop("limit")
         
         # Change OGC camelcase to snakecase for HySDS
         params = {camel_to_snake(key): value for key, value in params.items()}
@@ -972,14 +994,6 @@ class Jobs(Resource):
                     print(ex)
                     print("Unable to determine if job falls in min/max duration range because not in correct format")
             response_body["jobs"] = jobs_in_duration_range
-                
-        
-        # Apply the limit if it was passed as a param
-        if response_body["jobs"] and request.args.get("limit"):
-            limit = request.args.get("limit")
-            if limit.isdigit():
-                limit = int(limit)
-                response_body["jobs"] = response_body["jobs"][:limit]
 
         links = []
         job_list = []
