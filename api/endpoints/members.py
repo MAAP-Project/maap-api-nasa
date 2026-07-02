@@ -664,7 +664,7 @@ class PresignedUrlS3(Resource):
             if error_code == "404":
                 return err_response(msg=f"Error: The file '{decoded_s3_path}' does not exist in bucket '{bucket}'.", code=status.HTTP_404_NOT_FOUND)
             elif error_code == "403":
-                return err_response(msg=f"Permission denied accessing file '{decoded_s3_path}'. Verify bucket access and the AWS account ID in settings.WORKSPACE_BUCKET_ARN", code=status.HTTP_403_FORBIDDEN)
+                return err_response(msg=f"Permission denied accessing '{decoded_s3_path}'. Verify bucket access and AWS account ID in settings.WORKSPACE_BUCKET_ARN", code=status.HTTP_403_FORBIDDEN)
             elif error_code == "400":
                 return err_response(msg="Bad request error checking S3 for requested file. Verify AWS account ID in settings.WORKSPACE_BUCKET_ARN", code=status.HTTP_400_BAD_REQUEST)
             else:
