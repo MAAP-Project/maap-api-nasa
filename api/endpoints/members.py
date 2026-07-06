@@ -662,14 +662,14 @@ class PresignedUrlS3(Resource):
             error_code = e.response['Error']['Code']
 
             if error_code == "404":
-                return err_response(msg=f"Error: The bucket '{bucket}' does not contain the file '{decoded_s3_path}'", code=status.HTTP_404_NOT_FOUND)
+                return err_response(msg=f"Error: The bucket '{bucket}' does not contain the requested file", code=status.HTTP_404_NOT_FOUND)
             elif error_code == "403":
                 # If getting this error message, verify correct AWS account ID in settings.WORKSPACE_BUCKET_ARN
-                return err_response(msg=f"Permission denied accessing '{decoded_s3_path}'", code=status.HTTP_403_FORBIDDEN)
+                return err_response(msg=f"Permission denied accessing the requested file in bucket '{bucket}'", code=status.HTTP_403_FORBIDDEN)
             else:
                 # If getting a 400 error, should verify AWS account ID in API settings.WORKSPACE_BUCKET_ARN
                 print(f"AWS Security/Network Error: {e}")
-                return err_response(msg=f"Error getting presigned url in bucket '{bucket}' for file '{decoded_s3_path}'", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return err_response(msg=f"Error getting presigned url in bucket '{bucket}' for the requested file", code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         url = s3_client.generate_presigned_url(
             'get_object',
