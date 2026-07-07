@@ -108,7 +108,12 @@ def create_and_commit_deployment(metadata, pipeline, user, existing_process=None
         base_command = metadata.base_command
     )
     db.session.add(deployment)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        log.error(f"Failed to create deployment record for process {metadata.id} v{metadata.version}: {e}")
+        raise
     return deployment
 
 # Define CWL_METADATA namedtuple here to avoid circular imports

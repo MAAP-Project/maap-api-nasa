@@ -222,7 +222,7 @@ def create_job_spec(run_command, inputs, disk_usage, queue_name, verified=False)
     job_spec["command"] = "/app/dps_wrapper.sh '{}'".format(run_command)
     job_spec["disk_usage"] = disk_usage
     job_spec["imported_worker_files"] = {
-        "${DATA_DIR}/work/etc/maap-dps.env": "/home/ops/.maap-dps.env",
+        "${HYSDS_ROOT_WORK_DIR}/etc/maap-dps.env": "/home/ops/.maap-dps.env",
         "/tmp": ["/tmp", "rw"]
     }
     job_spec["post"] = ["hysds.triage.triage"]
@@ -607,7 +607,7 @@ def get_mozart_jobs_from_query_params(query_params, user):
         "username": None,
         "get_job_details": True,
         # To preserve existing behavior, set default to True. In the future, we should set this to False.
-        "page_size": 10,
+        "page_size": 100,
         "offset": 0,
         "status": None,
         "end_time": None,
