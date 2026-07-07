@@ -1,4 +1,4 @@
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 
 import flask
 import requests
@@ -38,6 +38,13 @@ PROXY_TICKET_PREFIX = "PGT-"
 JWT_TOKEN_PREFIX = "jwt:"
 MEMBER_STATUS_ACTIVE = "active"
 MEMBER_STATUS_SUSPENDED = "suspended"
+EDL_BROKER_ALIAS = "edl"
+
+# Refresh the stored EDL (URS) access token this long before it expires.
+EDL_TOKEN_REFRESH_BUFFER = timedelta(minutes=5)
+# Per-process cache of EDL access-token expirations, keyed by member id, used to
+# avoid calling the Keycloak broker endpoint on every authenticated request.
+_edl_token_expiration_cache = {}
 
 def validate(service, ticket):
     """
@@ -320,6 +327,9 @@ def start_member_session_jwt(decoded_jwt, token_string, auto_create_member=False
             current_app.logger.error(f"Failed to add new member {usr}: {e}")
             raise
 
+    if member is not None:
+        refresh_urs_token(member, token_string)
+
     try:
         query = """INSERT INTO member_session (member_id, session_key, creation_date)
             VALUES ({}, '{}', '{}')
@@ -331,6 +341,60 @@ def start_member_session_jwt(decoded_jwt, token_string, auto_create_member=False
         raise
 
     return member
+
+
+def refresh_urs_token(member, kc_access_token):
+    """Refresh member.urs_token from the Keycloak EDL broker endpoint when it is
+    missing or close to expiring. Expirations are cached per-process by member id,
+    so the broker is not called on every authenticated request. Failures are logged
+    and leave the existing token in place — they must not break authentication."""
+    now = datetime.now(timezone.utc)
+    cached_expiration = _edl_token_expiration_cache.get(member.id)
+    if member.urs_token and cached_expiration is not None \
+            and now < cached_expiration - EDL_TOKEN_REFRESH_BUFFER:
+        return
+
+    broker_token = fetch_edl_broker_token(kc_access_token)
+    if not broker_token:
+        return
+
+    new_token = broker_token.get("access_token")
+    if not new_token:
+        return
+
+    # Prefer the absolute expiration epoch; fall back to expires_in if absent.
+    if broker_token.get("accessTokenExpiration") is not None:
+        _edl_token_expiration_cache[member.id] = datetime.fromtimestamp(broker_token["accessTokenExpiration"], timezone.utc)
+    elif broker_token.get("expires_in") is not None:
+        _edl_token_expiration_cache[member.id] = now + timedelta(seconds=int(broker_token["expires_in"]))
+
+    if new_token != member.urs_token:
+        member.urs_token = new_token
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception(f"Failed to persist refreshed URS token for {member.username}")
+
+
+def fetch_edl_broker_token(kc_access_token):
+    """Retrieve the user's stored EarthData Login token set from the Keycloak
+    identity-provider broker endpoint. Returns the parsed JSON, or None on failure."""
+    if kc_access_token.startswith(JWT_TOKEN_PREFIX):
+        kc_access_token = kc_access_token[len(JWT_TOKEN_PREFIX):]
+
+    url = f"{settings.KEYCLOAK_SERVER_URL}realms/{settings.KEYCLOAK_REALM}/broker/{EDL_BROKER_ALIAS}/token"
+    try:
+        resp = requests.get(
+            url,
+            headers={'Authorization': f'Bearer {kc_access_token}'},
+            timeout=settings.REQUESTS_TIMEOUT_SECONDS,
+        )
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as e:
+        current_app.logger.warning(f"Failed to retrieve EDL token from Keycloak broker: {e}")
+        return None
 
 
 def get_cas_attribute_value(attributes, attribute_key):
