@@ -331,6 +331,66 @@ class Deployment(Resource):
 
         return response_body, status_code
 
+    @api.doc(security="ApiKeyAuth")
+    @login_required()
+    def get(self):
+        """
+        Get all deployment jobs for the authenticated user
+        :return: List of deployment jobs
+        """
+        user = get_authorized_user()
+        
+        # Query all deployments for the current user
+        deployments = db.session.query(Deployment_db).filter_by(deployer=user.username).order_by(Deployment_db.created.desc()).all()
+        
+        deployment_jobs = []
+        for deployment in deployments:
+            pipeline_url = PIPELINE_URL_TEMPLATE.format(pipeline_id=deployment.pipeline_id)
+            
+            deployment_job = {
+                "jobId": deployment.job_id,
+                "created": deployment.created,
+                "status": deployment.status,
+                "pipeline": {
+                    "executionVenue": deployment.execution_venue,
+                    "pipelineId": deployment.pipeline_id,
+                    "processPipelineLink": {
+                        "href": pipeline_url,
+                        "rel": "monitor",
+                        "type": "text/html",
+                        "hreflang": HREF_LANG,
+                        "title": "Deploying Process Pipeline"
+                    }
+                },
+                "cwl": {
+                    "href": deployment.cwl_link,
+                    "rel": "service-desc",
+                    "type": "application/cwl",
+                    "hreflang": HREF_LANG,
+                    "title": "Process Reference"
+                },
+                "links": {
+                    "href": f"/{ns.name}/deploymentJobs/{deployment.job_id}",
+                    "rel": "self",
+                    "type": "application/json",
+                    "hreflang": HREF_LANG,
+                    "title": "Deployment Link"
+                }
+            }
+            
+            if deployment.process_id:
+                deployment_job["processLocation"] = {
+                    "href": f"/{ns.name}/processes/{deployment.process_id}",
+                    "rel": "service-doc",
+                    "type": "application/json",
+                    "hreflang": HREF_LANG,
+                    "title": "Process Location"
+                }
+            
+            deployment_jobs.append(deployment_job)
+        
+        return {"deploymentJobs": deployment_jobs, "total": len(deployment_jobs)}, status.HTTP_200_OK
+
 @ns.route("/processes/<string:process_id>")
 class Describe(Resource):
 
