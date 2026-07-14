@@ -6,7 +6,7 @@ from flask_api import status
 from werkzeug.exceptions import HTTPException
 from api import settings, constants
 from api.utils.security_utils import AuthenticationError, ExternalServiceError
-from api.auth.cas_auth import start_member_session_jwt, validate_proxy, validate_third_party
+from api.auth.cas_auth import start_member_session_jwt, validate_proxy, validate_third_party, get_urs_token
 from api.maap_database import db
 from api.models.member import Member
 from api.models.personal_access_token import PersonalAccessToken
@@ -254,7 +254,7 @@ def edl_federated_request(url, stream_response=False):
         maap_user = get_authorized_user()
 
         if maap_user is not None:
-            urs_token = db.session.query(Member).filter_by(id=maap_user.id).first().urs_token
+            urs_token = get_urs_token(maap_user.id)
             s.headers.update({'Authorization': f'Bearer {urs_token},Basic {settings.MAAP_EDL_CREDS}',
                               'Connection': 'close'})
 

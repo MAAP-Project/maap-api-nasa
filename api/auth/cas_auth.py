@@ -1,4 +1,4 @@
-from datetime import timedelta, datetime, timezone
+from datetime import timedelta, datetime
 
 import flask
 import requests
@@ -42,9 +42,6 @@ EDL_BROKER_ALIAS = "edl"
 
 # Refresh the stored EDL (URS) access token this long before it expires.
 EDL_TOKEN_REFRESH_BUFFER = timedelta(minutes=5)
-# Per-process cache of EDL access-token expirations, keyed by member id, used to
-# avoid calling the Keycloak broker endpoint on every authenticated request.
-_edl_token_expiration_cache = {}
 
 def validate(service, ticket):
     """
@@ -343,38 +340,98 @@ def start_member_session_jwt(decoded_jwt, token_string, auto_create_member=False
     return member
 
 
-def refresh_urs_token(member, kc_access_token):
-    """Refresh member.urs_token from the Keycloak EDL broker endpoint when it is
-    missing or close to expiring. Expirations are cached per-process by member id,
-    so the broker is not called on every authenticated request. Failures are logged
-    and leave the existing token in place — they must not break authentication."""
-    now = datetime.now(timezone.utc)
-    cached_expiration = _edl_token_expiration_cache.get(member.id)
-    if member.urs_token and cached_expiration is not None \
-            and now < cached_expiration - EDL_TOKEN_REFRESH_BUFFER:
+def refresh_urs_token(member, kc_access_token=None):
+    """Ensure member.urs_token holds a valid EDL (URS) access token, refreshing
+    it when missing or close to expiring. Refreshes directly against the EDL
+    token endpoint using the stored refresh token; falls back to the Keycloak
+    EDL broker endpoint when a live Keycloak access token is available (i.e. at
+    login), which also (re)bootstraps the stored refresh token. Failures are
+    logged and leave the existing token in place — they must not break
+    authentication."""
+    now = datetime.utcnow()
+    if member.urs_token and member.urs_token_expiration is not None \
+            and now < member.urs_token_expiration - EDL_TOKEN_REFRESH_BUFFER:
         return
 
+    if member.urs_refresh_token and _refresh_edl_token_direct(member):
+        return
+
+    if kc_access_token:
+        _refresh_edl_token_from_broker(member, kc_access_token)
+
+
+def get_urs_token(member_id):
+    """Return a valid EDL (URS) access token for the member, refreshing the
+    stored token first when it is missing or close to expiring. Returns None
+    if the member does not exist."""
+    member = db.session.query(Member).filter_by(id=member_id).first()
+    if member is None:
+        return None
+    refresh_urs_token(member)
+    return member.urs_token
+
+
+def _refresh_edl_token_direct(member):
+    """Refresh the member's EDL token set directly against the EDL token
+    endpoint using the stored refresh token. Returns True on success."""
+    try:
+        resp = requests.post(
+            settings.EDL_TOKEN_URL,
+            data={'grant_type': 'refresh_token', 'refresh_token': member.urs_refresh_token},
+            headers={'Authorization': f'Basic {settings.MAAP_EDL_CREDS}'},
+            timeout=settings.REQUESTS_TIMEOUT_SECONDS,
+        )
+        if resp.status_code != 200:
+            current_app.logger.warning(
+                f"EDL token refresh returned {resp.status_code} for {member.username}: {resp.text[:200]}")
+            return False
+        token = resp.json()
+    except Exception as e:
+        current_app.logger.warning(f"EDL token refresh failed for {member.username}: {e}")
+        return False
+
+    expiration = None
+    if token.get("expires_in") is not None:
+        expiration = datetime.utcnow() + timedelta(seconds=int(token["expires_in"]))
+
+    return _persist_urs_tokens(member, token.get("access_token"),
+                               token.get("refresh_token"), expiration)
+
+
+def _refresh_edl_token_from_broker(member, kc_access_token):
+    """Refresh the member's EDL token set from the Keycloak EDL broker
+    endpoint. Returns True on success."""
     broker_token = fetch_edl_broker_token(kc_access_token)
     if not broker_token:
-        return
-
-    new_token = broker_token.get("access_token")
-    if not new_token:
-        return
+        return False
 
     # Prefer the absolute expiration epoch; fall back to expires_in if absent.
+    expiration = None
     if broker_token.get("accessTokenExpiration") is not None:
-        _edl_token_expiration_cache[member.id] = datetime.fromtimestamp(broker_token["accessTokenExpiration"], timezone.utc)
+        expiration = datetime.utcfromtimestamp(broker_token["accessTokenExpiration"])
     elif broker_token.get("expires_in") is not None:
-        _edl_token_expiration_cache[member.id] = now + timedelta(seconds=int(broker_token["expires_in"]))
+        expiration = datetime.utcnow() + timedelta(seconds=int(broker_token["expires_in"]))
 
-    if new_token != member.urs_token:
-        member.urs_token = new_token
-        try:
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
-            current_app.logger.exception(f"Failed to persist refreshed URS token for {member.username}")
+    return _persist_urs_tokens(member, broker_token.get("access_token"),
+                               broker_token.get("refresh_token"), expiration)
+
+
+def _persist_urs_tokens(member, access_token, refresh_token, expiration):
+    """Persist a refreshed EDL token set on the member. Returns True on success."""
+    if not access_token:
+        return False
+
+    member.urs_token = access_token
+    member.urs_token_expiration = expiration
+    if refresh_token:
+        member.urs_refresh_token = refresh_token
+    try:
+        db.session.commit()
+        return True
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception(f"Failed to persist refreshed URS token for {member.username}")
+        return False
 
 
 def fetch_edl_broker_token(kc_access_token):
@@ -390,7 +447,12 @@ def fetch_edl_broker_token(kc_access_token):
             headers={'Authorization': f'Bearer {kc_access_token}'},
             timeout=settings.REQUESTS_TIMEOUT_SECONDS,
         )
-        resp.raise_for_status()
+        # 401: token invalid or an id token was passed instead of an access token.
+        # 403: user lacks the broker client's read-token role.
+        if resp.status_code != 200:
+            current_app.logger.warning(
+                f"Keycloak broker EDL token request returned {resp.status_code}: {resp.text[:200]}")
+            return None
         return resp.json()
     except Exception as e:
         current_app.logger.warning(f"Failed to retrieve EDL token from Keycloak broker: {e}")
