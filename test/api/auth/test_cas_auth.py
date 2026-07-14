@@ -10,7 +10,7 @@ from api.models.member_session import MemberSession
 from api.models.role import Role
 from api.auth.cas_auth import validate, validate_proxy, validate_bearer, decrypt_proxy_ticket
 from api.auth.cas_auth import start_member_session, get_cas_attribute_value
-from api.auth.cas_auth import refresh_urs_token, get_urs_token
+from api.auth.cas_auth import refresh_urs_token, get_urs_token, utcnow
 from api.utils.security_utils import AuthenticationError
 from api import settings
 
@@ -87,7 +87,7 @@ class TestCASAuthentication(unittest.TestCase):
             mock_session = MemberSession(
                 member_id=mock_member.id,
                 session_key='PGT-12345-test',
-                creation_date=datetime.utcnow()
+                creation_date=utcnow()
             )
             mock_validate_proxy.return_value = mock_session
             
@@ -146,7 +146,7 @@ class TestCASAuthentication(unittest.TestCase):
             session = MemberSession(
                 member_id=member.id,
                 session_key='PGT-12345-test',
-                creation_date=datetime.utcnow()
+                creation_date=utcnow()
             )
             db.session.add(session)
             db.session.commit()
@@ -177,7 +177,7 @@ class TestCASAuthentication(unittest.TestCase):
             db.session.commit()
             
             # Create an expired session (older than 60 days)
-            expired_date = datetime.utcnow() - timedelta(days=61)
+            expired_date = utcnow() - timedelta(days=61)
             session = MemberSession(
                 member_id=member.id,
                 session_key='PGT-expired-test',
@@ -602,7 +602,7 @@ class TestUrsTokenRefresh(unittest.TestCase):
             member = self._create_member(
                 urs_token='valid-edl-token',
                 urs_refresh_token='edl-refresh-token',
-                urs_token_expiration=datetime.utcnow() + timedelta(hours=12)
+                urs_token_expiration=utcnow() + timedelta(hours=12)
             )
 
             # When refresh is requested (no HTTP endpoints are registered, so
@@ -621,7 +621,7 @@ class TestUrsTokenRefresh(unittest.TestCase):
             member = self._create_member(
                 urs_token='expired-edl-token',
                 urs_refresh_token='edl-refresh-token',
-                urs_token_expiration=datetime.utcnow() - timedelta(hours=1)
+                urs_token_expiration=utcnow() - timedelta(hours=1)
             )
             responses.add(
                 responses.POST,
@@ -638,7 +638,7 @@ class TestUrsTokenRefresh(unittest.TestCase):
             # Then the token set is refreshed and persisted
             assert member.urs_token == 'fresh-edl-token'
             assert member.urs_refresh_token == 'rotated-refresh-token'
-            expected_exp = datetime.utcnow() + timedelta(seconds=86400)
+            expected_exp = utcnow() + timedelta(seconds=86400)
             assert abs((member.urs_token_expiration - expected_exp).total_seconds()) < 60
 
             # And the refresh grant was sent to EDL
@@ -652,7 +652,7 @@ class TestUrsTokenRefresh(unittest.TestCase):
             member = self._create_member(
                 urs_token='expired-edl-token',
                 urs_refresh_token='edl-refresh-token',
-                urs_token_expiration=datetime.utcnow() - timedelta(hours=1)
+                urs_token_expiration=utcnow() - timedelta(hours=1)
             )
             responses.add(
                 responses.POST,
@@ -674,7 +674,7 @@ class TestUrsTokenRefresh(unittest.TestCase):
             member = self._create_member(
                 urs_token='expired-edl-token',
                 urs_refresh_token='revoked-refresh-token',
-                urs_token_expiration=datetime.utcnow() - timedelta(hours=1)
+                urs_token_expiration=utcnow() - timedelta(hours=1)
             )
             responses.add(responses.POST, EDL_TOKEN_URL_TEST, status=401)
             responses.add(
@@ -683,7 +683,7 @@ class TestUrsTokenRefresh(unittest.TestCase):
                 json={'access_token': 'broker-edl-token',
                       'refresh_token': 'broker-refresh-token',
                       'expires_in': 86400,
-                      'accessTokenExpiration': int((datetime.utcnow() + timedelta(days=1)
+                      'accessTokenExpiration': int((utcnow() + timedelta(days=1)
                                                     - datetime(1970, 1, 1)).total_seconds())},
                 status=200
             )
@@ -732,7 +732,7 @@ class TestUrsTokenRefresh(unittest.TestCase):
             member = self._create_member(
                 urs_token='expired-edl-token',
                 urs_refresh_token='revoked-refresh-token',
-                urs_token_expiration=datetime.utcnow() - timedelta(hours=1)
+                urs_token_expiration=utcnow() - timedelta(hours=1)
             )
             responses.add(responses.POST, EDL_TOKEN_URL_TEST, status=401)
 
@@ -763,7 +763,7 @@ class TestUrsTokenRefresh(unittest.TestCase):
             member = self._create_member(
                 urs_token='expired-edl-token',
                 urs_refresh_token='edl-refresh-token',
-                urs_token_expiration=datetime.utcnow() - timedelta(hours=1)
+                urs_token_expiration=utcnow() - timedelta(hours=1)
             )
             responses.add(
                 responses.POST,
