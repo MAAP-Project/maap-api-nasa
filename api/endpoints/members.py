@@ -11,6 +11,7 @@ from api.restplus import api
 import api.settings as settings
 from api import constants
 from api.auth.security import get_authorized_user, login_required, valid_dps_request, edl_federated_request
+from api.auth.cas_auth import get_urs_token
 from api.maap_database import db
 from api.utils import github_util
 from api.models.member import Member as Member_db
@@ -855,7 +856,7 @@ def get_edc_credentials(endpoint_uri, user_id):
     credentials are valid to avoid unnecessary generation of new credentials and
     to minimize load on the endpoint, while also ensuring reasonable "freshness".
     """
-    urs_token = db.session.query(Member_db).filter_by(id=user_id).first().urs_token
+    urs_token = get_urs_token(user_id)
 
     s = requests.Session()
 

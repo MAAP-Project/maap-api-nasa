@@ -10,6 +10,7 @@ from api.models.member_session import MemberSession
 from api.models.role import Role
 from api.auth.cas_auth import validate, validate_proxy, validate_bearer, decrypt_proxy_ticket
 from api.auth.cas_auth import start_member_session, get_cas_attribute_value
+from api.auth.cas_auth import refresh_urs_token, get_urs_token, utcnow
 from api.utils.security_utils import AuthenticationError
 from api import settings
 
@@ -86,7 +87,7 @@ class TestCASAuthentication(unittest.TestCase):
             mock_session = MemberSession(
                 member_id=mock_member.id,
                 session_key='PGT-12345-test',
-                creation_date=datetime.utcnow()
+                creation_date=utcnow()
             )
             mock_validate_proxy.return_value = mock_session
             
@@ -145,7 +146,7 @@ class TestCASAuthentication(unittest.TestCase):
             session = MemberSession(
                 member_id=member.id,
                 session_key='PGT-12345-test',
-                creation_date=datetime.utcnow()
+                creation_date=utcnow()
             )
             db.session.add(session)
             db.session.commit()
@@ -176,7 +177,7 @@ class TestCASAuthentication(unittest.TestCase):
             db.session.commit()
             
             # Create an expired session (older than 60 days)
-            expired_date = datetime.utcnow() - timedelta(days=61)
+            expired_date = utcnow() - timedelta(days=61)
             session = MemberSession(
                 member_id=member.id,
                 session_key='PGT-expired-test',
@@ -545,6 +546,240 @@ class TestCASAuthentication(unittest.TestCase):
             assert regular_member.email == "regular@example.com"
             assert regular_member.organization == "NASA"
             assert regular_member.urs_token == "regular-user-token-123"  # Should use their own token
+
+
+EDL_TOKEN_URL_TEST = 'https://edl.test/oauth/token'
+KC_BROKER_URL_TEST = 'https://kc.test/realms/maap/broker/edl/token'
+
+
+@patch('api.settings.EDL_TOKEN_URL', EDL_TOKEN_URL_TEST)
+@patch('api.settings.KEYCLOAK_SERVER_URL', 'https://kc.test/')
+@patch('api.settings.KEYCLOAK_REALM', 'maap')
+class TestUrsTokenRefresh(unittest.TestCase):
+
+    def setUp(self):
+        """Set up test environment before each test."""
+        with app.app_context():
+            initialize_sql(db.engine)
+            db.session.query(MemberSession).delete()
+            db.session.query(Member).delete()
+            db.session.query(Role).delete()
+            db.session.commit()
+
+            guest_role = Role(id=Role.ROLE_GUEST, role_name='guest')
+            db.session.add(guest_role)
+            db.session.commit()
+
+    def tearDown(self):
+        """Clean up after each test."""
+        with app.app_context():
+            db.session.query(MemberSession).delete()
+            db.session.query(Member).delete()
+            db.session.query(Role).delete()
+            db.session.commit()
+
+    def _create_member(self, urs_token=None, urs_refresh_token=None, urs_token_expiration=None):
+        member = Member(
+            username='tokenuser',
+            first_name='Token',
+            last_name='User',
+            email='tokenuser@example.com',
+            organization='NASA',
+            role_id=Role.ROLE_GUEST,
+            urs_token=urs_token,
+            urs_refresh_token=urs_refresh_token,
+            urs_token_expiration=urs_token_expiration
+        )
+        db.session.add(member)
+        db.session.commit()
+        return member
+
+    @responses.activate
+    def test_refresh_skipped_when_token_still_valid(self):
+        """Test: no refresh attempt is made while the stored token is fresh"""
+        with app.app_context():
+            # Given a member whose EDL token expires well in the future
+            member = self._create_member(
+                urs_token='valid-edl-token',
+                urs_refresh_token='edl-refresh-token',
+                urs_token_expiration=utcnow() + timedelta(hours=12)
+            )
+
+            # When refresh is requested (no HTTP endpoints are registered, so
+            # any outbound call would raise a ConnectionError via responses)
+            refresh_urs_token(member)
+
+            # Then the token is untouched and no HTTP calls were made
+            assert member.urs_token == 'valid-edl-token'
+            assert len(responses.calls) == 0
+
+    @responses.activate
+    def test_direct_refresh_when_token_expired(self):
+        """Test: an expired token is refreshed directly against EDL"""
+        with app.app_context():
+            # Given a member with an expired EDL token and a stored refresh token
+            member = self._create_member(
+                urs_token='expired-edl-token',
+                urs_refresh_token='edl-refresh-token',
+                urs_token_expiration=utcnow() - timedelta(hours=1)
+            )
+            responses.add(
+                responses.POST,
+                EDL_TOKEN_URL_TEST,
+                json={'access_token': 'fresh-edl-token',
+                      'refresh_token': 'rotated-refresh-token',
+                      'expires_in': 86400},
+                status=200
+            )
+
+            # When refresh is requested
+            refresh_urs_token(member)
+
+            # Then the token set is refreshed and persisted
+            assert member.urs_token == 'fresh-edl-token'
+            assert member.urs_refresh_token == 'rotated-refresh-token'
+            expected_exp = utcnow() + timedelta(seconds=86400)
+            assert abs((member.urs_token_expiration - expected_exp).total_seconds()) < 60
+
+            # And the refresh grant was sent to EDL
+            assert 'grant_type=refresh_token' in responses.calls[0].request.body
+            assert 'refresh_token=edl-refresh-token' in responses.calls[0].request.body
+
+    @responses.activate
+    def test_direct_refresh_keeps_old_refresh_token_when_not_rotated(self):
+        """Test: the stored refresh token is kept if EDL does not return a new one"""
+        with app.app_context():
+            member = self._create_member(
+                urs_token='expired-edl-token',
+                urs_refresh_token='edl-refresh-token',
+                urs_token_expiration=utcnow() - timedelta(hours=1)
+            )
+            responses.add(
+                responses.POST,
+                EDL_TOKEN_URL_TEST,
+                json={'access_token': 'fresh-edl-token', 'expires_in': 86400},
+                status=200
+            )
+
+            refresh_urs_token(member)
+
+            assert member.urs_token == 'fresh-edl-token'
+            assert member.urs_refresh_token == 'edl-refresh-token'
+
+    @responses.activate
+    def test_direct_refresh_failure_falls_back_to_broker(self):
+        """Test: broker endpoint is used when the direct EDL refresh fails"""
+        with app.app_context():
+            # Given a member with an invalid refresh token and a live Keycloak access token
+            member = self._create_member(
+                urs_token='expired-edl-token',
+                urs_refresh_token='revoked-refresh-token',
+                urs_token_expiration=utcnow() - timedelta(hours=1)
+            )
+            responses.add(responses.POST, EDL_TOKEN_URL_TEST, status=401)
+            responses.add(
+                responses.GET,
+                KC_BROKER_URL_TEST,
+                json={'access_token': 'broker-edl-token',
+                      'refresh_token': 'broker-refresh-token',
+                      'expires_in': 86400,
+                      'accessTokenExpiration': int((utcnow() + timedelta(days=1)
+                                                    - datetime(1970, 1, 1)).total_seconds())},
+                status=200
+            )
+
+            # When refresh is requested with a Keycloak access token
+            refresh_urs_token(member, 'jwt:kc-access-token')
+
+            # Then the token set comes from the broker
+            assert member.urs_token == 'broker-edl-token'
+            assert member.urs_refresh_token == 'broker-refresh-token'
+
+            # And the jwt: prefix was stripped before calling the broker
+            broker_call = responses.calls[1].request
+            assert broker_call.headers['Authorization'] == 'Bearer kc-access-token'
+
+    @responses.activate
+    def test_broker_bootstraps_refresh_token_at_login(self):
+        """Test: at login, the broker populates the refresh token for members without one"""
+        with app.app_context():
+            # Given a member who has never stored a refresh token (pre-migration row)
+            member = self._create_member(urs_token='old-edl-token')
+            responses.add(
+                responses.GET,
+                KC_BROKER_URL_TEST,
+                json={'access_token': 'broker-edl-token',
+                      'refresh_token': 'bootstrapped-refresh-token',
+                      'expires_in': 86400},
+                status=200
+            )
+
+            # When refresh is requested at login (live Keycloak token, no stored refresh token)
+            refresh_urs_token(member, 'kc-access-token')
+
+            # Then the full token set is bootstrapped from the broker
+            assert member.urs_token == 'broker-edl-token'
+            assert member.urs_refresh_token == 'bootstrapped-refresh-token'
+            assert member.urs_token_expiration is not None
+            # And the direct EDL endpoint was never attempted
+            assert len(responses.calls) == 1
+
+    @responses.activate
+    def test_refresh_failure_keeps_existing_token(self):
+        """Test: refresh failures leave the stored token in place"""
+        with app.app_context():
+            # Given a member with an expired token and no live Keycloak token
+            member = self._create_member(
+                urs_token='expired-edl-token',
+                urs_refresh_token='revoked-refresh-token',
+                urs_token_expiration=utcnow() - timedelta(hours=1)
+            )
+            responses.add(responses.POST, EDL_TOKEN_URL_TEST, status=401)
+
+            # When refresh fails on all paths
+            refresh_urs_token(member)
+
+            # Then the existing (stale) token remains rather than being cleared
+            assert member.urs_token == 'expired-edl-token'
+
+    @responses.activate
+    def test_legacy_member_without_expiration_is_left_alone(self):
+        """Test: legacy rows (token but no expiration/refresh token) do not break"""
+        with app.app_context():
+            # Given a pre-migration member: token present, no expiration, no refresh token
+            member = self._create_member(urs_token='legacy-edl-token')
+
+            # When refresh is requested without a Keycloak token (e.g. workspace request)
+            refresh_urs_token(member)
+
+            # Then nothing is attempted and the token is unchanged
+            assert member.urs_token == 'legacy-edl-token'
+            assert len(responses.calls) == 0
+
+    @responses.activate
+    def test_get_urs_token_refreshes_and_returns_token(self):
+        """Test: get_urs_token refreshes a stale token and returns the fresh one"""
+        with app.app_context():
+            member = self._create_member(
+                urs_token='expired-edl-token',
+                urs_refresh_token='edl-refresh-token',
+                urs_token_expiration=utcnow() - timedelta(hours=1)
+            )
+            responses.add(
+                responses.POST,
+                EDL_TOKEN_URL_TEST,
+                json={'access_token': 'fresh-edl-token', 'expires_in': 86400},
+                status=200
+            )
+
+            result = get_urs_token(member.id)
+
+            assert result == 'fresh-edl-token'
+
+    def test_get_urs_token_returns_none_for_missing_member(self):
+        """Test: get_urs_token returns None for a nonexistent member id"""
+        with app.app_context():
+            assert get_urs_token(999999) is None
 
 
 if __name__ == '__main__':

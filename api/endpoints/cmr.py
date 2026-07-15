@@ -11,6 +11,7 @@ from flask_api import status
 from werkzeug.exceptions import BadRequest, RequestEntityTooLarge, ServiceUnavailable
 from api.restplus import api
 from api.auth.security import get_authorized_user, edl_federated_request
+from api.auth.cas_auth import get_urs_token
 from api.maap_database import db
 from api.models.member import Member
 from urllib import parse
@@ -223,7 +224,7 @@ class CmrGranuleData(Resource):
             if maap_user is None:
                 return Response(response.text, status=401)
             else:
-                urs_token = db.session.query(Member).filter_by(id=maap_user.id).first().urs_token
+                urs_token = get_urs_token(maap_user.id)
                 s.headers.update({'Authorization': f'Bearer {urs_token},Basic {settings.MAAP_EDL_CREDS}',
                                   'Connection': 'close'})
 

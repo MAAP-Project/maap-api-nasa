@@ -16,6 +16,8 @@ class Member(Base):
     public_ssh_key_name = db.Column(db.String())
     public_ssh_key_modified_date = db.Column(db.DateTime())
     urs_token = db.Column(db.String())
+    urs_refresh_token = db.Column(db.String())
+    urs_token_expiration = db.Column(db.DateTime())
     status = db.Column(db.String())
     gitlab_id = db.Column(db.String())
     gitlab_username = db.Column(db.String())
