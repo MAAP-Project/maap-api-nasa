@@ -86,6 +86,23 @@ def get_authorized_user():
         # current_app.logger.error(f"Unexpected error in get_authorized_user: {e}", exc_info=True)
         return None
 
+def _authorize_jwt_member(decoded, token_string, role):
+    """Resolve the member behind a validated Keycloak JWT (auto-creating a
+    suspended-guest record on first touch, matching the CAS-era flow) and
+    enforce the required role, mirroring the CAS-proxy and PAT paths.
+
+    Returns the member. A None member (auto-creation failure) is tolerated
+    only for GUEST-level endpoints; anything higher raises."""
+    member = start_member_session_jwt(decoded, token_string)
+    if member is None:
+        if role <= Role.ROLE_GUEST:
+            return None
+        raise AuthenticationError("Insufficient permissions.")
+    if member.role_id is None or member.role_id < role:
+        raise AuthenticationError("Insufficient permissions.")
+    return member
+
+
 def validate_personal_access_token(raw_token):
     """Validate a personal access token and return the corresponding Member.
 
@@ -143,8 +160,11 @@ def login_required(role=Role.ROLE_GUEST):
                         decoded = verify_jwt_token(auth_header_value)
                         if not decoded:
                             raise AuthenticationError("Invalid or expired jwt token.")
-                        
-                        #request.user = decoded
+
+                        # Resolve the member (auto-creating on first touch) and
+                        # enforce the endpoint's required role — a valid JWT
+                        # alone no longer satisfies elevated-role endpoints.
+                        _authorize_jwt_member(decoded, auth_header_value, role)
                         return wrapped_function(*args, **kwargs)
                     
                     member_session = validate_proxy(auth_header_value) # Can raise Auth/ExternalServiceError
@@ -160,6 +180,7 @@ def login_required(role=Role.ROLE_GUEST):
                         # Try JWT first
                         decoded = verify_jwt_token(token)
                         if decoded:
+                            _authorize_jwt_member(decoded, token, role)
                             return wrapped_function(*args, **kwargs)
 
                         # Not a valid JWT — try as a personal access token

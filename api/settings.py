@@ -129,6 +129,12 @@ EMAIL_SUPPORT = os.getenv('EMAIL_SUPPORT', "")
 EMAIL_ADMIN = os.getenv('EMAIL_ADMIN', "")
 EMAIL_JPL_ADMINS = os.getenv('EMAIL_JPL_ADMINS', "")  # Use a comma to delimit emails, if more than one
 
+# Member email notifications (registration/activation/deactivation) are
+# disabled by default: the Hub environment is the control center for all user
+# communication, and the API email templates are out of date. Flip to True to
+# re-enable once the templates are refreshed.
+MEMBER_EMAIL_NOTIFICATIONS_ENABLED = str2bool(os.getenv('MEMBER_EMAIL_NOTIFICATIONS_ENABLED', 'False'))
+
 # PORTAL PATHS
 PORTAL_ADMIN_DASHBOARD_PATH = os.getenv('PORTAL_ADMIN_DASHBOARD_PATH', '')
 

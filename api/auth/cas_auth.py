@@ -19,6 +19,7 @@ from Crypto import Random
 from Crypto.Hash import SHA
 from base64 import b64decode
 from api.utils.url_util import proxied_url
+from api.utils.member_util import create_member_from_identity
 import ast
 import socket # For socket.timeout
 from xml.parsers.expat import ExpatError # For XML parsing errors
@@ -328,15 +329,35 @@ def start_member_session_jwt(decoded_jwt, token_string, auto_create_member=False
             db.session.rollback()
             current_app.logger.error(f"Failed to add new member {usr}: {e}")
             raise
+    elif member is None:
+        # Keycloak-era replacement for the CAS login auto-create: the first
+        # authenticated touch registers the user as a suspended guest
+        # (pre-approved emails activate immediately). Creation is silent —
+        # new-user email notifications are handled by the Hub environment,
+        # and member activation remains a manual admin step.
+        member = create_member_from_identity(
+            username=usr,
+            email=decoded_jwt.get("email"),
+            first_name=decoded_jwt.get("given_name"),
+            last_name=decoded_jwt.get("family_name"),
+            organization=decoded_jwt.get("organization"))
 
-    if member is not None:
-        refresh_urs_token(member, token_string)
+    if member is None:
+        # Defensive: auto-creation failed — treat as an authenticated identity
+        # with no member record rather than crashing the auth path.
+        current_app.logger.error(f"Unable to resolve or auto-create member for {usr}.")
+        return None
+
+    refresh_urs_token(member, token_string)
 
     try:
-        query = """INSERT INTO member_session (member_id, session_key, creation_date)
-            VALUES ({}, '{}', '{}')
-            ON CONFLICT (session_key) DO NOTHING;""".format(member.id, token_string, utcnow())
-        db.session.execute(sqlalchemy.text(query))
+        query = sqlalchemy.text(
+            """INSERT INTO member_session (member_id, session_key, creation_date)
+            VALUES (:member_id, :session_key, :creation_date)
+            ON CONFLICT (session_key) DO NOTHING;""")
+        db.session.execute(query, {"member_id": member.id,
+                                   "session_key": token_string,
+                                   "creation_date": utcnow()})
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Failed to create member session for {usr}: {e}")

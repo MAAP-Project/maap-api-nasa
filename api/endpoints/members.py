@@ -21,11 +21,10 @@ from api.schemas.member_schema import MemberSchema
 from api.schemas.member_session_schema import MemberSessionSchema
 from api.utils.security_utils import validate_ssh_key_file, sanitize_filename, InvalidFileTypeError, FileSizeTooLargeError, EmptyFileError, ExternalServiceError
 from api.utils.email_util import send_user_status_update_active_user_email, \
-    send_user_status_update_suspended_user_email, send_user_status_change_email, \
-    send_welcome_to_maap_active_user_email, send_welcome_to_maap_suspended_user_email
+    send_user_status_update_suspended_user_email, send_user_status_change_email
+from api.utils.member_util import determine_initial_status, notify_new_member
 from api.endpoints.environment import get_config_from_api
 from api.utils.s3_access import build_user_s3_policy
-from api.models.pre_approved import PreApproved
 from datetime import datetime, timezone
 import json
 import boto3
@@ -189,12 +188,7 @@ class Member(Resource):
         if member is not None:
             return err_response(msg="Member already exists with email " + email)
 
-        pre_approved_email = db.session.query(PreApproved).filter(
-            (PreApproved.email.like("*%") & PreApproved.email.like("%" + email[1:])) |
-            (~PreApproved.email.like("*%") & PreApproved.email.like(email))
-        ).first()
-
-        member_status = constants.STATUS_SUSPENDED if pre_approved_email is None else constants.STATUS_ACTIVE
+        member_status = determine_initial_status(email)
 
         guest = Member_db(first_name=first_name,
                           last_name=last_name,
@@ -216,12 +210,7 @@ class Member(Resource):
             raise
 
         # Send Email Notifications based on member status
-        if member_status == constants.STATUS_ACTIVE:
-            send_user_status_change_email(guest, True, True, proxied_url(request))
-            send_welcome_to_maap_active_user_email(guest, proxied_url(request))
-        else:
-            send_user_status_change_email(guest, True, False, proxied_url(request))
-            send_welcome_to_maap_suspended_user_email(guest, proxied_url(request))
+        notify_new_member(guest, proxied_url(request))
 
         member_schema = MemberSchema()
         return json.loads(member_schema.dumps(guest))
@@ -297,7 +286,7 @@ class Member(Resource):
 class MemberStatus(Resource):
 
     @api.doc(security='ApiKeyAuth')
-    @login_required()
+    @login_required(role=Role.ROLE_ADMIN)
     def post(self, key):
 
         """
@@ -360,15 +349,19 @@ class MemberStatus(Resource):
                     app.logger.error(f"Failed to update member gitlab info {member.id}: {e}")
                     raise
 
-        # Send "Account Activated" email notification to Member & Admins
-        if activated:
-            send_user_status_update_active_user_email(member, proxied_url(request))
-            send_user_status_change_email(member, False, True, proxied_url(request))
+        # Activation/deactivation email notifications — disabled by default:
+        # user communication is handled by the Hub environment (see
+        # settings.MEMBER_EMAIL_NOTIFICATIONS_ENABLED).
+        if settings.MEMBER_EMAIL_NOTIFICATIONS_ENABLED:
+            # Send "Account Activated" email notification to Member & Admins
+            if activated:
+                send_user_status_update_active_user_email(member, proxied_url(request))
+                send_user_status_change_email(member, False, True, proxied_url(request))
 
-        # Send "Account Deactivated" email notification to Member & Admins
-        if deactivated:
-            send_user_status_update_suspended_user_email(member, proxied_url(request))
-            send_user_status_change_email(member, False, False, proxied_url(request))
+            # Send "Account Deactivated" email notification to Member & Admins
+            if deactivated:
+                send_user_status_update_suspended_user_email(member, proxied_url(request))
+                send_user_status_change_email(member, False, False, proxied_url(request))
 
         member_schema = MemberSchema()
         return json.loads(member_schema.dumps(member))
@@ -381,6 +374,10 @@ class Self(Resource):
     @login_required()
     def get(self):
         authorized_user = get_authorized_user()
+
+        if authorized_user is None:
+            return err_response(msg="No MAAP member record found for this account.",
+                                code=status.HTTP_404_NOT_FOUND)
 
         cols = [
             Member_db.id,
