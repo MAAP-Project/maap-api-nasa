@@ -175,8 +175,24 @@ def login_required(role=Role.ROLE_GUEST):
                     member_session = validate_proxy(auth_header_value) # Can raise Auth/ExternalServiceError
                     if member_session is not None and member_session.member.role_id >= role:
                         return wrapped_function(*args, **kwargs)
-                    elif member_session is None: # Valid proxy ticket, but no session or role mismatch
-                        raise AuthenticationError("Invalid session or insufficient permissions.")
+                    elif member_session is not None: # Valid proxy ticket, but insufficient role
+                        raise AuthenticationError("Insufficient permissions.")
+
+                    # Not a valid proxy ticket — try as a personal access token
+                    _member = validate_personal_access_token(auth_header_value)
+                    if _member is not None and _member.role_id >= role:
+                        return wrapped_function(*args, **kwargs)
+                    elif member_session is not None: # Valid proxy ticket, but insufficient role
+                        raise AuthenticationError("Insufficient permissions.")
+
+                    # Not a valid proxy ticket — try as a personal access token
+                    _member = validate_personal_access_token(auth_header_value)
+                    if _member is not None and _member.role_id >= role:
+                        return wrapped_function(*args, **kwargs)
+                    elif _member is not None:
+                        raise AuthenticationError("Insufficient permissions.")
+
+                    raise AuthenticationError("Invalid session or insufficient permissions.")
 
                 elif auth_header_name == HEADER_AUTHORIZATION:
                     if auth_header_value and auth_header_value.lower().startswith('bearer '):
