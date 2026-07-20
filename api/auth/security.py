@@ -42,6 +42,11 @@ def get_authorized_user():
                 member_session = validate_proxy(auth_header_value)
                 if member_session is not None:
                     return member_session.member
+
+                # Not a valid proxy ticket — try as a personal access token
+                _member = validate_personal_access_token(auth_header_value)
+                if _member is not None:
+                    return _member
         elif auth_header_name == HEADER_AUTHORIZATION:
             if auth_header_value and auth_header_value.lower().startswith('bearer '):
                 token = auth_header_value.split(" ")[1]
