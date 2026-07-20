@@ -327,3 +327,167 @@ class TestESAClient:
 
         call_args = mock_requests.delete.call_args
         assert "token-id-123" in call_args[0][0]
+
+
+class TestSelfServiceESADelegation:
+    """Tests for self-service token endpoints routing ESA-targeted requests to
+    ESA's gateway based on the X-MAAP-User-Origin header."""
+
+    NASA_ORIGIN = "https://auth.maap-project.org/cas/oidc"
+    ESA_ORIGIN = "http://eoiam-idp.eo.esa.int"
+
+    def _headers(self, origin):
+        return {
+            "cpticket": "jwt:fake-token",
+            "Content-Type": "application/json",
+            "X-MAAP-User-Origin": origin,
+        }
+
+    def _configure(self, mock_settings):
+        mock_settings.NASA_CAS_OIDC_ORIGIN = self.NASA_ORIGIN
+        mock_settings.ESA_OIDC_ORIGIN = self.ESA_ORIGIN
+        mock_settings.ESA_GATEWAY_BASE_URL = "https://esa-gateway.example.org"
+        mock_settings.ESA_ADMIN_API_KEY = "esa-admin-key"
+        mock_settings.NASA_ADMIN_API_KEY = "nasa-admin-key"
+        mock_settings.TOKEN_DEFAULT_EXPIRY_SECONDS = 86400
+
+    @patch("api.endpoints.gateway.ESATokenClient")
+    @patch("api.endpoints.gateway.get_authorized_user")
+    @patch("api.endpoints.gateway._is_jwt_auth", return_value=True)
+    @patch("api.auth.security.verify_jwt_token", return_value={"sub": "x"})
+    @patch("api.endpoints.gateway.settings")
+    def test_self_create_esa_delegates_to_esa_gateway(
+        self, mock_settings, mock_verify, mock_jwt, mock_user, mock_esa_cls, client
+    ):
+        self._configure(mock_settings)
+        mock_user.return_value = MagicMock(email="user@nasa.gov")
+        mock_esa_cls.return_value.create_token.return_value = {
+            "token": "esa-token-value",
+            "token_id": "esa-token-id",
+            "token_name": "my-esa",
+            "expires_at": None,
+        }
+
+        resp = client.post(
+            "/api/gateway/members/self/tokens",
+            headers=self._headers(self.ESA_ORIGIN),
+            data=json.dumps({"token_name": "my-esa", "expires_in": 3600}),
+        )
+
+        assert resp.status_code == 201
+        data = json.loads(resp.data)
+        assert data["token"] == "esa-token-value"
+        mock_esa_cls.return_value.create_token.assert_called_once_with(
+            "user@nasa.gov", token_name="my-esa", expires_in=3600
+        )
+
+    @patch("api.endpoints.gateway.ESATokenClient")
+    @patch("api.endpoints.gateway.get_authorized_user")
+    @patch("api.endpoints.gateway._is_jwt_auth", return_value=True)
+    @patch("api.auth.security.verify_jwt_token", return_value={"sub": "x"})
+    @patch("api.endpoints.gateway.settings")
+    def test_self_create_nasa_stays_local(
+        self, mock_settings, mock_verify, mock_jwt, mock_user, mock_esa_cls, client
+    ):
+        self._configure(mock_settings)
+        mock_user.return_value = MagicMock(email="user@nasa.gov")
+
+        resp = client.post(
+            "/api/gateway/members/self/tokens",
+            headers=self._headers(self.NASA_ORIGIN),
+            data=json.dumps({"token_name": "my-nasa"}),
+        )
+
+        assert resp.status_code == 201
+        data = json.loads(resp.data)
+        assert data["token_name"] == "my-nasa"
+        assert "token" in data
+        mock_esa_cls.return_value.create_token.assert_not_called()
+        # Token was persisted locally with the NASA origin.
+        stored = (
+            db.session.query(PersonalAccessToken)
+            .filter_by(user_identifier="user@nasa.gov")
+            .first()
+        )
+        assert stored is not None
+        assert stored.user_origin == self.NASA_ORIGIN
+
+    @patch("api.endpoints.gateway.ESATokenClient")
+    @patch("api.endpoints.gateway.get_authorized_user")
+    @patch("api.auth.security.verify_jwt_token", return_value={"sub": "x"})
+    @patch("api.endpoints.gateway.settings")
+    def test_self_list_merges_nasa_and_esa(
+        self, mock_settings, mock_verify, mock_user, mock_esa_cls, client
+    ):
+        self._configure(mock_settings)
+        mock_user.return_value = MagicMock(email="user@nasa.gov")
+        mock_esa_cls.return_value.list_tokens.return_value = [
+            {"token_id": "esa-1", "token_name": "esa-tok", "expires_at": None}
+        ]
+
+        # Seed a local NASA token.
+        db.session.add(
+            PersonalAccessToken(
+                user_identifier="user@nasa.gov",
+                user_origin=self.NASA_ORIGIN,
+                token_name="nasa-tok",
+                token_hash="hash",
+            )
+        )
+        db.session.commit()
+
+        resp = client.get(
+            "/api/gateway/members/self/tokens",
+            headers=self._headers(self.NASA_ORIGIN),
+        )
+
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        origins = {t["user_origin"]: t for t in data}
+        assert self.NASA_ORIGIN in origins
+        assert self.ESA_ORIGIN in origins
+        assert origins[self.ESA_ORIGIN]["token_id"] == "esa-1"
+
+    @patch("api.endpoints.gateway.ESATokenClient")
+    @patch("api.endpoints.gateway.get_authorized_user")
+    @patch("api.auth.security.verify_jwt_token", return_value={"sub": "x"})
+    @patch("api.endpoints.gateway.settings")
+    def test_self_list_translates_page_to_esa_zero_based(
+        self, mock_settings, mock_verify, mock_user, mock_esa_cls, client
+    ):
+        self._configure(mock_settings)
+        mock_user.return_value = MagicMock(email="user@nasa.gov")
+        mock_esa_cls.return_value.list_tokens.return_value = []
+
+        # Our API is 1-based; ESA's gateway is 0-based. The first page (page=1)
+        # must reach ESA as page=0, or the user's tokens are never returned.
+        resp = client.get(
+            "/api/gateway/members/self/tokens?page=1&size=50",
+            headers=self._headers(self.NASA_ORIGIN),
+        )
+
+        assert resp.status_code == 200
+        mock_esa_cls.return_value.list_tokens.assert_called_once_with(
+            "user@nasa.gov", page=0, size=50
+        )
+
+    @patch("api.endpoints.gateway.ESATokenClient")
+    @patch("api.endpoints.gateway.get_authorized_user")
+    @patch("api.endpoints.gateway._is_jwt_auth", return_value=True)
+    @patch("api.auth.security.verify_jwt_token", return_value={"sub": "x"})
+    @patch("api.endpoints.gateway.settings")
+    def test_self_revoke_esa_delegates(
+        self, mock_settings, mock_verify, mock_jwt, mock_user, mock_esa_cls, client
+    ):
+        self._configure(mock_settings)
+        mock_user.return_value = MagicMock(email="user@nasa.gov")
+
+        resp = client.delete(
+            "/api/gateway/members/self/tokens/esa-token-id",
+            headers=self._headers(self.ESA_ORIGIN),
+        )
+
+        assert resp.status_code == 204
+        mock_esa_cls.return_value.revoke_token.assert_called_once_with(
+            "user@nasa.gov", "esa-token-id"
+        )

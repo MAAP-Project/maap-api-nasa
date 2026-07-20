@@ -20,10 +20,16 @@ class ESATokenClient:
         admin_api_key=None,
         nasa_oidc_origin=None,
     ):
+        # base_url is the full ESA gateway API root, including its versioned path
+        # (e.g. https://biomass.pal.preop.esa-maap.org/esa-maap/api/v1.0).
         self.base_url = (base_url or settings.ESA_GATEWAY_BASE_URL).rstrip("/")
-        self.api_key = admin_api_key or settings.NASA_ADMIN_API_KEY
+        # The admin key ESA's gateway accepts for inbound NASA calls.
+        self.api_key = admin_api_key or settings.ESA_ADMIN_API_KEY
         self.origin = nasa_oidc_origin or settings.NASA_CAS_OIDC_ORIGIN
-        self.tokens_url = f"{self.base_url}/esa-maap/api/v1.0/members/tokens"
+        # The joint gateway spec exposes the partner token flow at
+        # /members/self/tokens (authenticated by X-MAAP-API-Key + the
+        # X-MAAP-User-Identifier / X-MAAP-User-Origin headers).
+        self.tokens_url = f"{self.base_url}/members/self/tokens"
 
     def _headers(self, user_identifier):
         return {

@@ -3,6 +3,7 @@ import secrets
 from datetime import datetime, timezone, timedelta
 
 import hashlib
+import requests
 from flask import request
 from flask_api import status
 from flask_restx import Resource
@@ -14,6 +15,7 @@ from api.auth.security import get_authorized_user, login_required, verify_jwt_to
 from api.maap_database import db
 from api.models.member import Member
 from api.models.personal_access_token import PersonalAccessToken
+from api.utils.esa_client import ESATokenClient
 from api.utils.http_util import err_response
 
 log = logging.getLogger(__name__)
@@ -184,6 +186,125 @@ def _revoke_token_for_user(token_id, user_identifier, user_origin):
 
 
 # =============================================================================
+# ESA delegation: self-service requests targeting the ESA platform are proxied
+# to ESA's gateway (via the NASA admin API key) rather than stored locally.
+# =============================================================================
+
+def _requested_origin():
+    """The platform origin the caller is targeting, from the X-MAAP-User-Origin header."""
+    return request.headers.get(HEADER_USER_ORIGIN, "")
+
+
+def _is_esa_origin(origin):
+    """True if the requested origin identifies the ESA platform."""
+    return bool(settings.ESA_OIDC_ORIGIN) and origin == settings.ESA_OIDC_ORIGIN
+
+
+def _esa_not_configured():
+    """Return an err_response if ESA delegation isn't fully configured, else None."""
+    if not settings.ESA_GATEWAY_BASE_URL:
+        return err_response("ESA gateway is not configured.", status.HTTP_503_SERVICE_UNAVAILABLE)
+    if not settings.ESA_ADMIN_API_KEY:
+        return err_response("ESA admin API key is not configured.", status.HTTP_503_SERVICE_UNAVAILABLE)
+    return None
+
+
+def _esa_error_detail(e):
+    """Human-readable detail for an ESA gateway request failure: the upstream
+    status and (truncated) response body when there was a response, otherwise
+    the connection-level error."""
+    resp = getattr(e, "response", None)
+    if resp is not None:
+        body = (resp.text or "").strip().replace("\n", " ")
+        return f"ESA gateway returned {resp.status_code}: {body[:300]}"
+    return f"Could not reach ESA gateway: {e}"
+
+
+def _create_esa_token(user_identifier):
+    """Delegate token creation to ESA's gateway for a NASA-authenticated user."""
+    not_configured = _esa_not_configured()
+    if not_configured is not None:
+        return not_configured
+
+    req_data = request.get_json()
+    if not isinstance(req_data, dict):
+        return err_response("Valid JSON body object required.")
+
+    token_name = req_data.get("token_name") or None
+    expires_in = req_data.get("expires_in")
+    if expires_in is not None and (not isinstance(expires_in, int) or expires_in <= 0):
+        return err_response("expires_in must be a positive integer (seconds).")
+
+    try:
+        result = ESATokenClient().create_token(
+            user_identifier, token_name=token_name, expires_in=expires_in
+        )
+    except requests.RequestException as e:
+        detail = _esa_error_detail(e)
+        log.error(f"Failed to create ESA token for {user_identifier}: {detail}")
+        return err_response(f"Failed to create ESA token. {detail}", status.HTTP_502_BAD_GATEWAY)
+
+    return result, status.HTTP_201_CREATED
+
+
+def _list_esa_tokens(user_identifier):
+    """List the user's ESA tokens, tagged with the ESA origin so callers can
+    distinguish them. Returns [] (logging a warning) if ESA is unavailable so
+    the local listing still succeeds."""
+    if _esa_not_configured() is not None:
+        return []
+
+    page = request.args.get("page", 1, type=int)
+    size = request.args.get("size", 20, type=int)
+
+    # Our API (and the NASA local query) is 1-based; ESA's gateway paginates
+    # 0-based, so page=1 would ask ESA for its *second* page and return nothing
+    # for users with fewer than `size` tokens. Translate to ESA's convention.
+    esa_page = max(page - 1, 0)
+
+    try:
+        esa_tokens = ESATokenClient().list_tokens(user_identifier, page=esa_page, size=size)
+    except requests.RequestException as e:
+        log.warning(f"Failed to list ESA tokens for {user_identifier}: {_esa_error_detail(e)}")
+        return []
+
+    return [
+        {
+            "token_id": t.get("token_id"),
+            "token_name": t.get("token_name"),
+            "user_origin": settings.ESA_OIDC_ORIGIN,
+            "expires_at": t.get("expires_at"),
+            "created_at": t.get("created_at"),
+            "is_active": t.get("is_active", True),
+        }
+        for t in esa_tokens
+    ]
+
+
+def _revoke_esa_token(token_id, user_identifier):
+    """Delegate token revocation to ESA's gateway for a NASA-authenticated user."""
+    not_configured = _esa_not_configured()
+    if not_configured is not None:
+        return not_configured
+
+    try:
+        ESATokenClient().revoke_token(user_identifier, token_id)
+    except requests.HTTPError as e:
+        resp_code = e.response.status_code if e.response is not None else None
+        if resp_code == status.HTTP_404_NOT_FOUND:
+            return err_response("Token not found or already revoked.", status.HTTP_404_NOT_FOUND)
+        detail = _esa_error_detail(e)
+        log.error(f"Failed to revoke ESA token {token_id} for {user_identifier}: {detail}")
+        return err_response(f"Failed to revoke ESA token. {detail}", status.HTTP_502_BAD_GATEWAY)
+    except requests.RequestException as e:
+        detail = _esa_error_detail(e)
+        log.error(f"Failed to revoke ESA token {token_id} for {user_identifier}: {detail}")
+        return err_response(f"Failed to revoke ESA token. {detail}", status.HTTP_502_BAD_GATEWAY)
+
+    return "", status.HTTP_204_NO_CONTENT
+
+
+# =============================================================================
 # Self-service endpoints: authenticated user manages their own tokens
 # =============================================================================
 
@@ -202,6 +323,12 @@ class SelfTokens(Resource):
             return err_response("Could not identify user.", status.HTTP_401_UNAUTHORIZED)
 
         user_identifier = authorized_user.email
+
+        # An ESA-targeted request is delegated to ESA's gateway; otherwise the
+        # token is created locally with the NASA origin.
+        if _is_esa_origin(_requested_origin()):
+            return _create_esa_token(user_identifier)
+
         user_origin = settings.NASA_CAS_OIDC_ORIGIN
         return _create_token_for_user(user_identifier, user_origin)
 
@@ -214,7 +341,9 @@ class SelfTokens(Resource):
             return err_response("Could not identify user.", status.HTTP_401_UNAUTHORIZED)
 
         user_identifier = authorized_user.email
-        return _list_tokens_for_user(user_identifier)
+        # "All origins" = locally-stored NASA tokens plus the user's ESA tokens
+        # fetched from ESA's gateway.
+        return _list_tokens_for_user(user_identifier) + _list_esa_tokens(user_identifier)
 
 
 @ns.route('/members/self/tokens/<string:token_id>')
@@ -232,6 +361,12 @@ class SelfTokenRevoke(Resource):
             return err_response("Could not identify user.", status.HTTP_401_UNAUTHORIZED)
 
         user_identifier = authorized_user.email
+
+        # Route ESA-targeted revocations to ESA's gateway; otherwise revoke the
+        # locally-stored NASA token.
+        if _is_esa_origin(_requested_origin()):
+            return _revoke_esa_token(token_id, user_identifier)
+
         user_origin = settings.NASA_CAS_OIDC_ORIGIN
         return _revoke_token_for_user(token_id, user_identifier, user_origin)
 
