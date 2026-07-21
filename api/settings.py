@@ -147,6 +147,8 @@ ESA_GATEWAY_BASE_URL = os.getenv('ESA_GATEWAY_BASE_URL', "")
 ESA_ADMIN_API_KEY = os.getenv('ESA_ADMIN_API_KEY', "")
 NASA_ADMIN_API_KEY = os.getenv('NASA_ADMIN_API_KEY', "")
 NASA_CAS_OIDC_ORIGIN = os.getenv('NASA_CAS_OIDC_ORIGIN', "https://auth.maap-project.org/cas/oidc")
+# OIDC origin identifying the ESA platform. 
+ESA_OIDC_ORIGIN = os.getenv('ESA_OIDC_ORIGIN', "http://eoiam-idp.eo.esa.int")
 TOKEN_DEFAULT_EXPIRY_SECONDS = int(os.getenv('TOKEN_DEFAULT_EXPIRY_SECONDS', '86400'))
 
 # Keycloak Configuration
