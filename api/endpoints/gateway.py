@@ -42,7 +42,14 @@ def _validate_admin_api_key():
 
 def _get_admin_identity():
     """Extract and validate admin caller identity from headers.
-    Returns (user_identifier, user_origin) tuple or None on failure."""
+    Returns (user_identifier, user_origin) tuple or None on failure.
+
+    The supplied X-MAAP-User-Identifier may be an email or a username
+    (partner IdPs differ — see _resolve_member); resolve it to the member's
+    canonical email so all token storage/lookups key on member.email
+    consistently. Falls back to the raw header value when no member matches
+    (e.g. token listing for an as-yet-unknown user), letting the downstream
+    check_member gate return the 404."""
     if not _validate_admin_api_key():
         return None
 
@@ -51,6 +58,10 @@ def _get_admin_identity():
 
     if not user_identifier or not user_origin:
         return None
+
+    member = _resolve_member(user_identifier)
+    if member is not None:
+        user_identifier = member.email
 
     return user_identifier, user_origin
 
@@ -71,14 +82,30 @@ def _is_jwt_auth():
     return False
 
 
-def _verify_member_exists(user_identifier):
-    """Check that a member with the given email exists and is active.
+def _resolve_member(user_identifier):
+    """Resolve an active member from a partner-supplied identifier.
+
+    Partner platforms send differing identifiers depending on their IdP:
+    EOIAM's JWT `sub` is the email address, but for EDL-brokered users ESA
+    sends the bare username (e.g. "jdoe" rather than "jdoe@example.org").
+    Accept either, preferring an exact email match, and let callers
+    canonicalize downstream storage/lookups to `member.email` (the PAT auth
+    path joins personal_access_token.user_identifier == member.email, so
+    anything else produces tokens that can never authenticate).
+
     Returns the Member or None."""
-    return (
+    member = (
         db.session.query(Member)
         .filter_by(email=user_identifier, status=constants.STATUS_ACTIVE)
         .first()
     )
+    if member is None:
+        member = (
+            db.session.query(Member)
+            .filter_by(username=user_identifier, status=constants.STATUS_ACTIVE)
+            .first()
+        )
+    return member
 
 
 def _create_token_for_user(user_identifier, user_origin):
@@ -131,7 +158,7 @@ def _create_token_for_user(user_identifier, user_origin):
 
 def _list_tokens_for_user(user_identifier, user_origin=None, check_member=False):
     """Core token listing logic shared by self-service and admin endpoints."""
-    if check_member and _verify_member_exists(user_identifier) is None:
+    if check_member and _resolve_member(user_identifier) is None:
         return err_response("User not found.", status.HTTP_404_NOT_FOUND)
 
     page = request.args.get("page", 1, type=int)
