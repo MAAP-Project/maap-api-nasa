@@ -15,6 +15,7 @@ from api.auth.security import get_authorized_user, login_required, verify_jwt_to
 from api.maap_database import db
 from api.models.member import Member
 from api.models.personal_access_token import PersonalAccessToken
+from api.models.esa_token_meta import EsaTokenMeta
 from api.utils.esa_client import ESATokenClient
 from api.utils.http_util import err_response
 
@@ -247,6 +248,55 @@ def _esa_error_detail(e):
     return f"Could not reach ESA gateway: {e}"
 
 
+def _record_esa_token_created(token_id, user_identifier):
+    """Record a local creation timestamp for an ESA token (best-effort).
+
+    ESA omits a creation date, so we store our own for UI consistency. A
+    failure here must never fail the request — the ESA token already exists.
+    Returns the recorded datetime, or None if it could not be stored.
+    """
+    if not token_id:
+        return None
+    try:
+        now = datetime.now(timezone.utc)
+        db.session.add(
+            EsaTokenMeta(token_id=token_id, user_identifier=user_identifier, created_at=now)
+        )
+        db.session.commit()
+        return now
+    except Exception as e:
+        db.session.rollback()
+        log.warning(f"Failed to record ESA token metadata for {token_id}: {e}")
+        return None
+
+
+def _esa_created_at_map(token_ids):
+    """Map ESA token_id -> our locally-recorded creation datetime (best-effort)."""
+    ids = [tid for tid in token_ids if tid]
+    if not ids:
+        return {}
+    try:
+        rows = (
+            db.session.query(EsaTokenMeta)
+            .filter(EsaTokenMeta.token_id.in_(ids))
+            .all()
+        )
+        return {r.token_id: r.created_at for r in rows}
+    except Exception as e:
+        log.warning(f"Failed to load ESA token metadata: {e}")
+        return {}
+
+
+def _forget_esa_token(token_id):
+    """Drop the local metadata row for a revoked ESA token (best-effort)."""
+    try:
+        db.session.query(EsaTokenMeta).filter_by(token_id=token_id).delete()
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        log.warning(f"Failed to delete ESA token metadata for {token_id}: {e}")
+
+
 def _create_esa_token(user_identifier):
     """Delegate token creation to ESA's gateway for a NASA-authenticated user."""
     not_configured = _esa_not_configured()
@@ -270,6 +320,13 @@ def _create_esa_token(user_identifier):
         detail = _esa_error_detail(e)
         log.error(f"Failed to create ESA token for {user_identifier}: {detail}")
         return err_response(f"Failed to create ESA token. {detail}", status.HTTP_502_BAD_GATEWAY)
+
+    # ESA does not return a creation timestamp; record our own so the create
+    # response and subsequent listings stay consistent with NASA tokens. Prefer
+    # ESA's value if it ever starts sending one.
+    recorded_at = _record_esa_token_created(result.get("token_id"), user_identifier)
+    if recorded_at is not None and not result.get("created_at"):
+        result["created_at"] = recorded_at.isoformat()
 
     return result, status.HTTP_201_CREATED
 
@@ -295,13 +352,22 @@ def _list_esa_tokens(user_identifier):
         log.warning(f"Failed to list ESA tokens for {user_identifier}: {_esa_error_detail(e)}")
         return []
 
+    # ESA omits created_at; backfill from our locally-recorded timestamps.
+    created_map = _esa_created_at_map([t.get("token_id") for t in esa_tokens])
+
+    def _created_at(t):
+        if t.get("created_at"):
+            return t["created_at"]
+        local = created_map.get(t.get("token_id"))
+        return local.isoformat() if local is not None else None
+
     return [
         {
             "token_id": t.get("token_id"),
             "token_name": t.get("token_name"),
             "user_origin": settings.ESA_OIDC_ORIGIN,
             "expires_at": t.get("expires_at"),
-            "created_at": t.get("created_at"),
+            "created_at": _created_at(t),
             "is_active": t.get("is_active", True),
         }
         for t in esa_tokens
@@ -327,6 +393,9 @@ def _revoke_esa_token(token_id, user_identifier):
         detail = _esa_error_detail(e)
         log.error(f"Failed to revoke ESA token {token_id} for {user_identifier}: {detail}")
         return err_response(f"Failed to revoke ESA token. {detail}", status.HTTP_502_BAD_GATEWAY)
+
+    # Drop the now-stale local metadata (best-effort).
+    _forget_esa_token(token_id)
 
     return "", status.HTTP_204_NO_CONTENT
 
