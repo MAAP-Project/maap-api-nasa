@@ -66,7 +66,9 @@ def get_organizations():
                         'last_name': m.Member.last_name,
                         'username': m.Member.username,
                         'email': m.Member.email,
-                        'maintainer': m.OrganizationMembership.org_maintainer
+                        'maintainer': m.OrganizationMembership.org_maintainer,
+                        'job_limit_count': m.OrganizationMembership.job_limit_count,
+                        'job_limit_hours': m.OrganizationMembership.job_limit_hours
                     })
 
             result.append(org)
@@ -121,6 +123,8 @@ def create_organization(name, parent_org_id, default_job_limit_count, default_jo
         for org_member in members:
             org_members.append(OrganizationMembership(member_id=org_member['member_id'], org_id=new_org.id,
                                                       org_maintainer=org_member['maintainer'],
+                                                      job_limit_count=org_member.get('job_limit_count', None),
+                                                      job_limit_hours=org_member.get('job_limit_hours', None),
                                                       creation_date=datetime.utcnow()))
 
         if len(org_members) > 0:
@@ -166,6 +170,8 @@ def update_organization(org, members):
                 member_id=org_member['member_id'],
                 org_id=org.id,
                 org_maintainer=org_member['maintainer'],
+                job_limit_count=org_member.get('job_limit_count', None),
+                job_limit_hours=org_member.get('job_limit_hours', None),
                 creation_date=datetime.utcnow()))
 
         if len(org_members) > 0:
