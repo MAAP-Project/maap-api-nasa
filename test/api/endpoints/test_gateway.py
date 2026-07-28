@@ -7,6 +7,7 @@ from api.maap_database import db
 from api.models import initialize_sql
 from api.models.member import Member
 from api.models.personal_access_token import PersonalAccessToken
+from api.models.esa_token_meta import EsaTokenMeta
 from api.models.role import Role
 
 
@@ -25,9 +26,11 @@ def client(test_app):
             db.create_all()
             # Clean up any leftover tokens from previous test runs
             db.session.query(PersonalAccessToken).delete()
+            db.session.query(EsaTokenMeta).delete()
             db.session.commit()
             yield client
             db.session.query(PersonalAccessToken).delete()
+            db.session.query(EsaTokenMeta).delete()
             db.session.commit()
             db.session.remove()
 
@@ -254,6 +257,277 @@ class TestAdminRevokeToken:
             headers={k: v for k, v in ADMIN_HEADERS.items() if k != "Content-Type"},
         )
         assert resp.status_code == 404
+
+
+class TestAdminIdentifierResolution:
+    """Partner platforms (ESA) send the JWT `sub` as the user identifier, which
+    for EDL-brokered users is a bare username, not an email. The admin
+    endpoints must resolve it to the member's canonical email so tokens are
+    stored and looked up on the same key the PAT auth path uses
+    (validate_personal_access_token joins on member.email)."""
+
+    # Username differs from the email local-part to prove real resolution,
+    # not an incidental "username == email prefix" match.
+    USERNAME = "test.user"
+    EMAIL = "test.user@esa.int"
+
+    def _member(self):
+        member = db.session.query(Member).filter_by(email=self.EMAIL).first()
+        if member is None:
+            role = db.session.query(Role).filter_by(id=Role.ROLE_GUEST).first()
+            if role is None:
+                db.session.add(Role(id=Role.ROLE_GUEST, role_name="guest"))
+                db.session.commit()
+            member = Member(
+                username=self.USERNAME,
+                email=self.EMAIL,
+                first_name="Test",
+                last_name="User",
+                status="active",
+                role_id=Role.ROLE_GUEST,
+                creation_date=datetime.now(timezone.utc),
+            )
+            db.session.add(member)
+            db.session.commit()
+        return member
+
+    def _headers(self, identifier):
+        return {
+            "X-MAAP-API-Key": "test-admin-key",
+            "X-MAAP-User-Identifier": identifier,
+            "X-MAAP-User-Origin": "http://eoiam-idp.eo.esa.int",
+            "Content-Type": "application/json",
+        }
+
+    @patch("api.endpoints.gateway.settings")
+    def test_create_by_username_stores_under_email(self, mock_settings, client):
+        mock_settings.NASA_ADMIN_API_KEY = "test-admin-key"
+        mock_settings.ESA_ADMIN_API_KEY = "esa-admin-key"
+        mock_settings.TOKEN_DEFAULT_EXPIRY_SECONDS = 86400
+        mock_settings.NASA_CAS_OIDC_ORIGIN = "https://auth.maap-project.org/cas/oidc"
+        self._member()
+
+        # ESA sends the username (the `sub` claim).
+        resp = client.post(
+            "/api/gateway/members/tokens",
+            headers=self._headers(self.USERNAME),
+            data=json.dumps({"token_name": "esa-managed"}),
+        )
+        assert resp.status_code == 201
+
+        # The token must be persisted keyed on the member's email, or the PAT
+        # auth path (email join) could never authenticate it.
+        stored = (
+            db.session.query(PersonalAccessToken)
+            .filter_by(token_name="esa-managed")
+            .first()
+        )
+        assert stored is not None
+        assert stored.user_identifier == self.EMAIL
+
+    @patch("api.endpoints.gateway.settings")
+    def test_list_by_username_resolves_to_member(self, mock_settings, client):
+        mock_settings.NASA_ADMIN_API_KEY = "test-admin-key"
+        mock_settings.ESA_ADMIN_API_KEY = "esa-admin-key"
+        mock_settings.NASA_CAS_OIDC_ORIGIN = "https://auth.maap-project.org/cas/oidc"
+        self._member()
+
+        # A token stored the canonical way (under email).
+        db.session.add(
+            PersonalAccessToken(
+                user_identifier=self.EMAIL,
+                user_origin="http://eoiam-idp.eo.esa.int",
+                token_name="pre-existing",
+                token_hash="hash",
+            )
+        )
+        db.session.commit()
+
+        # Listing by username must resolve to the member (not 404) and return it.
+        resp = client.get(
+            "/api/gateway/members/tokens",
+            headers={k: v for k, v in self._headers(self.USERNAME).items() if k != "Content-Type"},
+        )
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert len(data) == 1
+        assert data[0]["token_name"] == "pre-existing"
+
+    @patch("api.endpoints.gateway.settings")
+    def test_email_identifier_still_works(self, mock_settings, client):
+        mock_settings.NASA_ADMIN_API_KEY = "test-admin-key"
+        mock_settings.ESA_ADMIN_API_KEY = "esa-admin-key"
+        mock_settings.TOKEN_DEFAULT_EXPIRY_SECONDS = 86400
+        mock_settings.NASA_CAS_OIDC_ORIGIN = "https://auth.maap-project.org/cas/oidc"
+        self._member()
+
+        # The pre-existing EOIAM behavior (identifier already an email) is
+        # unchanged: resolves by email, stores under email.
+        resp = client.post(
+            "/api/gateway/members/tokens",
+            headers=self._headers(self.EMAIL),
+            data=json.dumps({"token_name": "email-managed"}),
+        )
+        assert resp.status_code == 201
+        stored = (
+            db.session.query(PersonalAccessToken)
+            .filter_by(token_name="email-managed")
+            .first()
+        )
+        assert stored is not None
+        assert stored.user_identifier == self.EMAIL
+
+    @patch("api.endpoints.gateway.settings")
+    def test_list_unknown_identifier_still_404(self, mock_settings, client):
+        mock_settings.NASA_ADMIN_API_KEY = "test-admin-key"
+        mock_settings.ESA_ADMIN_API_KEY = "esa-admin-key"
+        mock_settings.NASA_CAS_OIDC_ORIGIN = "https://auth.maap-project.org/cas/oidc"
+
+        # No member by that username or email → still a clean 404, not a match.
+        resp = client.get(
+            "/api/gateway/members/tokens",
+            headers={k: v for k, v in self._headers("no.such.user").items() if k != "Content-Type"},
+        )
+        assert resp.status_code == 404
+
+
+class TestESATokenCreatedAt:
+    """ESA doesn't return a token creation date, so we record one locally
+    (EsaTokenMeta) purely for UI consistency with NASA tokens."""
+
+    NASA_ORIGIN = "https://auth.maap-project.org/cas/oidc"
+    ESA_ORIGIN = "http://eoiam-idp.eo.esa.int"
+
+    def _headers(self, origin):
+        return {
+            "cpticket": "jwt:fake-token",
+            "Content-Type": "application/json",
+            "X-MAAP-User-Origin": origin,
+        }
+
+    def _configure(self, mock_settings):
+        mock_settings.NASA_CAS_OIDC_ORIGIN = self.NASA_ORIGIN
+        mock_settings.ESA_OIDC_ORIGIN = self.ESA_ORIGIN
+        mock_settings.ESA_GATEWAY_BASE_URL = "https://esa-gateway.example.org"
+        mock_settings.ESA_ADMIN_API_KEY = "esa-admin-key"
+        mock_settings.NASA_ADMIN_API_KEY = "nasa-admin-key"
+        mock_settings.TOKEN_DEFAULT_EXPIRY_SECONDS = 86400
+
+    @patch("api.endpoints.gateway.ESATokenClient")
+    @patch("api.endpoints.gateway.get_authorized_user")
+    @patch("api.endpoints.gateway._is_jwt_auth", return_value=True)
+    @patch("api.auth.security.verify_jwt_token", return_value={"sub": "x"})
+    @patch("api.endpoints.gateway.settings")
+    def test_create_records_local_created_at(
+        self, mock_settings, mock_verify, mock_jwt, mock_user, mock_esa_cls, client
+    ):
+        self._configure(mock_settings)
+        mock_user.return_value = MagicMock(email="user@nasa.gov")
+        # ESA's response omits created_at.
+        mock_esa_cls.return_value.create_token.return_value = {
+            "token": "esa-token-value",
+            "token_id": "esa-abc",
+            "token_name": "my-esa",
+            "expires_at": None,
+        }
+
+        resp = client.post(
+            "/api/gateway/members/self/tokens",
+            headers=self._headers(self.ESA_ORIGIN),
+            data=json.dumps({"token_name": "my-esa"}),
+        )
+        assert resp.status_code == 201
+
+        # The create response is backfilled with our timestamp...
+        data = json.loads(resp.data)
+        assert data["created_at"] is not None
+
+        # ...and a metadata row is persisted keyed by ESA's token_id.
+        meta = db.session.query(EsaTokenMeta).filter_by(token_id="esa-abc").first()
+        assert meta is not None
+        assert meta.user_identifier == "user@nasa.gov"
+
+    @patch("api.endpoints.gateway.ESATokenClient")
+    @patch("api.endpoints.gateway.get_authorized_user")
+    @patch("api.auth.security.verify_jwt_token", return_value={"sub": "x"})
+    @patch("api.endpoints.gateway.settings")
+    def test_list_backfills_created_at_from_metadata(
+        self, mock_settings, mock_verify, mock_user, mock_esa_cls, client
+    ):
+        self._configure(mock_settings)
+        mock_user.return_value = MagicMock(email="user@nasa.gov")
+
+        recorded = datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc)
+        db.session.add(
+            EsaTokenMeta(token_id="esa-xyz", user_identifier="user@nasa.gov", created_at=recorded)
+        )
+        db.session.commit()
+
+        # ESA lists the token but omits created_at.
+        mock_esa_cls.return_value.list_tokens.return_value = [
+            {"token_id": "esa-xyz", "token_name": "tok", "expires_at": None}
+        ]
+
+        resp = client.get(
+            "/api/gateway/members/self/tokens",
+            headers=self._headers(self.NASA_ORIGIN),
+        )
+        assert resp.status_code == 200
+        esa_entry = next(t for t in json.loads(resp.data) if t["user_origin"] == self.ESA_ORIGIN)
+        assert esa_entry["created_at"] == recorded.isoformat()
+
+    @patch("api.endpoints.gateway.ESATokenClient")
+    @patch("api.endpoints.gateway.get_authorized_user")
+    @patch("api.auth.security.verify_jwt_token", return_value={"sub": "x"})
+    @patch("api.endpoints.gateway.settings")
+    def test_list_prefers_esa_created_at_when_present(
+        self, mock_settings, mock_verify, mock_user, mock_esa_cls, client
+    ):
+        self._configure(mock_settings)
+        mock_user.return_value = MagicMock(email="user@nasa.gov")
+
+        # Local record exists, but if ESA ever sends its own created_at it wins.
+        db.session.add(
+            EsaTokenMeta(
+                token_id="esa-xyz",
+                user_identifier="user@nasa.gov",
+                created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            )
+        )
+        db.session.commit()
+        mock_esa_cls.return_value.list_tokens.return_value = [
+            {"token_id": "esa-xyz", "token_name": "tok", "expires_at": None,
+             "created_at": "2026-07-22T09:00:00+00:00"}
+        ]
+
+        resp = client.get(
+            "/api/gateway/members/self/tokens",
+            headers=self._headers(self.NASA_ORIGIN),
+        )
+        esa_entry = next(t for t in json.loads(resp.data) if t["user_origin"] == self.ESA_ORIGIN)
+        assert esa_entry["created_at"] == "2026-07-22T09:00:00+00:00"
+
+    @patch("api.endpoints.gateway.ESATokenClient")
+    @patch("api.endpoints.gateway.get_authorized_user")
+    @patch("api.endpoints.gateway._is_jwt_auth", return_value=True)
+    @patch("api.auth.security.verify_jwt_token", return_value={"sub": "x"})
+    @patch("api.endpoints.gateway.settings")
+    def test_revoke_cleans_up_metadata(
+        self, mock_settings, mock_verify, mock_jwt, mock_user, mock_esa_cls, client
+    ):
+        self._configure(mock_settings)
+        mock_user.return_value = MagicMock(email="user@nasa.gov")
+        db.session.add(
+            EsaTokenMeta(token_id="esa-gone", user_identifier="user@nasa.gov")
+        )
+        db.session.commit()
+
+        resp = client.delete(
+            "/api/gateway/members/self/tokens/esa-gone",
+            headers=self._headers(self.ESA_ORIGIN),
+        )
+        assert resp.status_code == 204
+        assert db.session.query(EsaTokenMeta).filter_by(token_id="esa-gone").first() is None
 
 
 class TestESAClient:
