@@ -87,7 +87,21 @@ def get_git_pipeline_status(project_id, commit_hash):
 
 def sync_gitlab_account(is_active, username, email, first_name, last_name):
     """
-    Updates a Gitlab user account
+    DEPRECATED / ORPHANED (CAS/ADE-era). No longer called from the member
+    lifecycle as of the CAS->Keycloak migration.
+
+    This provisioned a per-member GitLab account and impersonation token
+    (see create_gitlab_impersonation_token) when a member was activated. It
+    created GitLab identities with the legacy ``provider="cas3"`` and its
+    output was write-only — nothing in the API ever read member.gitlab_token.
+    It was removed from POST /members/<key>/status because the legacy GitLab
+    impersonation endpoint 500'd member activation when unavailable.
+
+    Kept, unwired, for historical reference. Do NOT re-attach to the member
+    lifecycle without first confirming a live consumer of the GitLab token and
+    a supported GitLab impersonation endpoint. This is distinct from the
+    algorithm-registration / DPS GitLab settings, which remain in active use.
+
     :param is_active: true for an active user, false for suspended
     :param username: MAAP/Gitlab username
     :param email: MAAP email
@@ -147,6 +161,10 @@ def create_gitlab_user(username, email, first_name, last_name):
 
 
 def create_gitlab_impersonation_token(gitlab_id):
+    # DEPRECATED / ORPHANED (CAS/ADE-era). Only reachable via the unwired
+    # sync_gitlab_account / create_gitlab_user helpers above. GitLab restricts
+    # impersonation-token creation to admins on a /users/<id> endpoint; this
+    # path 404'd in current environments and its result was never consumed.
     api_url_users = settings.GIT_API_URL.replace("/projects/", "/users")
     auth_headers = {"PRIVATE-TOKEN": "{}".format(settings.GITLAB_API_TOKEN)}
 

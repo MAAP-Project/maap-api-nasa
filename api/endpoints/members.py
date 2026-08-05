@@ -13,7 +13,6 @@ from api import constants
 from api.auth.security import get_authorized_user, login_required, valid_dps_request, edl_federated_request
 from api.auth.cas_auth import get_urs_token
 from api.maap_database import db
-from api.utils import github_util
 from api.models.member import Member as Member_db
 from api.models.member_session import MemberSession as MemberSession_db
 from api.models.member_secret import MemberSecret as MemberSecret_db
@@ -330,24 +329,10 @@ class MemberStatus(Resource):
                 db.session.rollback()
                 app.logger.error(f"Failed to update member status {member.id}: {e}")
                 raise
-            gitlab_account = github_util.sync_gitlab_account(
-                activated,
-                member.username,
-                member.email,
-                member.first_name,
-                member.last_name)
-
-            if gitlab_account is not None:
-                # A gitlab account was created, so update the member profile.
-                member.gitlab_id = gitlab_account["gitlab_id"]
-                member.gitlab_token = gitlab_account["gitlab_token"]
-                member.gitlab_username = member.username
-                try:
-                    db.session.commit()
-                except Exception as e:
-                    db.session.rollback()
-                    app.logger.error(f"Failed to update member gitlab info {member.id}: {e}")
-                    raise
+            # Per-member GitLab account provisioning (CAS/ADE-era) has been
+            # removed from the member lifecycle. Its impersonation-token wiring
+            # is orphaned in api/utils/github_util.py (see the deprecation
+            # notice there). Re-wire from there only if per-member GitLab accounts are reintroduced.
 
         # Activation/deactivation email notifications — disabled by default:
         # user communication is handled by the Hub environment (see
