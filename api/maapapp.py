@@ -23,6 +23,7 @@ from api.endpoints.gateway import ns as gateway_namespace
 from api.restplus import api
 from api.maap_database import db
 from api.models import initialize_sql
+from api.utils.member_log_util import run_startup_tasks as run_member_log_startup_tasks
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -50,6 +51,9 @@ db.init_app(app)
 initialize_sql(db.engine)
 # Create any new tables
 db.create_all()
+# Seed reference data (member_log_change rows) and run idempotent data
+# backfills (legacy 'suspended' -> 'inactive'). Safe on every boot.
+run_member_log_startup_tasks()
 
 
 @app.after_request

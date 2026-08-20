@@ -22,6 +22,10 @@ from api.utils.security_utils import validate_ssh_key_file, sanitize_filename, I
 from api.utils.email_util import send_user_status_update_active_user_email, \
     send_user_status_update_suspended_user_email, send_user_status_change_email
 from api.utils.member_util import determine_initial_status, notify_new_member
+from api.utils.member_log_util import record_member_change, role_name, org_names_csv
+from api.models.organization_membership import OrganizationMembership
+from api.models.member_log import MemberLog
+from api.models.member_log_change import MemberLogChange
 from api.endpoints.environment import get_config_from_api
 from api.utils.s3_access import build_user_s3_policy
 from datetime import datetime, timezone
@@ -309,30 +313,28 @@ class MemberStatus(Resource):
         if not isinstance(member_status, str) or not member_status:
             return err_response("Valid status string required.")
 
-        if member_status != constants.STATUS_ACTIVE and member_status != constants.STATUS_SUSPENDED:
-            return err_response("Status must be either " + constants.STATUS_ACTIVE + " or " + constants.STATUS_SUSPENDED)
+        # Accept the expanded status set; map the legacy 'suspended' to 'inactive'.
+        if member_status == constants.STATUS_SUSPENDED:
+            member_status = constants.STATUS_INACTIVE
+        if member_status not in constants.MEMBER_STATUSES:
+            return err_response("Status must be one of: " + ", ".join(constants.MEMBER_STATUSES))
 
         member = db.session.query(Member_db).filter_by(username=key).first()
 
         if member is None:
             return err_response(msg="No member found with key " + key, code=404)
 
-        old_status = member.status if member.status is not None else constants.STATUS_SUSPENDED
-        activated = old_status == constants.STATUS_SUSPENDED and member_status == constants.STATUS_ACTIVE
-        deactivated = old_status == constants.STATUS_ACTIVE and member_status == constants.STATUS_SUSPENDED
+        old_status = member.status if member.status is not None else constants.STATUS_PENDING
+        activated = old_status != constants.STATUS_ACTIVE and member_status == constants.STATUS_ACTIVE
+        deactivated = old_status == constants.STATUS_ACTIVE and member_status != constants.STATUS_ACTIVE
 
-        if activated or deactivated:
-            member.status = member_status
-            try:
-                db.session.commit()
-            except Exception as e:
-                db.session.rollback()
-                app.logger.error(f"Failed to update member status {member.id}: {e}")
-                raise
-            # Per-member GitLab account provisioning (CAS/ADE-era) has been
-            # removed from the member lifecycle. Its impersonation-token wiring
-            # is orphaned in api/utils/github_util.py (see the deprecation
-            # notice there). Re-wire from there only if per-member GitLab accounts are reintroduced.
+        member.status = member_status
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Failed to update member status {member.id}: {e}")
+            raise
 
         # Activation/deactivation email notifications — disabled by default:
         # user communication is handled by the Hub environment (see
@@ -350,6 +352,129 @@ class MemberStatus(Resource):
 
         member_schema = MemberSchema()
         return json.loads(member_schema.dumps(member))
+
+
+@ns.route('/<string:key>/review')
+class MemberReview(Resource):
+
+    @api.doc(security='ApiKeyAuth')
+    @login_required(role=Role.ROLE_ADMIN)
+    def post(self, key):
+        """
+        Admin: update a member's status, role, and/or organization membership
+        in a single action, recording an audit entry (member_log) for each
+        changed dimension. Any field omitted is left unchanged; a single
+        (optional) comment is stored on every entry written this call.
+
+        Format of JSON to post:
+        {
+            "status": "active",
+            "role_id": 2,
+            "organization_ids": [1, 2],
+            "comment": "Approved after review"
+        }
+        """
+        req_data = request.get_json()
+        if not isinstance(req_data, dict):
+            return err_response("Valid JSON body object required.")
+
+        member = db.session.query(Member_db).filter_by(username=key).first()
+        if member is None:
+            return err_response(msg="No member found with username " + key,
+                                code=status.HTTP_404_NOT_FOUND)
+
+        admin = get_authorized_user()
+        if admin is None:
+            return err_response(msg="Could not identify the acting admin.",
+                                code=status.HTTP_401_UNAUTHORIZED)
+
+        comment = req_data.get("comment") or None
+
+        # --- Status ---
+        if req_data.get("status") is not None:
+            new_status = req_data["status"]
+            if new_status == constants.STATUS_SUSPENDED:
+                new_status = constants.STATUS_INACTIVE
+            if new_status not in constants.MEMBER_STATUSES:
+                return err_response("Status must be one of: " + ", ".join(constants.MEMBER_STATUSES))
+            old_status = member.status or constants.STATUS_PENDING
+            if new_status != old_status:
+                member.status = new_status
+                record_member_change(member.id, admin.id, MemberLogChange.CHANGE_STATUS,
+                                     old_status, new_status, comment)
+
+        # --- Role ---
+        if req_data.get("role_id") is not None:
+            new_role_id = req_data["role_id"]
+            if new_role_id != member.role_id:
+                old_role, new_role = role_name(member.role_id), role_name(new_role_id)
+                member.role_id = new_role_id
+                record_member_change(member.id, admin.id, MemberLogChange.CHANGE_ROLE,
+                                     old_role, new_role, comment)
+
+        # --- Organizations (surgical add/remove; audit as a CSV of org names) ---
+        if req_data.get("organization_ids") is not None:
+            desired = {int(o) for o in req_data["organization_ids"]}
+            current_rows = db.session.query(OrganizationMembership).filter_by(member_id=member.id).all()
+            current = {r.org_id for r in current_rows}
+            if desired != current:
+                old_csv = org_names_csv(member.id)
+                for r in current_rows:
+                    if r.org_id not in desired:
+                        db.session.delete(r)
+                for org_id in desired - current:
+                    db.session.add(OrganizationMembership(
+                        member_id=member.id, org_id=org_id, org_maintainer=False,
+                        creation_date=datetime.utcnow()))
+                db.session.flush()  # so org_names_csv reflects the new membership
+                record_member_change(member.id, admin.id, MemberLogChange.CHANGE_ORG,
+                                     old_csv, org_names_csv(member.id), comment)
+
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Failed to review member {member.id}: {e}")
+            raise
+
+        member_schema = MemberSchema()
+        result = json.loads(member_schema.dumps(member))
+        result['organizations'] = get_member_organizations(member.id)
+        return result
+
+
+@ns.route('/<string:key>/log')
+class MemberLogList(Resource):
+
+    @api.doc(security='ApiKeyAuth')
+    @login_required(role=Role.ROLE_ADMIN)
+    def get(self, key):
+        """Admin: the change history (audit log) for a member, newest first."""
+        member = db.session.query(Member_db).filter_by(username=key).first()
+        if member is None:
+            return err_response(msg="No member found with username " + key,
+                                code=status.HTTP_404_NOT_FOUND)
+
+        logs = db.session.query(MemberLog) \
+            .filter_by(member_id=member.id) \
+            .order_by(MemberLog.updated.desc(), MemberLog.id.desc()).all()
+
+        change_types = {c.id: c.change_type for c in db.session.query(MemberLogChange).all()}
+        admin_ids = {log_row.admin_id for log_row in logs}
+        admins = {
+            m.id: m.username
+            for m in db.session.query(Member_db).filter(Member_db.id.in_(admin_ids)).all()
+        } if admin_ids else {}
+
+        return [{
+            "id": log_row.id,
+            "change_type": change_types.get(log_row.member_log_change_id),
+            "old_value": log_row.old_value,
+            "new_value": log_row.new_value,
+            "comment": log_row.comment,
+            "admin_username": admins.get(log_row.admin_id),
+            "updated": log_row.updated.isoformat() if log_row.updated else None,
+        } for log_row in logs]
 
 
 @ns.route('/self')

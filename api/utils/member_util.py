@@ -19,17 +19,17 @@ log = logging.getLogger(__name__)
 
 def determine_initial_status(email):
     """Initial status for a newly registered member: pre-approved emails
-    activate immediately; everyone else starts suspended pending admin review.
+    activate immediately; everyone else starts 'pending' (no admin review yet).
     Mirrors the CAS-era registration flow (wildcard '*' prefix supported)."""
     if not email:
-        return constants.STATUS_SUSPENDED
+        return constants.STATUS_PENDING
 
     pre_approved_email = db.session.query(PreApproved).filter(
         (PreApproved.email.like("*%") & PreApproved.email.like("%" + email[1:])) |
         (~PreApproved.email.like("*%") & PreApproved.email.like(email))
     ).first()
 
-    return constants.STATUS_SUSPENDED if pre_approved_email is None else constants.STATUS_ACTIVE
+    return constants.STATUS_PENDING if pre_approved_email is None else constants.STATUS_ACTIVE
 
 
 def notify_new_member(member, base_url):
