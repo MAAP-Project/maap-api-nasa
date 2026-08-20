@@ -796,6 +796,8 @@ class Status(Resource):
                 "keywords": existing_process.keywords.split(",") if existing_process.keywords is not None else [], 
             }
 
+        current_status = ogc.hysds_to_ogc_status(current_status)
+
         # Bare minimum response body to pass back
         response_body = {
                     "jobID": job_id,
@@ -804,13 +806,13 @@ class Status(Resource):
                     "type": None,
                     "status": current_status
                 }
+        # Short circuit parsing if user doesnt want anymore information
         get_job_details = request.args.get("getJobDetails", False)
         if not request.args.get("fields") and not get_job_details:
             return response_body, status.HTTP_200_OK 
 
         submitted_time = time_start = time_end = None
         try:
-            current_status = ogc.hysds_to_ogc_status(current_status)
             submitted_time = response["job"]["job_info"]["time_queued"]
             time_start = response["job"]["job_info"]["time_start"]
             time_end = response["job"]["job_info"]["time_end"]
