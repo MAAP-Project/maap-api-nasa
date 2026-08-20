@@ -91,13 +91,13 @@ def _create_member(username, role_id, status=constants.STATUS_ACTIVE):
 @patch("api.utils.member_util.notify_new_member")
 class TestJwtMemberAutoCreate:
 
-    def test_new_user_auto_created_as_suspended_guest(self, mock_notify, _refresh, client):
+    def test_new_user_auto_created_as_pending_guest(self, mock_notify, _refresh, client):
         member = start_member_session_jwt(NEW_USER_CLAIMS, "jwt:token-new-1")
 
         assert member is not None
         assert member.username == "newuser"
         assert member.role_id == Role.ROLE_GUEST
-        assert member.status == constants.STATUS_SUSPENDED
+        assert member.status == constants.STATUS_PENDING
         assert member.email == "new.user@example.org"
         assert member.organization == "NASA"
         # Auto-create is SILENT: new-user notifications are the Hub
@@ -174,7 +174,7 @@ class TestJwtRoleEnforcement:
         # The rejected caller was still registered (the CAS-era funnel).
         member = db.session.query(Member).filter_by(username="brandnew").first()
         assert member is not None
-        assert member.status == constants.STATUS_SUSPENDED
+        assert member.status == constants.STATUS_PENDING
 
     def test_admin_endpoint_rejects_guest_member_proxy_ticket(
             self, mock_verify, _notify, _refresh, client):
@@ -215,11 +215,11 @@ class TestJwtRoleEnforcement:
         resp = client.get(SELF_ENDPOINT, headers={"proxy-ticket": "jwt:some-token"})
 
         # First touch auto-creates the member and members/self renders the
-        # pending (suspended) record instead of crashing.
+        # pending record instead of crashing.
         assert resp.status_code == 200
         body = resp.get_json()
         assert body["username"] == "pendinguser"
-        assert body["status"] == constants.STATUS_SUSPENDED
+        assert body["status"] == constants.STATUS_PENDING
 
     def test_admin_status_change_endpoint_requires_admin(
             self, mock_verify, _notify, _refresh, client):
