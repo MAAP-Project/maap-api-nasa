@@ -67,6 +67,8 @@ class Member(Resource):
             'role_id': m.Member.role_id,
             'role_name': m.Role.role_name,
             'status': m.Member.status,
+            'invited_to_slack': bool(m.Member.invited_to_slack),
+            'added_to_mailing_list': bool(m.Member.added_to_mailing_list),
             'creation_date': m.Member.creation_date.strftime('%m/%d/%Y'),
         } for m in member_query]
 
@@ -429,6 +431,20 @@ class MemberReview(Resource):
                 db.session.flush()  # so org_names_csv reflects the new membership
                 record_member_change(member.id, admin.id, MemberLogChange.CHANGE_ORG,
                                      old_csv, org_names_csv(member.id), comment)
+
+        # --- Onboarding flags (boolean; audited as Yes/No) ---
+        for field, change_type in (
+            ("invited_to_slack", MemberLogChange.CHANGE_SLACK),
+            ("added_to_mailing_list", MemberLogChange.CHANGE_MAILING),
+        ):
+            if req_data.get(field) is not None:
+                new_val = bool(req_data[field])
+                old_val = bool(getattr(member, field))
+                if new_val != old_val:
+                    setattr(member, field, new_val)
+                    record_member_change(member.id, admin.id, change_type,
+                                         "Yes" if old_val else "No",
+                                         "Yes" if new_val else "No", comment)
 
         try:
             db.session.commit()

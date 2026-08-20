@@ -19,6 +19,9 @@ class Member(Base):
     urs_refresh_token = db.Column(db.String())
     urs_token_expiration = db.Column(db.DateTime())
     status = db.Column(db.String())
+    # Manual onboarding-management flags set by admins (see member_log audit).
+    invited_to_slack = db.Column(db.Boolean())
+    added_to_mailing_list = db.Column(db.Boolean())
     gitlab_id = db.Column(db.String())
     gitlab_username = db.Column(db.String())
     gitlab_token = db.Column(db.String())

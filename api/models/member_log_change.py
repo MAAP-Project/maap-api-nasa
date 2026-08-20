@@ -11,6 +11,8 @@ class MemberLogChange(Base):
     CHANGE_STATUS = 'Status'
     CHANGE_ROLE = 'Role'
     CHANGE_ORG = 'Org'
+    CHANGE_SLACK = 'Slack Invite'
+    CHANGE_MAILING = 'Mailing List'
 
     id = db.Column(db.Integer, primary_key=True)
     change_type = db.Column(db.String(), unique=True, nullable=False)

@@ -158,6 +158,29 @@ class TestMemberReview(unittest.TestCase):
         self.assertEqual({l['type'] for l in logs}, {'Status', 'Role', 'Org'})
         self.assertTrue(all(l['comment'] == 'full approval' for l in logs))
 
+    # --- onboarding flags: audited as Yes/No ---
+    def test_onboarding_flags_recorded(self):
+        resp = self._review({'invited_to_slack': True, 'added_to_mailing_list': True,
+                            'comment': 'onboarded'})
+        self.assertEqual(resp.status_code, 200)
+        body = json.loads(resp.data)
+        self.assertTrue(body['invited_to_slack'])
+        self.assertTrue(body['added_to_mailing_list'])
+        with app.app_context():
+            m = db.session.query(Member).filter_by(username='joeuser').first()
+            self.assertTrue(m.invited_to_slack)
+            self.assertTrue(m.added_to_mailing_list)
+        logs = self._logs()
+        self.assertEqual({l['type'] for l in logs}, {'Slack Invite', 'Mailing List'})
+        self.assertTrue(all(l['old'] == 'No' and l['new'] == 'Yes' for l in logs))
+
+    def test_onboarding_flag_unchanged_writes_no_log(self):
+        self._review({'invited_to_slack': True})
+        # setting it True again is a no-op
+        self._review({'invited_to_slack': True})
+        slack_logs = [l for l in self._logs() if l['type'] == 'Slack Invite']
+        self.assertEqual(len(slack_logs), 1)
+
     def test_no_change_writes_no_log(self):
         # target is already pending/guest with no orgs
         resp = self._review({'status': 'pending', 'role_id': Role.ROLE_GUEST,
