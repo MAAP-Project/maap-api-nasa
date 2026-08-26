@@ -107,31 +107,15 @@ def build_user_s3_policy(workspace_bucket, username, user_id):
     Returns:
         tuple: (policy_json_string, authorized_s3_paths_list)
     """
-    statements = [
-        {
-            "Sid": "GrantAccessToUserFolder",
-            "Effect": "Allow",
-            "Action": S3_READ_WRITE_ACTIONS,
-            "Resource": [
-                f"arn:aws:s3:::{workspace_bucket}/{username}/*"
-            ]
-        },
-        {
-            "Sid": "GrantListAccess",
-            "Effect": "Allow",
-            "Action": [
-                "s3:ListBucket"
-            ],
-            "Resource": f"arn:aws:s3:::{workspace_bucket}",
-            "Condition": {
-                "StringLike": {
-                    "s3:prefix": [
-                        f"{username}/*"
-                    ]
-                }
-            }
-        }
-    ]
+    # STS caps the AssumeRole inline session policy at 2048 chars. Emitting two
+    # statements per grant (as before) blew that limit for users with several
+    # org grants, 500ing this endpoint. Instead, group resources that share an
+    # action set / list condition into a single statement each. This is
+    # semantically identical (a union of the same Allows) but far more compact.
+    rw_object_resources = [f"arn:aws:s3:::{workspace_bucket}/{username}/*"]
+    ro_object_resources = []
+    list_plain_resources = []                              # ListBucket, no prefix condition
+    list_prefixed = {workspace_bucket: [f"{username}/*"]}  # bucket -> prefix conditions
 
     authorized_s3_paths = [
         {
@@ -144,61 +128,71 @@ def build_user_s3_policy(workspace_bucket, username, user_id):
     ]
 
     custom_access = get_user_s3_access(user_id)
-    for i, entry in enumerate(custom_access):
+    for entry in custom_access:
         bucket = entry['bucket_name']
         prefix = entry['bucket_prefix']
         readonly = entry.get('readonly', False)
         resource_path = f"{bucket}/{prefix}/*" if prefix else f"{bucket}/*"
-        actions = S3_READ_ONLY_ACTIONS if readonly else S3_READ_WRITE_ACTIONS
-        access_level = "read_only" if readonly else "read_write"
+        resource_arn = f"arn:aws:s3:::{resource_path}"
 
-        statements.append({
-            "Sid": f"GrantCustomAccess{i}",
-            "Effect": "Allow",
-            "Action": actions,
-            "Resource": [
-                f"arn:aws:s3:::{resource_path}"
-            ]
-        })
+        if readonly:
+            ro_object_resources.append(resource_arn)
+        else:
+            rw_object_resources.append(resource_arn)
 
         if prefix:
-            statements.append({
-                "Sid": f"GrantCustomListAccess{i}",
-                "Effect": "Allow",
-                "Action": [
-                    "s3:ListBucket"
-                ],
-                "Resource": f"arn:aws:s3:::{bucket}",
-                "Condition": {
-                    "StringLike": {
-                        "s3:prefix": [
-                            f"{prefix}/*"
-                        ]
-                    }
-                }
-            })
+            list_prefixed.setdefault(bucket, []).append(f"{prefix}/*")
         else:
-            statements.append({
-                "Sid": f"GrantCustomListAccess{i}",
-                "Effect": "Allow",
-                "Action": [
-                    "s3:ListBucket"
-                ],
-                "Resource": f"arn:aws:s3:::{bucket}"
-            })
+            list_plain_resources.append(f"arn:aws:s3:::{bucket}")
 
         authorized_s3_paths.append({
             "bucket": bucket,
             "prefix": prefix,
             "uri": f"s3://{bucket}/{prefix}" if prefix else f"s3://{bucket}",
             "type": "org",
-            "access": access_level
+            "access": "read_only" if readonly else "read_write"
         })
 
-    policy = json.dumps({
-        "Version": "2012-10-17",
-        "Statement": statements
-    })
+    statements = []
+    if rw_object_resources:
+        statements.append({
+            "Sid": "GrantObjectAccessRW",
+            "Effect": "Allow",
+            "Action": S3_READ_WRITE_ACTIONS,
+            "Resource": rw_object_resources
+        })
+    if ro_object_resources:
+        statements.append({
+            "Sid": "GrantObjectAccessRO",
+            "Effect": "Allow",
+            "Action": S3_READ_ONLY_ACTIONS,
+            "Resource": ro_object_resources
+        })
+    if list_plain_resources:
+        statements.append({
+            "Sid": "GrantListAccess",
+            "Effect": "Allow",
+            "Action": ["s3:ListBucket"],
+            "Resource": list_plain_resources
+        })
+    for idx, (bucket, prefixes) in enumerate(list_prefixed.items()):
+        statements.append({
+            "Sid": f"GrantListPrefixed{idx}",
+            "Effect": "Allow",
+            "Action": ["s3:ListBucket"],
+            "Resource": f"arn:aws:s3:::{bucket}",
+            "Condition": {
+                "StringLike": {
+                    "s3:prefix": prefixes
+                }
+            }
+        })
+
+    # Compact separators (no whitespace) — every byte counts against the 2048 cap.
+    policy = json.dumps(
+        {"Version": "2012-10-17", "Statement": statements},
+        separators=(",", ":")
+    )
 
     return policy, authorized_s3_paths
 
