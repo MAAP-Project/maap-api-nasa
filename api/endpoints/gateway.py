@@ -438,8 +438,14 @@ class SelfTokens(Resource):
 
         user_identifier = authorized_user.email
         # "All origins" = locally-stored NASA tokens plus the user's ESA tokens
-        # fetched from ESA's gateway.
-        return _list_tokens_for_user(user_identifier) + _list_esa_tokens(user_identifier)
+        # fetched from ESA's gateway. Callers may opt out of the ESA lookup with
+        # ?include_esa=false (deployments where the ESA gateway is disabled or
+        # slow); defaults to true so existing behavior is unchanged.
+        include_esa = request.args.get("include_esa", "true").lower() != "false"
+        tokens = _list_tokens_for_user(user_identifier)
+        if include_esa:
+            tokens += _list_esa_tokens(user_identifier)
+        return tokens
 
 
 @ns.route('/members/self/tokens/<string:token_id>')
