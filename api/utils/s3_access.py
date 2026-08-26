@@ -47,12 +47,31 @@ def get_all_s3_access():
 
 
 def get_user_s3_access(user_id):
+    """
+    Return the S3 access entries granted to a user through org membership.
+
+    Membership in an organization also grants the S3 access of every
+    descendant organization, so members of a root-level org inherit the
+    bucket access of all sub-orgs beneath it.
+    """
     try:
-        query = """select osa.id, osa.bucket_name, osa.bucket_prefix, osa.readonly
-                    from organization_membership m
-                    inner join organization_s3_access osa on m.org_id = osa.org_id
-                    where m.member_id = {}""".format(user_id)
-        rows = db.session.execute(sqlalchemy.text(query))
+        query = """with recursive user_orgs as (
+                        select o.id
+                        from organization o
+                        inner join organization_membership m on m.org_id = o.id
+                        where m.member_id = :member_id
+                        union
+                        select child.id
+                        from organization child
+                        inner join user_orgs parent on child.parent_org_id = parent.id
+                    )
+                    select osa.bucket_name, osa.bucket_prefix,
+                           bool_and(osa.readonly) as readonly
+                    from organization_s3_access osa
+                    inner join user_orgs uo on osa.org_id = uo.id
+                    group by osa.bucket_name, osa.bucket_prefix
+                    order by osa.bucket_name, osa.bucket_prefix"""
+        rows = db.session.execute(sqlalchemy.text(query), {"member_id": user_id})
 
         Record = namedtuple('Record', rows.keys())
         records = [Record(*r) for r in rows.fetchall()]

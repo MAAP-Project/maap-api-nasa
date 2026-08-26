@@ -34,6 +34,8 @@ UMM_G_VERSION = os.getenv('UMM_G_VERSION', '1.6')
 MAAP_WMTS_XML = os.getenv('MAAP_WMTS_XML', '/maap-api-nasa/api/maap.wmts.xml')
 MAAP_EDL_CREDS = os.getenv('MAAP_EDL_CREDS','')
 MAAP_TEMP_URS_TOKEN = os.getenv('MAAP_TEMP_URS_TOKEN','')
+# EarthData Login OAuth token endpoint, used to refresh stored user EDL tokens directly. 
+EDL_TOKEN_URL = os.getenv('EDL_TOKEN_URL', 'https://urs.earthdata.nasa.gov/oauth/token')
 
 # GIT settings
 GIT_REPO_URL = os.getenv('GIT_REPO_URL','https://gitlab-ci-token:$TOKEN@repo.dit.maap-project.org/root/register-job.git')
@@ -127,6 +129,12 @@ EMAIL_SUPPORT = os.getenv('EMAIL_SUPPORT', "")
 EMAIL_ADMIN = os.getenv('EMAIL_ADMIN', "")
 EMAIL_JPL_ADMINS = os.getenv('EMAIL_JPL_ADMINS', "")  # Use a comma to delimit emails, if more than one
 
+# Member email notifications (registration/activation/deactivation) are
+# disabled by default: the Hub environment is the control center for all user
+# communication, and the API email templates are out of date. Flip to True to
+# re-enable once the templates are refreshed.
+MEMBER_EMAIL_NOTIFICATIONS_ENABLED = str2bool(os.getenv('MEMBER_EMAIL_NOTIFICATIONS_ENABLED', 'False'))
+
 # PORTAL PATHS
 PORTAL_ADMIN_DASHBOARD_PATH = os.getenv('PORTAL_ADMIN_DASHBOARD_PATH', '')
 
@@ -139,6 +147,8 @@ ESA_GATEWAY_BASE_URL = os.getenv('ESA_GATEWAY_BASE_URL', "")
 ESA_ADMIN_API_KEY = os.getenv('ESA_ADMIN_API_KEY', "")
 NASA_ADMIN_API_KEY = os.getenv('NASA_ADMIN_API_KEY', "")
 NASA_CAS_OIDC_ORIGIN = os.getenv('NASA_CAS_OIDC_ORIGIN', "https://auth.maap-project.org/cas/oidc")
+# OIDC origin identifying the ESA platform. 
+ESA_OIDC_ORIGIN = os.getenv('ESA_OIDC_ORIGIN', "http://eoiam-idp.eo.esa.int")
 TOKEN_DEFAULT_EXPIRY_SECONDS = int(os.getenv('TOKEN_DEFAULT_EXPIRY_SECONDS', '86400'))
 
 # Keycloak Configuration

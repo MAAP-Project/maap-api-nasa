@@ -331,6 +331,66 @@ class Deployment(Resource):
 
         return response_body, status_code
 
+    @api.doc(security="ApiKeyAuth")
+    @login_required()
+    def get(self):
+        """
+        Get all deployment jobs for the authenticated user
+        :return: List of deployment jobs
+        """
+        user = get_authorized_user()
+        
+        # Query all deployments for the current user
+        deployments = db.session.query(Deployment_db).filter_by(deployer=user.username).order_by(Deployment_db.created.desc()).all()
+        
+        deployment_jobs = []
+        for deployment in deployments:
+            pipeline_url = PIPELINE_URL_TEMPLATE.format(pipeline_id=deployment.pipeline_id)
+            
+            deployment_job = {
+                "jobId": deployment.job_id,
+                "created": deployment.created,
+                "status": deployment.status,
+                "pipeline": {
+                    "executionVenue": deployment.execution_venue,
+                    "pipelineId": deployment.pipeline_id,
+                    "processPipelineLink": {
+                        "href": pipeline_url,
+                        "rel": "monitor",
+                        "type": "text/html",
+                        "hreflang": HREF_LANG,
+                        "title": "Deploying Process Pipeline"
+                    }
+                },
+                "cwl": {
+                    "href": deployment.cwl_link,
+                    "rel": "service-desc",
+                    "type": "application/cwl",
+                    "hreflang": HREF_LANG,
+                    "title": "Process Reference"
+                },
+                "links": {
+                    "href": f"/{ns.name}/deploymentJobs/{deployment.job_id}",
+                    "rel": "self",
+                    "type": "application/json",
+                    "hreflang": HREF_LANG,
+                    "title": "Deployment Link"
+                }
+            }
+            
+            if deployment.process_id:
+                deployment_job["processLocation"] = {
+                    "href": f"/{ns.name}/processes/{deployment.process_id}",
+                    "rel": "service-doc",
+                    "type": "application/json",
+                    "hreflang": HREF_LANG,
+                    "title": "Process Location"
+                }
+            
+            deployment_jobs.append(deployment_job)
+        
+        return {"deploymentJobs": deployment_jobs, "total": len(deployment_jobs)}, status.HTTP_200_OK
+
 @ns.route("/processes/<string:process_id>")
 class Describe(Resource):
 
@@ -735,9 +795,24 @@ class Status(Resource):
                 "description": existing_process.description,
                 "keywords": existing_process.keywords.split(",") if existing_process.keywords is not None else [], 
             }
+
+        current_status = ogc.hysds_to_ogc_status(current_status)
+
+        # Bare minimum response body to pass back
+        response_body = {
+                    "jobID": job_id,
+                    "processID": existing_process.process_id if existing_process else "Error getting process ID",
+                    # TODO graceal should this be hard coded in if the example options are process, wps, openeo?
+                    "type": None,
+                    "status": current_status
+                }
+        # Short circuit parsing if user doesnt want anymore information
+        get_job_details = request.args.get("getJobDetails", False)
+        if not request.args.get("fields") and not get_job_details:
+            return response_body, status.HTTP_200_OK 
+
         submitted_time = time_start = time_end = None
         try:
-            current_status = ogc.hysds_to_ogc_status(current_status)
             submitted_time = response["job"]["job_info"]["time_queued"]
             time_start = response["job"]["job_info"]["time_start"]
             time_end = response["job"]["job_info"]["time_end"]
@@ -763,14 +838,6 @@ class Status(Resource):
             print(ex)
             print(f"ERROR getting products for job {job_id}")
 
-        # Bare minimum response body to pass back
-        response_body = {
-            "jobID": job_id,
-            "processID": existing_process.process_id if existing_process else "Error getting process ID",
-            # TODO graceal should this be hard coded in if the example options are process, wps, openeo?
-            "type": None,
-            "status": current_status
-        }
         # job_info represents all additional fields a user can request about the job
         job_info.update(response_body)
         fields_to_specify = request.args.get("fields").split(',') if request.args.get("fields") else []
@@ -780,6 +847,16 @@ class Status(Resource):
         except Exception as ex:
             print(ex)
             process_name = "Error getting process name"
+
+        try:
+            if current_status == ogc.DEDUPED_OGC_STATUS:
+                inputs = response["job"]["job_info"]["payload"]["job_specification"]["params"]
+            else:
+                inputs = response["job"]["params"]["job_specification"]["params"]
+        except Exception as ex:
+            print("Error finding job inputs")
+            print(ex)
+            inputs = None
 
         job_info.update({
             "request": None,
@@ -801,9 +878,9 @@ class Status(Resource):
                     "hreflang": HREF_LANG,
                     "title": "Job Status"
                 }
-            ]
+            ],
+            "inputs": inputs
         })
-        get_job_details = request.args.get("getJobDetails", False)
         if get_job_details and get_job_details.lower() == "true":
             # don't just return job_info because user can also request inputs through the fields parameter
             response_body.update(job_info)
@@ -811,16 +888,6 @@ class Status(Resource):
         for field in fields_to_specify:
             if field in job_info:
                 response_body[field] = job_info[field]
-            elif field == "inputs":
-                try:
-                    if current_status == ogc.DEDUPED_OGC_STATUS:
-                        response_body[field] = response["job"]["job_info"]["payload"]["job_specification"]["params"]
-                    else:
-                        response_body[field] = response["job"]["params"]["job_specification"]["params"]
-                except Exception as ex:
-                    print("Error finding job inputs")
-                    print(ex)
-                    response_body[field] = None
             elif field not in ["jobID", "type", "status", "processID"]:
                 return generate_error(f"Invalid field requested {field}. Remember to separate fields with commas", status.HTTP_400_BAD_REQUEST)
         return response_body, status.HTTP_200_OK 

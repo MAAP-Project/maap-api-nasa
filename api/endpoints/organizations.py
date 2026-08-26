@@ -269,6 +269,57 @@ class OrganizationMembership(Resource):
         except SQLAlchemyError as ex:
             raise ex
 
+    @api.doc(security='ApiKeyAuth')
+    @login_required()
+    def put(self, org_id, username):
+        """
+        Update an organization member's per-membership settings (job limit
+        override and/or maintainer flag). Only the keys present in the body are
+        changed; a null job limit reverts that dimension to the org default.
+        """
+        try:
+            req_data = request.get_json()
+            if not isinstance(req_data, dict):
+                return err_response("Valid JSON body object required.")
+
+            member = get_authorized_user()
+            acting_membership = db.session.query(OrganizationMembership_db).filter_by(member_id=member.id,
+                                                                                      org_id=org_id).first()
+
+            if member.role_id != Role.ROLE_ADMIN and (acting_membership is None or not acting_membership.org_maintainer):
+                return err_response("Must be an org maintainer to update members.", status.HTTP_403_FORBIDDEN)
+
+            org_member = db.session.query(Member).filter_by(username=username).first()
+
+            if org_member is None:
+                return err_response("Valid username is required.")
+
+            membership = db.session.query(OrganizationMembership_db).filter_by(member_id=org_member.id,
+                                                                               org_id=org_id).first()
+
+            if membership is None:
+                return err_response("Org id {} for user {} was not found.".format(org_id, username))
+
+            if "job_limit_count" in req_data:
+                membership.job_limit_count = req_data.get("job_limit_count")
+            if "job_limit_hours" in req_data:
+                membership.job_limit_hours = req_data.get("job_limit_hours")
+            if "org_maintainer" in req_data:
+                membership.org_maintainer = req_data.get("org_maintainer")
+
+            try:
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                app.logger.error(f"Failed to update organization membership for user {username} in org {org_id}: {e}")
+                raise
+
+            org_schema = OrganizationMembershipSchema()
+            return json.loads(org_schema.dumps(membership))
+
+        except SQLAlchemyError as ex:
+            raise ex
+
 
 @ns.route('/<int:org_id>/job_queues')
 class OrganizationJobQueues(Resource):

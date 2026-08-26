@@ -66,7 +66,7 @@ class JobQueuesCls(Resource):
 class JobQueueCls(Resource):
 
     @api.doc(security='ApiKeyAuth')
-    @login_required()
+    @login_required(role=Role.ROLE_ADMIN)
     def put(self, queue_id):
 
         """
