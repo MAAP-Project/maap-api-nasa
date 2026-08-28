@@ -614,7 +614,9 @@ class ExecuteJob(Resource):
 
         try:
             user = get_authorized_user()
-            hysdsio_type = job_type.replace("job-", "hysds-io-")
+            # hysds-io ids drop the leading "job-" only; job types can contain
+            # "job-" elsewhere (e.g. job-foo:job-tagging), so don't replace() all
+            hysdsio_type = "hysds-io-" + job_type.removeprefix("job-")
             hysds_io = hysds.get_hysds_io(hysdsio_type)
             params = hysds.validate_job_submit(hysds_io, inputs, user.username)
             
