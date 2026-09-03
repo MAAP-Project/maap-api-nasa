@@ -132,6 +132,52 @@ class TestAdminCreateToken:
         data = json.loads(resp.data)
         assert data["expires_at"] is not None
 
+    @patch("api.endpoints.gateway.settings")
+    def test_create_token_with_expires_in_zero_never_expires(self, mock_settings, client):
+        mock_settings.NASA_ADMIN_API_KEY = "test-admin-key"
+        mock_settings.ESA_ADMIN_API_KEY = "esa-admin-key"
+        mock_settings.TOKEN_DEFAULT_EXPIRY_SECONDS = 86400
+        mock_settings.NASA_CAS_OIDC_ORIGIN = "https://auth.maap-project.org/cas/oidc"
+
+        resp = client.post(
+            "/api/gateway/members/tokens",
+            headers=ADMIN_HEADERS,
+            data=json.dumps({"token_name": "permanent", "expires_in": 0}),
+        )
+        assert resp.status_code == 201
+        data = json.loads(resp.data)
+        assert data["expires_at"] is None
+
+    @patch("api.endpoints.gateway.settings")
+    def test_create_token_with_negative_expires_in_rejected(self, mock_settings, client):
+        mock_settings.NASA_ADMIN_API_KEY = "test-admin-key"
+        mock_settings.ESA_ADMIN_API_KEY = "esa-admin-key"
+        mock_settings.TOKEN_DEFAULT_EXPIRY_SECONDS = 86400
+        mock_settings.NASA_CAS_OIDC_ORIGIN = "https://auth.maap-project.org/cas/oidc"
+
+        resp = client.post(
+            "/api/gateway/members/tokens",
+            headers=ADMIN_HEADERS,
+            data=json.dumps({"token_name": "bad", "expires_in": -1}),
+        )
+        assert resp.status_code == 400
+
+    @patch("api.endpoints.gateway.settings")
+    def test_create_token_without_expires_in_uses_default(self, mock_settings, client):
+        mock_settings.NASA_ADMIN_API_KEY = "test-admin-key"
+        mock_settings.ESA_ADMIN_API_KEY = "esa-admin-key"
+        mock_settings.TOKEN_DEFAULT_EXPIRY_SECONDS = 86400
+        mock_settings.NASA_CAS_OIDC_ORIGIN = "https://auth.maap-project.org/cas/oidc"
+
+        resp = client.post(
+            "/api/gateway/members/tokens",
+            headers=ADMIN_HEADERS,
+            data=json.dumps({"token_name": "default-expiry"}),
+        )
+        assert resp.status_code == 201
+        data = json.loads(resp.data)
+        assert data["expires_at"] is not None
+
 
 class TestAdminListTokens:
     """Tests for GET /api/gateway/members/tokens (admin endpoint)."""

@@ -122,12 +122,17 @@ def _create_token_for_user(user_identifier, user_origin):
     raw_token = secrets.token_urlsafe(32)
     token_hash = _hash_token(raw_token)
 
-    # Calculate expiration
+    # Calculate expiration. expires_in=0 explicitly requests a token that
+    # never expires, bypassing TOKEN_DEFAULT_EXPIRY_SECONDS. Omitting
+    # expires_in falls back to that configured default.
     expires_at = None
     if expires_in is not None:
-        if not isinstance(expires_in, int) or expires_in <= 0:
-            return err_response("expires_in must be a positive integer (seconds).")
-        expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+        if not isinstance(expires_in, int) or expires_in < 0:
+            return err_response(
+                "expires_in must be a non-negative integer (seconds); use 0 for a token that never expires."
+            )
+        if expires_in > 0:
+            expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
     elif settings.TOKEN_DEFAULT_EXPIRY_SECONDS > 0:
         expires_at = datetime.now(timezone.utc) + timedelta(
             seconds=settings.TOKEN_DEFAULT_EXPIRY_SECONDS
