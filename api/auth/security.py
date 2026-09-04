@@ -39,14 +39,14 @@ def get_authorized_user():
 
                 return _member
             else:
-                member_session = validate_proxy(auth_header_value)
-                if member_session is not None:
-                    return member_session.member
-
-                # Not a valid proxy ticket — try as a personal access token
+                # Personal access tokens are checked before CAS (see login_required).
                 _member = validate_personal_access_token(auth_header_value)
                 if _member is not None:
                     return _member
+
+                member_session = validate_proxy(auth_header_value)
+                if member_session is not None:
+                    return member_session.member
         elif auth_header_name == HEADER_AUTHORIZATION:
             if auth_header_value and auth_header_value.lower().startswith('bearer '):
                 token = auth_header_value.split(" ")[1]
@@ -172,24 +172,19 @@ def login_required(role=Role.ROLE_GUEST):
                         _authorize_jwt_member(decoded, auth_header_value, role)
                         return wrapped_function(*args, **kwargs)
                     
+                    # Personal access tokens are checked before CAS so that PAT
+                    # authentication never depends on the CAS server being
+                    # reachable (validate_proxy makes a network call to CAS).
+                    _member = validate_personal_access_token(auth_header_value)
+                    if _member is not None:
+                        if _member.role_id is not None and _member.role_id >= role:
+                            return wrapped_function(*args, **kwargs)
+                        raise AuthenticationError("Insufficient permissions.")
+
                     member_session = validate_proxy(auth_header_value) # Can raise Auth/ExternalServiceError
                     if member_session is not None and member_session.member.role_id >= role:
                         return wrapped_function(*args, **kwargs)
                     elif member_session is not None: # Valid proxy ticket, but insufficient role
-                        raise AuthenticationError("Insufficient permissions.")
-
-                    # Not a valid proxy ticket — try as a personal access token
-                    _member = validate_personal_access_token(auth_header_value)
-                    if _member is not None and _member.role_id >= role:
-                        return wrapped_function(*args, **kwargs)
-                    elif member_session is not None: # Valid proxy ticket, but insufficient role
-                        raise AuthenticationError("Insufficient permissions.")
-
-                    # Not a valid proxy ticket — try as a personal access token
-                    _member = validate_personal_access_token(auth_header_value)
-                    if _member is not None and _member.role_id >= role:
-                        return wrapped_function(*args, **kwargs)
-                    elif _member is not None:
                         raise AuthenticationError("Insufficient permissions.")
 
                     raise AuthenticationError("Invalid session or insufficient permissions.")

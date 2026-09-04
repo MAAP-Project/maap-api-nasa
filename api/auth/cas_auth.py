@@ -118,6 +118,13 @@ def validate_proxy(ticket, auto_create_member=False):
 
     current_app.logger.debug("validating token {0}".format(ticket))
     decrypted_ticket = decrypt_proxy_ticket(ticket)
+
+    if not decrypted_ticket:
+        # Not a CAS ticket at all (e.g. an opaque string that does not decrypt),
+        # so there is nothing for the CAS server to validate.
+        current_app.logger.debug("invalid proxy granting ticket")
+        return None
+
     cas_session = db.session.query(MemberSession).filter_by(session_key=decrypted_ticket).first()
 
     # Check for active session created within allowed timespan
