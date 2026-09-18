@@ -18,6 +18,10 @@ class PersonalAccessToken(Base):
     created_at = db.Column(db.DateTime(timezone=True), nullable=False,
                            default=lambda: datetime.now(timezone.utc))
     revoked_at = db.Column(db.DateTime(timezone=True))
+    # Fernet-encrypted raw token. Only set for system-issued tokens (the DPS
+    # job token) that the API must be able to hand back on reuse; user-created
+    # tokens store the hash only.
+    token_encrypted = db.Column(db.String())
 
     @property
     def is_active(self):

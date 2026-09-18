@@ -23,6 +23,7 @@ from api.utils.email_util import send_user_status_update_active_user_email, \
     send_user_status_update_suspended_user_email, send_user_status_change_email
 from api.utils.member_util import determine_initial_status, notify_new_member
 from api.utils.member_log_util import record_member_change, role_name, org_names_csv
+from api.utils.dps_token_util import get_or_create_dps_token
 from api.models.organization_membership import OrganizationMembership
 from api.models.member_log import MemberLog
 from api.models.member_log_change import MemberLogChange
@@ -109,12 +110,8 @@ class Member(Resource):
         # If the request originates from the logged-in user or DPS worker,
         # include additional profile information belonging to the user
         if valid_dps_request() or member.username == key:
-            pgt_ticket = db.session \
-                .query(MemberSession_db) \
-                .with_entities(MemberSession_db.session_key) \
-                .filter_by(member_id=member_id) \
-                .order_by(MemberSession_db.id.desc()) \
-                .first()
+            is_dps_request = valid_dps_request()
+            member_email = member.email
 
             cols = [
                 Member_db.public_ssh_key_name,
@@ -124,13 +121,29 @@ class Member(Resource):
             member = db.session \
                 .query(Member_db) \
                 .with_entities(*cols) \
-                .filter_by(username=member.username) \
+                .filter_by(username=key) \
                 .first()
 
-            member_session_schema = MemberSessionSchema()
-            pgt_result = json.loads(member_session_schema.dumps(pgt_ticket))
             member_ssh_info_result = json.loads(member_schema.dumps(member))
-            result = json.loads(json.dumps(dict(result.items() | pgt_result.items() | member_ssh_info_result.items())))
+            result = json.loads(json.dumps(dict(result.items() | member_ssh_info_result.items())))
+
+            if is_dps_request:
+                # A DPS worker is bootstrapping a job for this user. Hand it the
+                # user's system-issued DPS token (a long-lived personal access
+                # token, reused across jobs and rolled over by the API) rather
+                # than the user's latest interactive session token, which is a
+                # short-lived Keycloak JWT that would expire before the job runs.
+                result['session_key'] = get_or_create_dps_token(member_email)
+            else:
+                pgt_ticket = db.session \
+                    .query(MemberSession_db) \
+                    .with_entities(MemberSession_db.session_key) \
+                    .filter_by(member_id=member_id) \
+                    .order_by(MemberSession_db.id.desc()) \
+                    .first()
+                member_session_schema = MemberSessionSchema()
+                pgt_result = json.loads(member_session_schema.dumps(pgt_ticket))
+                result.update(pgt_result)
 
         result['organizations'] = get_member_organizations(member_id)
 

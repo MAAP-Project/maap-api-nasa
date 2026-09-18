@@ -39,6 +39,13 @@ def add_missing_member_columns():
     db.session.commit()
 
 
+def add_missing_personal_access_token_columns():
+    """Same idempotent column-add pattern for personal_access_token."""
+    db.session.execute(text(
+        "ALTER TABLE personal_access_token ADD COLUMN IF NOT EXISTS token_encrypted VARCHAR"))
+    db.session.commit()
+
+
 def migrate_legacy_status():
     """One-time (idempotent) backfill: pre-expansion members stored 'suspended';
     the expanded status model has no 'suspended', so map those to 'inactive'.
@@ -54,7 +61,8 @@ def migrate_legacy_status():
 def run_startup_tasks():
     """Column adds + reference-data seed + legacy-status backfill, called after
     create_all. Each step is independent so one failure doesn't block the rest."""
-    for step in (add_missing_member_columns, seed_member_log_changes, migrate_legacy_status):
+    for step in (add_missing_member_columns, add_missing_personal_access_token_columns,
+                 seed_member_log_changes, migrate_legacy_status):
         try:
             step()
         except Exception as e:

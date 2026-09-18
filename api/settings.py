@@ -151,6 +151,15 @@ NASA_CAS_OIDC_ORIGIN = os.getenv('NASA_CAS_OIDC_ORIGIN', "https://auth.maap-proj
 ESA_OIDC_ORIGIN = os.getenv('ESA_OIDC_ORIGIN', "http://eoiam-idp.eo.esa.int")
 TOKEN_DEFAULT_EXPIRY_SECONDS = int(os.getenv('TOKEN_DEFAULT_EXPIRY_SECONDS', '86400'))
 
+# System-issued DPS job token: a single personal access token per user, handed
+# to DPS jobs by the members endpoint (dps-token requests) and reused across
+# jobs. A new one is issued once the current token has less than
+# DPS_TOKEN_RENEWAL_THRESHOLD_SECONDS of life left, so any job that starts
+# always receives a token valid for at least that long (the previous token is
+# left to expire naturally so running jobs are not cut off).
+DPS_TOKEN_EXPIRY_SECONDS = int(os.getenv('DPS_TOKEN_EXPIRY_SECONDS', str(48 * 3600)))
+DPS_TOKEN_RENEWAL_THRESHOLD_SECONDS = int(os.getenv('DPS_TOKEN_RENEWAL_THRESHOLD_SECONDS', str(24 * 3600)))
+
 # Keycloak Configuration
 KEYCLOAK_SERVER_URL = os.getenv('KEYCLOAK_SERVER_URL', "")
 KEYCLOAK_REALM = os.getenv('KEYCLOAK_REALM', "")
