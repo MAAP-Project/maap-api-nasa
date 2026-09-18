@@ -99,10 +99,35 @@ S3_READ_ONLY_ACTIONS = [
 ]
 
 
+# Prefixes inside the workspace bucket that every user gets, mirroring the
+# default mounts created by the che-sidecar-s3fs container:
+#   {username}/            -> /my-private-bucket  (read/write)
+#   shared/{username}/     -> /my-public-bucket   (read/write)
+#   shared/                -> /shared-buckets     (read only)
+#   dataset/triaged_job/   -> /triaged-jobs       (read only)
+WORKSPACE_SHARED_ROOT_PREFIX = "shared"
+WORKSPACE_TRIAGED_JOBS_PREFIX = "dataset/triaged_job"
+
+
+def _workspace_paths(workspace_bucket, username):
+    """Return the built-in (bucket, prefix, type, readonly) grants for a user."""
+    return [
+        (workspace_bucket, username, "workspace", False),
+        (workspace_bucket, f"{WORKSPACE_SHARED_ROOT_PREFIX}/{username}", "shared", False),
+        (workspace_bucket, WORKSPACE_SHARED_ROOT_PREFIX, "shared_root", True),
+        (workspace_bucket, WORKSPACE_TRIAGED_JOBS_PREFIX, "triaged_jobs", True),
+    ]
+
+
 def build_user_s3_policy(workspace_bucket, username, user_id):
     """
     Build an IAM policy document and list of authorized S3 paths for a user.
-    Includes the user's workspace bucket plus any custom org-level S3 access.
+    Includes the user's workspace paths (private folder, shared folder, the
+    read-only shared root and the read-only triaged jobs folder) plus any
+    custom org-level S3 access.
+
+    The workspace entry is always first in the returned path list; consumers
+    such as the s3fs sidecar rely on that ordering.
 
     Returns:
         tuple: (policy_json_string, authorized_s3_paths_list)
@@ -112,20 +137,34 @@ def build_user_s3_policy(workspace_bucket, username, user_id):
     # org grants, 500ing this endpoint. Instead, group resources that share an
     # action set / list condition into a single statement each. This is
     # semantically identical (a union of the same Allows) but far more compact.
-    rw_object_resources = [f"arn:aws:s3:::{workspace_bucket}/{username}/*"]
+    rw_object_resources = []
     ro_object_resources = []
-    list_plain_resources = []                              # ListBucket, no prefix condition
-    list_prefixed = {workspace_bucket: [f"{username}/*"]}  # bucket -> prefix conditions
+    list_plain_resources = []   # ListBucket, no prefix condition
+    list_prefixed = {}          # bucket -> prefix conditions
 
-    authorized_s3_paths = [
-        {
-            "bucket": workspace_bucket,
-            "prefix": username,
-            "uri": f"s3://{workspace_bucket}/{username}",
-            "type": "workspace",
-            "access": "read_write"
-        }
-    ]
+    authorized_s3_paths = []
+
+    workspace_paths = _workspace_paths(workspace_bucket, username)
+    workspace_prefixes = [prefix for _, prefix, _, _ in workspace_paths]
+    for bucket, prefix, path_type, readonly in workspace_paths:
+        resource_arn = f"arn:aws:s3:::{bucket}/{prefix}/*"
+        if readonly:
+            ro_object_resources.append(resource_arn)
+        else:
+            rw_object_resources.append(resource_arn)
+        # A ListBucket condition on a parent prefix (e.g. "shared/*") already
+        # covers its children (e.g. "shared/{username}/*"); skip those to keep
+        # the policy under the STS size cap.
+        if not any(prefix.startswith(f"{parent}/") for parent in workspace_prefixes):
+            list_prefixed.setdefault(bucket, []).append(f"{prefix}/*")
+
+        authorized_s3_paths.append({
+            "bucket": bucket,
+            "prefix": prefix,
+            "uri": f"s3://{bucket}/{prefix}",
+            "type": path_type,
+            "access": "read_only" if readonly else "read_write"
+        })
 
     custom_access = get_user_s3_access(user_id)
     for entry in custom_access:
@@ -153,31 +192,29 @@ def build_user_s3_policy(workspace_bucket, username, user_id):
             "access": "read_only" if readonly else "read_write"
         })
 
+    # Statements deliberately omit the optional "Sid" field: each one costs
+    # ~25 bytes against the 2048-char cap and buys nothing at evaluation time.
     statements = []
     if rw_object_resources:
         statements.append({
-            "Sid": "GrantObjectAccessRW",
             "Effect": "Allow",
             "Action": S3_READ_WRITE_ACTIONS,
             "Resource": rw_object_resources
         })
     if ro_object_resources:
         statements.append({
-            "Sid": "GrantObjectAccessRO",
             "Effect": "Allow",
             "Action": S3_READ_ONLY_ACTIONS,
             "Resource": ro_object_resources
         })
     if list_plain_resources:
         statements.append({
-            "Sid": "GrantListAccess",
             "Effect": "Allow",
             "Action": ["s3:ListBucket"],
             "Resource": list_plain_resources
         })
-    for idx, (bucket, prefixes) in enumerate(list_prefixed.items()):
+    for bucket, prefixes in list_prefixed.items():
         statements.append({
-            "Sid": f"GrantListPrefixed{idx}",
             "Effect": "Allow",
             "Action": ["s3:ListBucket"],
             "Resource": f"arn:aws:s3:::{bucket}",
