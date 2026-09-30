@@ -46,6 +46,13 @@ REGISTER_JOB_REPO_ID = os.getenv('REGISTER_JOB_REPO_ID', '')  # Enter project ID
 GITLAB_URL = os.getenv('GITLAB_URL', 'https://repo.dit.maap-project.org')
 GITLAB_TOKEN = os.getenv('GITLAB_TOKEN', 'foobar')
 GITLAB_API_TOKEN = os.getenv('GITLAB_API_TOKEN','')  # New setting inherited from sister, remove comment after API is stable
+# Credentials injected into algorithm repository URLs that point at the MAAP GitLab host, so the
+# downstream HySDS container build can clone them once anonymous repo access is disabled.
+# GITLAB_CLONE_USER is the GitLab service account that owns the read_repository PAT.
+# GITLAB_CLONE_TOKEN_VAR names the environment variable that holds that PAT on the build system;
+# the API only writes the literal placeholder "${<var>}" into config.txt, never the token itself.
+GITLAB_CLONE_USER = os.getenv('GITLAB_CLONE_USER', 'maap-api-svc')
+GITLAB_CLONE_TOKEN_VAR = os.getenv('GITLAB_CLONE_TOKEN_VAR', 'GITLAB_CLONE_TOKEN')
 DEPLOY_PROCESS_EXECUTION_VENUE = os.getenv('DEPLOY_PROCESS_EXECUTION_VENUE', 'gitlab')
 GITLAB_PROJECT_ID_POST_PROCESS = os.getenv('GITLAB_PROJECT_ID_POST_PROCESS', 31)
 GITLAB_BUILD_APP_PACK_PROJECT_ID = os.getenv('GITLAB_BUILD_APP_PACK_PROJECT_ID')

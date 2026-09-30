@@ -9,6 +9,42 @@ import api.settings as settings
 import requests
 import uuid
 import json
+from urllib.parse import urlparse, urlunparse
+
+
+def add_gitlab_clone_credentials(repository_url):
+    """
+    Rewrites an algorithm repository URL so the downstream HySDS container build can clone it
+    once anonymous access to the MAAP GitLab is disabled.
+
+    Only URLs whose host matches settings.GITLAB_URL are rewritten; external repositories
+    (e.g. github.com, gitlab.com) and URLs that already carry credentials are returned unchanged.
+
+    The rewritten URL contains a literal shell placeholder rather than the real token, e.g.
+    https://maap-api-svc:${GITLAB_CLONE_TOKEN}@repo.maap-project.org/group/algo.git
+    because the result is committed to the register-job repo via config.txt. The build system
+    that sources config.txt is expected to have that environment variable set to the PAT.
+
+    :param repository_url: repository URL supplied by the user during algorithm registration
+    :return: repository URL, with credential placeholder inserted when it targets the MAAP GitLab
+    """
+    if not repository_url:
+        return repository_url
+
+    parsed = urlparse(repository_url.strip())
+    gitlab_host = urlparse(settings.GITLAB_URL).hostname
+
+    if parsed.scheme not in ("http", "https") or not parsed.hostname or not gitlab_host:
+        return repository_url
+    if parsed.hostname.lower() != gitlab_host.lower():
+        return repository_url
+    if parsed.username is not None:
+        # Caller already supplied credentials; leave them alone
+        return repository_url
+
+    host_port = parsed.hostname if parsed.port is None else "{}:{}".format(parsed.hostname, parsed.port)
+    netloc = "{}:${{{}}}@{}".format(settings.GITLAB_CLONE_USER, settings.GITLAB_CLONE_TOKEN_VAR, host_port)
+    return urlunparse(parsed._replace(netloc=netloc))
 
 
 def git_clone(repo_url=settings.GIT_REPO_URL, repo_name=settings.REPO_NAME):

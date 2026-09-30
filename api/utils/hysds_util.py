@@ -289,7 +289,7 @@ def create_config_file(repo_name, repo_url_w_token, repo_branch, verified=False,
 
     Example content:
     BASE_IMAGE_NAME=<registery-url>/root/jupyter_image/vanilla:1.0
-    REPO_URL_WITH_TOKEN=https://<gitlab-token>@mas.maap-project.org/root/dps_plot.git
+    REPO_URL_WITH_TOKEN=https://maap-api-svc:${GITLAB_CLONE_TOKEN}@repo.maap-project.org/root/dps_plot.git
     REPO_NAME=dps_plot
     BRANCH=master
     GRQ_REST_URL=<grq-ip>/api/v0.1
@@ -298,7 +298,8 @@ def create_config_file(repo_name, repo_url_w_token, repo_branch, verified=False,
     S3_CODE_BUCKET=s3://s3.amazon.aws.com/<bucket-name>
 
     :param repo_name:
-    :param repo_url_w_token:
+    :param repo_url_w_token: repository URL; for MAAP GitLab repos this carries the credential
+           placeholder inserted by github_util.add_gitlab_clone_credentials (expanded at build time)
     :param repo_branch:
     :param verified: Indicated if algorithm is EcoSML verified
     :param docker_container_url:

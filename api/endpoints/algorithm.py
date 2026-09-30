@@ -290,16 +290,18 @@ class Register(Resource):
             if request.form.get("repository_url", req_data.get("repository_url")) is not None:
                 repository_url = request.form.get("repository_url", req_data.get("repository_url"))
                 split = repository_url.split("://")
-                # repository_url = "{}://gitlab-ci-token:$TOKEN@{}".format(split[0], split[1])
                 repo_name = split[1].split(".git")
                 repo_name = repo_name[0][repo_name[0].rfind("/") + 1:]
+                # Repos on the MAAP GitLab can no longer be cloned anonymously by the HySDS build
+                # system, so insert the service-account credential placeholder (never the token
+                # itself, since config.txt is committed to the register-job repo).
+                repo_url_w_token = git.add_gitlab_clone_credentials(repository_url)
 
                 # creating config file
                 config = hysds.create_config_file(repo_name=repo_name,
                                                   docker_container_url=request.form.get("docker_container_url",
                                                                                         req_data.get("docker_container_url")),
-                                                  repo_url_w_token=request.form.get("repository_url",
-                                                                                    req_data.get("repository_url")),
+                                                  repo_url_w_token=repo_url_w_token,
                                                   repo_branch=request.form.get("algorithm_version",
                                                                                req_data.get("algorithm_version")),
                                                   build_command=req_data.get("build_command"),

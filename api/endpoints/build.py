@@ -23,6 +23,7 @@ from datetime import datetime
 
 # Import shared OGC process deployment utility
 from api.utils.ogc_process_util import create_process_deployment
+from api.utils.github_util import add_gitlab_clone_credentials
 
 log = logging.getLogger(__name__)
 
@@ -206,7 +207,10 @@ def _trigger_build_pipeline(payload, namespace):
         current_app.logger.debug("Processing pipeline variables")
         
         # Required variables
-        repository_url = payload.get("code_repository")
+        # Repos on the MAAP GitLab can no longer be cloned anonymously by the build pipeline, so
+        # insert the service-account credential placeholder. The runner expands ${GITLAB_CLONE_TOKEN}
+        # from the project's masked CI variable; the real token never leaves GitLab.
+        repository_url = add_gitlab_clone_credentials(payload.get("code_repository"))
         current_app.logger.debug(f"Repository URL: {repository_url}")
         variables.append({"key": "REPOSITORY_URL", "value": repository_url})
         
