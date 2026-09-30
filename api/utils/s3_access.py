@@ -126,8 +126,9 @@ def build_user_s3_policy(workspace_bucket, username, user_id):
     read-only shared root and the read-only triaged jobs folder) plus any
     custom org-level S3 access.
 
-    The workspace entry is always first in the returned path list; consumers
-    such as the s3fs sidecar rely on that ordering.
+    The built-in workspace paths come first in the returned list, followed by
+    org grants. Consumers should filter on the "type" field ("org" for org
+    grants) rather than relying on position.
 
     Returns:
         tuple: (policy_json_string, authorized_s3_paths_list)
