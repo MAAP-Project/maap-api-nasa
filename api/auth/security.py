@@ -1,4 +1,5 @@
 import hashlib
+import threading
 from functools import wraps
 import requests
 from flask import request, abort
@@ -13,6 +14,32 @@ from api.models.personal_access_token import PersonalAccessToken
 from api.models.role import Role
 import jwt
 from jwt import PyJWKClient
+
+# One JWKS client per worker process, created lazily on first use.
+# PyJWKClient caches the fetched key set (lifespan 300 s) and refetches once if
+# a token's `kid` is unknown, so key rotation is handled. The previous code
+# created a new instance per request, which started with an empty cache and
+# paid a full TCP+TLS round trip to Keycloak (~200 ms) on every
+# JWT-authenticated call, and inherited pyjwt's 30 s default timeout.
+# Lazy construction keeps import working when KEYCLOAK_* is unset (tests,
+# local dev): newer pyjwt validates the URI scheme in the constructor.
+_jwks_client = None
+_jwks_client_lock = threading.Lock()
+
+
+def _get_jwks_client():
+    global _jwks_client
+    if _jwks_client is None:
+        with _jwks_client_lock:
+            if _jwks_client is None:
+                _jwks_client = PyJWKClient(
+                    settings.KEYCLOAK_JWKS_URL,
+                    cache_jwk_set=True,
+                    lifespan=300,
+                    timeout=settings.REQUESTS_TIMEOUT_SECONDS,
+                )
+    return _jwks_client
+
 
 HEADER_PROXY_TICKET = "proxy-ticket"
 THIRD_PARTY_AUTH_HEADER_GITLAB = "X-Gitlab-Token"
@@ -305,9 +332,8 @@ def verify_jwt_token(token):
         if token.startswith("jwt:"):
             token = token[4:]
 
-        # Fetch JWKS keys from Keycloak
-        jwks_client = PyJWKClient(settings.KEYCLOAK_JWKS_URL)
-        signing_key = jwks_client.get_signing_key_from_jwt(token)
+        # Resolve the signing key from the process-wide cached JWKS
+        signing_key = _get_jwks_client().get_signing_key_from_jwt(token)
 
         # Decode and validate the token
         try:

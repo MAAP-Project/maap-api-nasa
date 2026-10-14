@@ -1,6 +1,8 @@
 import logging
 import os
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import shapefile
 from api import settings
 from zipfile import ZipFile
@@ -50,9 +52,7 @@ class CmrCollection(Resource):
         For a comprehensive list of collection search examples, see: https://cmr.earthdata.nasa.gov/search/site/docs/search/api.html#collection-search-by-parameters
         """
 
-        resp = req(request.query_string, 'collections')
-
-        return respond(resp)
+        return proxy_search(request.query_string, 'collections')
 
 
 @ns.route('/collections/shapefile')
@@ -197,9 +197,7 @@ class CmrGranules(Resource):
         For a comprehensive list of granule search examples, see: https://cmr.earthdata.nasa.gov/search/site/docs/search/api.html#granule-search-by-parameters
         """
 
-        resp = req(request.query_string, 'granules')
-
-        return respond(resp)
+        return proxy_search(request.query_string, 'granules')
 
 
 @ns.route('/granules/<string:file_uri>/data')
@@ -254,6 +252,92 @@ def parse_query_string(qs):
     return urlparse.parse_qs(qs)
 
 
+# One pooled, retrying session per worker process. Keep-alive to CMR saves a
+# TCP+TLS handshake per page (maap-py pages through large searches 20 results
+# at a time), and the Retry policy absorbs the transient 502/503/504 that a
+# long paginated search will otherwise eventually hit. Retries only apply to
+# GET, which is all this proxy issues.
+def _build_cmr_session():
+    retry = Retry(
+        total=settings.CMR_RETRIES,
+        connect=settings.CMR_RETRIES,
+        read=settings.CMR_RETRIES,
+        status=settings.CMR_RETRIES,
+        backoff_factor=0.5,                      # 0.5 s, 1 s, 2 s between attempts
+        status_forcelist=(502, 503, 504),
+        allowed_methods=frozenset(["GET"]),
+        raise_on_status=False,                   # hand the final response back to us
+        # A CMR 503 carrying a long Retry-After would otherwise park a request
+        # thread for that long; bounded backoff (<= ~3 s total) is preferable.
+        respect_retry_after_header=False,
+    )
+    adapter = HTTPAdapter(max_retries=retry, pool_connections=4, pool_maxsize=32)
+    session = requests.Session()
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    return session
+
+
+_cmr_session = _build_cmr_session()
+
+
+def _client_wants_xml():
+    """maap-py and other XML clients send an XML/echo10 Accept header."""
+    accept = request.headers.get('accept', '') or ''
+    return 'xml' in accept.lower()
+
+
+def cmr_error_response(status_code, message):
+    """Return a CMR failure in the shape the caller can parse.
+
+    XML clients (maap-py) get CMR's own error document, prefixed with
+    'CMR Error ' which maap-py strips before parsing; its parser then sees an
+    <error> element and raises a readable 'Bad search response'. JSON clients
+    get CMR's {"errors": [...]} shape. In both cases the upstream status code
+    is passed through instead of a generic 500.
+    """
+    log.warning("CMR search failed (%s): %s", status_code, message)
+    if _client_wants_xml():
+        body = ('CMR Error <?xml version="1.0" encoding="UTF-8"?>'
+                '<errors><error>{}</error></errors>').format(_xml_escape(message))
+        return body, status_code, {'Content-Type': 'application/xml'}
+    return {'errors': [message]}, status_code
+
+
+def _xml_escape(text):
+    return (str(text).replace('&', '&amp;').replace('<', '&lt;')
+            .replace('>', '&gt;').replace('"', '&quot;'))
+
+
+def _cmr_error_message(response):
+    """Pull a human-readable message out of a CMR error body of any shape."""
+    text = (response.text or '').strip()
+    content_type = response.headers.get('content-type', '')
+    try:
+        if 'json' in content_type or text.startswith('{'):
+            errors = json.loads(text).get('errors')
+            if errors:
+                return '; '.join(str(e) for e in errors)
+    except ValueError:
+        pass
+    if 'xml' in content_type and text:
+        return text
+    # HTML error page from a load balancer, plain text, or empty body
+    snippet = ' '.join(text.split())[:200]
+    return 'CMR returned HTTP {}{}'.format(response.status_code, ': ' + snippet if snippet else '')
+
+
+def proxy_search(query_string, search_type):
+    """GET a CMR search and translate the result for the caller."""
+    try:
+        response = req(query_string, search_type)
+    except requests.exceptions.RequestException as e:
+        # Connection failure or timeout after retries were exhausted
+        return cmr_error_response(status.HTTP_504_GATEWAY_TIMEOUT,
+                                  'CMR request failed: {}'.format(e.__class__.__name__))
+    return respond(response)
+
+
 def req(query_string, search_type):
     url = os.path.join(settings.CMR_URL, 'search', search_type)
     parms = parse_query_string(query_string)
@@ -264,16 +348,30 @@ def req(query_string, search_type):
         cmr_host = parms.pop('cmr_host'.encode('utf-8'))[0]
         url = os.path.join('https://' + cmr_host.decode('utf-8'), 'search', search_type)
 
-    return requests.get(url, headers=get_search_headers(), params=parms)
+    return _cmr_session.get(
+        url,
+        headers=get_search_headers(),
+        params=parms,
+        timeout=(settings.CMR_CONNECT_TIMEOUT_SECONDS, settings.CMR_READ_TIMEOUT_SECONDS),
+    )
 
 
 def respond(response):
-    response_text = response.text if response.status_code == status.HTTP_200_OK else 'CMR Error %s' % response.text
+    content_type = response.headers.get('content-type', '')
+
+    if response.status_code != status.HTTP_200_OK:
+        return cmr_error_response(response.status_code, _cmr_error_message(response))
 
     if response.text == '':
         return {}
-    else:
-        if "xml" in response.headers['content-type']:
-            return response_text, response.status_code, {'Content-Type': 'application/xml'}
-        else:
-            return json.loads(response.text)
+
+    if "xml" in content_type:
+        return response.text, response.status_code, {'Content-Type': 'application/xml'}
+
+    try:
+        return json.loads(response.text)
+    except ValueError:
+        # 200 with a body that is neither XML nor JSON (e.g. an HTML page from
+        # an intermediary). Previously this escaped as a bare 500.
+        return cmr_error_response(status.HTTP_502_BAD_GATEWAY,
+                                  'CMR returned a non-JSON response: {}'.format(' '.join(response.text.split())[:200]))

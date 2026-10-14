@@ -121,6 +121,12 @@ ALLOWED_SSH_KEY_EXTENSIONS = os.getenv('ALLOWED_SSH_KEY_EXTENSIONS', '.txt,.pub,
 MAX_SHAPEFILE_ZIP_SIZE_BYTES = int(os.getenv('MAX_SHAPEFILE_ZIP_SIZE_BYTES', 10 * 1024 * 1024)) # 10MB
 MAX_SHAPEFILE_UNCOMPRESSED_SIZE_BYTES = int(os.getenv('MAX_SHAPEFILE_UNCOMPRESSED_SIZE_BYTES', 50 * 1024 * 1024)) # 50MB
 REQUESTS_TIMEOUT_SECONDS = int(os.getenv('REQUESTS_TIMEOUT_SECONDS', 10))
+# CMR searches: connect timeout is short, read timeout is generous because a
+# full 2000-result echo10 page can take several seconds. Transient 502/503/504
+# responses and connection errors are retried this many times with backoff.
+CMR_CONNECT_TIMEOUT_SECONDS = int(os.getenv('CMR_CONNECT_TIMEOUT_SECONDS', 5))
+CMR_READ_TIMEOUT_SECONDS = int(os.getenv('CMR_READ_TIMEOUT_SECONDS', 60))
+CMR_RETRIES = int(os.getenv('CMR_RETRIES', 3))
 
 
 # SMTP

@@ -1,4 +1,5 @@
 import logging
+import threading
 from cachetools import TLRUCache, cached
 from flask_restx import Resource, reqparse
 from flask import request, jsonify, Response, current_app as app
@@ -971,7 +972,9 @@ def now_utc() -> float:
     return datetime.now(timezone.utc).timestamp() * 1000
 
 
-@cached(TLRUCache(ttu=creds_expiration_utc, timer=now_utc, maxsize=128))
+# lock= makes the shared cache safe under threaded gunicorn workers (gthread);
+# without it, concurrent expiry/insert from two request threads can corrupt it.
+@cached(TLRUCache(ttu=creds_expiration_utc, timer=now_utc, maxsize=128), lock=threading.RLock())
 def get_edc_credentials(endpoint_uri, user_id):
     """Get EDC credentials for a user from an endpoint.
 
