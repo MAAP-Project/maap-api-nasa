@@ -1,17 +1,77 @@
 import json
 import logging
+import re
 from collections import namedtuple
 from datetime import datetime
 
+import boto3
 import sqlalchemy
+from botocore.exceptions import BotoCoreError, ClientError
 from sqlalchemy.exc import SQLAlchemyError
 from flask import current_app as app
+from api import settings
 from api.maap_database import db
 from api.models.organization import Organization
 from api.models.organization_s3_access import OrganizationS3Access
 from api.schemas.organization_s3_access_schema import OrganizationS3AccessSchema
 
 log = logging.getLogger(__name__)
+
+
+# General-purpose S3 bucket naming rules (3-63 chars, lowercase letters, digits, dots, hyphens).
+_BUCKET_NAME_RE = re.compile(r'^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$')
+_IP_ADDRESS_RE = re.compile(r'^\d{1,3}(\.\d{1,3}){3}$')
+
+
+def _is_valid_bucket_name(bucket_name):
+    """Apply the S3 naming rules HeadBucket would otherwise reject with 400 InvalidBucketName."""
+    return (
+        isinstance(bucket_name, str)
+        and _BUCKET_NAME_RE.match(bucket_name) is not None
+        and '..' not in bucket_name
+        and _IP_ADDRESS_RE.match(bucket_name) is None
+    )
+
+
+class InvalidBucketError(ValueError):
+    """The bucket name is malformed or the bucket does not exist."""
+
+
+class BucketCheckUnavailableError(RuntimeError):
+    """Existence could not be determined (e.g. network or credential failure)."""
+
+
+def check_bucket_exists(bucket_name):
+    """
+    Verify that an S3 bucket exists. Access to the bucket is NOT required.
+
+    HeadBucket distinguishes by status code: 404 means the bucket does not exist, while 403
+    (exists, no permission, e.g. cross-account) and 301/400 (exists in another region) mean it does.
+
+    :raises InvalidBucketError: malformed name, or the bucket does not exist
+    :raises BucketCheckUnavailableError: existence could not be determined
+    """
+    if not _is_valid_bucket_name(bucket_name):
+        raise InvalidBucketError(f"'{bucket_name}' is not a valid S3 bucket name.")
+
+    try:
+        # ExpectedBucketOwner is deliberately omitted: admins register buckets owned by
+        # other AWS accounts, so there is no owner to assert and a 403 is treated as "exists".
+        boto3.client('s3', region_name=settings.AWS_REGION).head_bucket(Bucket=bucket_name)  # NOSONAR python:S7608
+    except ClientError as e:
+        status_code = e.response.get('ResponseMetadata', {}).get('HTTPStatusCode')
+        error_code = e.response.get('Error', {}).get('Code')
+        if status_code == 404:
+            raise InvalidBucketError(f"S3 bucket '{bucket_name}' does not exist.") from e
+        if status_code == 400 and error_code == 'InvalidBucketName':
+            raise InvalidBucketError(f"'{bucket_name}' is not a valid S3 bucket name.") from e
+        if status_code in (301, 400, 403):
+            return
+        log.exception("Unexpected error checking S3 bucket %s", bucket_name)
+        raise BucketCheckUnavailableError(f"Unable to verify S3 bucket '{bucket_name}'.") from e
+    except BotoCoreError as e:
+        log.exception("Unable to reach S3 to check bucket %s", bucket_name)
+        raise BucketCheckUnavailableError(f"Unable to verify S3 bucket '{bucket_name}'.") from e
 
 
 def get_all_s3_access():
