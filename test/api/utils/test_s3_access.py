@@ -116,3 +116,47 @@ class TestBuildUserS3Policy(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def _client_error(status_code, code="Err"):
+    from botocore.exceptions import ClientError
+    return ClientError(
+        {"Error": {"Code": code}, "ResponseMetadata": {"HTTPStatusCode": status_code}}, "HeadBucket")
+
+
+class TestCheckBucketExists(unittest.TestCase):
+
+    def _check(self, **head_kwargs):
+        with patch.object(s3_access.boto3, 'client') as client:
+            client.return_value.head_bucket.configure_mock(**head_kwargs)
+            return s3_access.check_bucket_exists("my-bucket")
+
+    def test_existing_accessible_bucket(self):
+        self.assertIsNone(self._check(return_value={}))
+
+    def test_forbidden_bucket_exists(self):
+        self.assertIsNone(self._check(side_effect=_client_error(403)))
+
+    def test_wrong_region_bucket_exists(self):
+        self.assertIsNone(self._check(side_effect=_client_error(301)))
+        self.assertIsNone(self._check(side_effect=_client_error(400)))
+
+    def test_missing_bucket_raises_invalid(self):
+        with self.assertRaises(s3_access.InvalidBucketError):
+            self._check(side_effect=_client_error(404, "NoSuchBucket"))
+
+    def test_server_error_is_unavailable(self):
+        with self.assertRaises(s3_access.BucketCheckUnavailableError):
+            self._check(side_effect=_client_error(500))
+
+    def test_network_error_is_unavailable(self):
+        from botocore.exceptions import EndpointConnectionError
+        with self.assertRaises(s3_access.BucketCheckUnavailableError):
+            self._check(side_effect=EndpointConnectionError(endpoint_url="x"))
+
+    def test_malformed_name_rejected_without_calling_s3(self):
+        with patch.object(s3_access.boto3, 'client') as client:
+            for name in ("AB", "Has_Underscore", "-lead", "a" * 64):
+                with self.assertRaises(s3_access.InvalidBucketError):
+                    s3_access.check_bucket_exists(name)
+            client.assert_not_called()

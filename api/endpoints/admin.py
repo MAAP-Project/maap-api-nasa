@@ -205,6 +205,17 @@ class PreApprovedEmails(Resource):
         return {"code": status.HTTP_200_OK, "message": "Successfully deleted {}.".format(email)}
 
 
+def _verify_bucket_exists(bucket_name):
+    """Returns an error response if the bucket is invalid/missing or cannot be verified, else None."""
+    try:
+        s3_access.check_bucket_exists(bucket_name)
+    except s3_access.InvalidBucketError as e:
+        return err_response(str(e))
+    except s3_access.BucketCheckUnavailableError as e:
+        return err_response(str(e), code=status.HTTP_503_SERVICE_UNAVAILABLE)
+    return None
+
+
 @ns.route('/s3-access')
 class S3AccessList(Resource):
 
@@ -247,6 +258,10 @@ class S3AccessList(Resource):
         bucket_prefix = req_data.get("bucket_prefix")
         readonly = req_data.get("readonly", False)
 
+        error = _verify_bucket_exists(bucket_name)
+        if error:
+            return error
+
         new_entry = s3_access.create_s3_access(org_id, bucket_name, bucket_prefix, readonly)
         return new_entry
 
@@ -277,6 +292,11 @@ class S3AccessEntry(Resource):
         bucket_name = req_data.get("bucket_name")
         bucket_prefix = req_data.get("bucket_prefix")
         readonly = req_data.get("readonly")
+
+        if bucket_name is not None and bucket_name != access.bucket_name:
+            error = _verify_bucket_exists(bucket_name)
+            if error:
+                return error
 
         updated_entry = s3_access.update_s3_access(access, org_id, bucket_name, bucket_prefix, readonly)
         return updated_entry
