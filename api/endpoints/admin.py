@@ -293,10 +293,13 @@ class S3AccessEntry(Resource):
         bucket_prefix = req_data.get("bucket_prefix")
         readonly = req_data.get("readonly")
 
-        if bucket_name is not None and bucket_name != access.bucket_name:
-            error = _verify_bucket_exists(bucket_name)
-            if error:
-                return error
+        if bucket_name is not None:
+            if not isinstance(bucket_name, str) or not bucket_name:
+                return err_response("Valid bucket_name is required.")
+            if bucket_name != access.bucket_name:
+                error = _verify_bucket_exists(bucket_name)
+                if error:
+                    return error
 
         updated_entry = s3_access.update_s3_access(access, org_id, bucket_name, bucket_prefix, readonly)
         return updated_entry

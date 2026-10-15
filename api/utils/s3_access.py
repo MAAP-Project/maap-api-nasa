@@ -20,6 +20,17 @@ log = logging.getLogger(__name__)
 
 # General-purpose S3 bucket naming rules (3-63 chars, lowercase letters, digits, dots, hyphens).
 _BUCKET_NAME_RE = re.compile(r'^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$')
+_IP_ADDRESS_RE = re.compile(r'^\d{1,3}(\.\d{1,3}){3}$')
+
+
+def _is_valid_bucket_name(bucket_name):
+    """Apply the S3 naming rules HeadBucket would otherwise reject with 400 InvalidBucketName."""
+    return (
+        isinstance(bucket_name, str)
+        and _BUCKET_NAME_RE.match(bucket_name) is not None
+        and '..' not in bucket_name
+        and _IP_ADDRESS_RE.match(bucket_name) is None
+    )
 
 
 class InvalidBucketError(ValueError):
@@ -40,21 +51,26 @@ def check_bucket_exists(bucket_name):
     :raises InvalidBucketError: malformed name, or the bucket does not exist
     :raises BucketCheckUnavailableError: existence could not be determined
     """
-    if not _BUCKET_NAME_RE.match(bucket_name):
+    if not _is_valid_bucket_name(bucket_name):
         raise InvalidBucketError(f"'{bucket_name}' is not a valid S3 bucket name.")
 
     try:
-        boto3.client('s3', region_name=settings.AWS_REGION).head_bucket(Bucket=bucket_name)
+        # ExpectedBucketOwner is deliberately omitted: admins register buckets owned by
+        # other AWS accounts, so there is no owner to assert and a 403 is treated as "exists".
+        boto3.client('s3', region_name=settings.AWS_REGION).head_bucket(Bucket=bucket_name)  # NOSONAR python:S7608
     except ClientError as e:
         status_code = e.response.get('ResponseMetadata', {}).get('HTTPStatusCode')
+        error_code = e.response.get('Error', {}).get('Code')
         if status_code == 404:
-            raise InvalidBucketError(f"S3 bucket '{bucket_name}' does not exist.")
+            raise InvalidBucketError(f"S3 bucket '{bucket_name}' does not exist.") from e
+        if status_code == 400 and error_code == 'InvalidBucketName':
+            raise InvalidBucketError(f"'{bucket_name}' is not a valid S3 bucket name.") from e
         if status_code in (301, 400, 403):
             return
-        log.error(f"Unexpected error checking S3 bucket {bucket_name}: {e}")
+        log.exception("Unexpected error checking S3 bucket %s", bucket_name)
         raise BucketCheckUnavailableError(f"Unable to verify S3 bucket '{bucket_name}'.") from e
     except BotoCoreError as e:
-        log.error(f"Unable to reach S3 to check bucket {bucket_name}: {e}")
+        log.exception("Unable to reach S3 to check bucket %s", bucket_name)
         raise BucketCheckUnavailableError(f"Unable to verify S3 bucket '{bucket_name}'.") from e
 
 

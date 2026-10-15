@@ -2,6 +2,8 @@ import json
 import unittest
 from unittest.mock import patch
 
+from botocore.exceptions import ClientError, EndpointConnectionError
+
 from api.utils import s3_access
 
 
@@ -114,12 +116,7 @@ class TestBuildUserS3Policy(unittest.TestCase):
         self.assertLessEqual(len(policy_json), 2048)
 
 
-if __name__ == '__main__':
-    unittest.main()
-
-
 def _client_error(status_code, code="Err"):
-    from botocore.exceptions import ClientError
     return ClientError(
         {"Error": {"Code": code}, "ResponseMetadata": {"HTTPStatusCode": status_code}}, "HeadBucket")
 
@@ -139,24 +136,36 @@ class TestCheckBucketExists(unittest.TestCase):
 
     def test_wrong_region_bucket_exists(self):
         self.assertIsNone(self._check(side_effect=_client_error(301)))
-        self.assertIsNone(self._check(side_effect=_client_error(400)))
+        self.assertIsNone(self._check(side_effect=_client_error(400, "IllegalLocationConstraintException")))
 
     def test_missing_bucket_raises_invalid(self):
+        error = _client_error(404, "NoSuchBucket")
         with self.assertRaises(s3_access.InvalidBucketError):
-            self._check(side_effect=_client_error(404, "NoSuchBucket"))
+            self._check(side_effect=error)
+
+    def test_invalid_bucket_name_from_s3_raises_invalid(self):
+        error = _client_error(400, "InvalidBucketName")
+        with self.assertRaises(s3_access.InvalidBucketError):
+            self._check(side_effect=error)
 
     def test_server_error_is_unavailable(self):
+        error = _client_error(500)
         with self.assertRaises(s3_access.BucketCheckUnavailableError):
-            self._check(side_effect=_client_error(500))
+            self._check(side_effect=error)
 
     def test_network_error_is_unavailable(self):
-        from botocore.exceptions import EndpointConnectionError
+        error = EndpointConnectionError(endpoint_url="x")
         with self.assertRaises(s3_access.BucketCheckUnavailableError):
-            self._check(side_effect=EndpointConnectionError(endpoint_url="x"))
+            self._check(side_effect=error)
 
     def test_malformed_name_rejected_without_calling_s3(self):
+        bad_names = ("AB", "Has_Underscore", "-lead", "a" * 64, "192.168.1.1", "a..b", None, 42)
         with patch.object(s3_access.boto3, 'client') as client:
-            for name in ("AB", "Has_Underscore", "-lead", "a" * 64):
-                with self.assertRaises(s3_access.InvalidBucketError):
+            for name in bad_names:
+                with self.subTest(name=name), self.assertRaises(s3_access.InvalidBucketError):
                     s3_access.check_bucket_exists(name)
             client.assert_not_called()
+
+
+if __name__ == '__main__':
+    unittest.main()
