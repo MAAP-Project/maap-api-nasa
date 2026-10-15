@@ -8,7 +8,7 @@ services:
     volumes:
       - ./logs:/maap-api-nasa/logs/
     command: >
-      sh -c "gunicorn --bind 0.0.0.0:5000 api.maapapp:app -w 5"
+      sh -c "gunicorn -c gunicorn.conf.py api.maapapp:app"
     env_file:
       - .maap-api.env
     restart: always

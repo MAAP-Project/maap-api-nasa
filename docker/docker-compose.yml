@@ -14,7 +14,7 @@ services:
     volumes:
       - ./logs:/maap-api-nasa/logs/
     command: >
-      sh -c "gunicorn --bind 0.0.0.0:5000 api.maapapp:app -w 4"
+      sh -c "gunicorn -c gunicorn.conf.py api.maapapp:app"
     environment:
       FLASK_APP: /maap-api-nasa/api/maapapp.py
     restart: always

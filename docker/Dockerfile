@@ -33,6 +33,7 @@ RUN apt-get update \
 
 COPY api /maap-api-nasa/api
 COPY logging.conf /maap-api-nasa/logging.conf
+COPY gunicorn.conf.py /maap-api-nasa/gunicorn.conf.py
 
 WORKDIR /maap-api-nasa
 
