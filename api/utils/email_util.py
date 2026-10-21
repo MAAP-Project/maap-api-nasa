@@ -237,6 +237,48 @@ def send_welcome_to_maap_user_email(member: Member, is_active, base_url):
     log.info("Email Sent!")
 
 
+def _render_template(template_name, template_vars):
+    """Read an email template from email_templates/ and str.format it."""
+    template_file = SCRIPT_PATH + "/email_templates/" + template_name
+    with open(template_file, "r", encoding=CHARSET) as file:
+        return file.read().format(**template_vars)
+
+
+def send_welcome_email(member: Member, base_url):
+    """Admin-triggered "getting started" email (Console: Admin > Users >
+    "Send welcome email"): Hub login, documentation, Slack invite, mailing list.
+    Distinct from the registration-time welcome_to_maap_* notifications and
+    NOT gated by MEMBER_EMAIL_NOTIFICATIONS_ENABLED — an admin asked for it.
+    Raises on SMTP failure so the caller can report it."""
+
+    environment_info = get_environment_info(base_url)
+    email_message_subj = "Welcome to MAAP: your account has been activated"
+
+    template_vars = {
+        'environment_info': environment_info,
+        'member_first_name': member.first_name or member.username,
+        'hub_url': environment_info['urls']['hub'],
+        'docs_url': settings.MAAP_DOCS_URL,
+        'slack_invite_url': settings.MAAP_SLACK_INVITE_URL,
+        'mailing_list_email': settings.MAAP_MAILING_LIST_EMAIL,
+        'support_email': settings.EMAIL_SUPPORT,
+        'title': email_message_subj,
+    }
+    email_message_html = _render_template("welcome_email_user_alert.html", template_vars)
+    email_message_txt = _render_template("welcome_email_user_alert.txt", template_vars)
+
+    email_message = Email(
+        settings.EMAIL_SUPPORT,
+        [member.email],
+        email_message_subj,
+        email_message_html,
+        email_message_txt
+    )
+    log.info("Sending 'Welcome' email for {} to {}".format(member.get_display_name(), member.email))
+    email_message.send()
+    log.info("Email Sent!")
+
+
 def get_environment_info(base_url):
 
     env = get_environment(base_url)
@@ -260,6 +302,10 @@ def get_environment_info(base_url):
     if env != Environments.NEW_OPS:
         portal_base_url = "https://{}.maap-project.org".format(env.value['cname'].lower())
 
+    hub_url = settings.MAAP_HUB_URL or "https://hub.maap-project.org"
+    if not settings.MAAP_HUB_URL and env != Environments.NEW_OPS:
+        hub_url = "https://hub.{}.maap-project.org".format(env.value['cname'].lower())
+
     data = {
         'env': env.value['label'].upper(),
         'template': {
@@ -267,6 +313,7 @@ def get_environment_info(base_url):
         },
         'urls': {
             'logo': portal_base_url + '/wp-content/uploads/2021/10/nasamaaplogo3.png',
+            'hub': hub_url,
             'portal': {
                 'base_url': portal_base_url,
                 'maap_admin': portal_base_url + settings.PORTAL_ADMIN_DASHBOARD_PATH,

@@ -12,7 +12,8 @@ from api.utils.email_util import (
     send_user_status_update_active_user_email, 
     send_user_status_update_suspended_user_email,
     send_welcome_to_maap_active_user_email, 
-    send_welcome_to_maap_suspended_user_email
+    send_welcome_to_maap_suspended_user_email,
+    send_welcome_email,
 )
 from api import settings
 
@@ -125,6 +126,28 @@ class TestEmailSystem(unittest.TestCase):
         # Verify email was sent
         mock_send.assert_called_once()
     
+    @patch('api.utils.email_util.Email')
+    def test_admin_welcome_email_content(self, mock_email):
+        """Admin-triggered 'Send welcome email': getting-started content, env-aware Hub URL."""
+        with app.app_context():
+            member = db.session.query(Member).get(self.test_member_id)
+            send_welcome_email(member, "http://uat.maap-project.org")
+
+        mock_email.assert_called_once()
+        from_, to, subject, html, text = mock_email.call_args[0]
+        self.assertEqual(from_, settings.EMAIL_SUPPORT)
+        self.assertEqual(to, [self.test_member_email])
+        self.assertIn("activated", subject)
+        for body in (html, text):
+            self.assertIn("Hi Test,", body)
+            self.assertIn("https://hub.uat.maap-project.org", body)
+            self.assertIn(settings.MAAP_DOCS_URL, body)
+            self.assertIn(settings.MAAP_SLACK_INVITE_URL, body)
+            self.assertIn(settings.MAAP_MAILING_LIST_EMAIL, body)
+            self.assertIn("MAAP Operations Team", body)
+        self.assertIn("UAT ENVIRONMENT", text)
+        mock_email.return_value.send.assert_called_once()
+
     @patch('api.utils.email_util.Email.send')
     def test_welcome_email_for_suspended_users(self, mock_send):
         """Tests welcome email for suspended users."""

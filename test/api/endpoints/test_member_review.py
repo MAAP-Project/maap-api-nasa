@@ -181,6 +181,73 @@ class TestMemberReview(unittest.TestCase):
         slack_logs = [l for l in self._logs() if l['type'] == 'Slack Invite']
         self.assertEqual(len(slack_logs), 1)
 
+    # --- welcome email (admin-triggered; sent after the other changes commit) ---
+    @patch('api.endpoints.members.send_welcome_email')
+    def test_send_welcome_email_sends_flips_slack_and_logs(self, mock_send):
+        resp = self._review({'send_welcome_email': True, 'comment': 'welcome'})
+        self.assertEqual(resp.status_code, 200)
+        body = json.loads(resp.data)
+        self.assertTrue(body['welcome_email_sent'])
+        self.assertIsNone(body['welcome_email_error'])
+        self.assertTrue(body['invited_to_slack'])
+        mock_send.assert_called_once()
+        self.assertEqual(mock_send.call_args[0][0].username, 'joeuser')
+        with app.app_context():
+            m = db.session.query(Member).filter_by(username='joeuser').first()
+            self.assertTrue(m.invited_to_slack)
+        logs = self._logs()
+        self.assertEqual({l['type'] for l in logs}, {'Welcome Email', 'Slack Invite'})
+        welcome = next(l for l in logs if l['type'] == 'Welcome Email')
+        self.assertEqual(welcome['new'], 'Sent to joe@example.org')
+        self.assertEqual(welcome['comment'], 'welcome')
+        self.assertEqual(welcome['admin_id'], self.admin_id)
+
+    @patch('api.endpoints.members.send_welcome_email')
+    def test_send_welcome_email_already_invited_logs_email_only(self, mock_send):
+        self._review({'invited_to_slack': True})
+        resp = self._review({'send_welcome_email': True})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual([l['type'] for l in self._logs()], ['Slack Invite', 'Welcome Email'])
+
+    @patch('api.endpoints.members.send_welcome_email', side_effect=RuntimeError('smtp down'))
+    def test_send_welcome_email_failure_is_reported_not_raised(self, mock_send):
+        resp = self._review({'status': 'active', 'send_welcome_email': True})
+        self.assertEqual(resp.status_code, 200)
+        body = json.loads(resp.data)
+        self.assertFalse(body['welcome_email_sent'])
+        self.assertIn('smtp down', body['welcome_email_error'])
+        self.assertFalse(body['invited_to_slack'])
+        # The status change still landed and was audited; the email was not.
+        with app.app_context():
+            m = db.session.query(Member).filter_by(username='joeuser').first()
+            self.assertEqual(m.status, constants.STATUS_ACTIVE)
+            self.assertFalse(m.invited_to_slack)
+        self.assertEqual([l['type'] for l in self._logs()], ['Status'])
+
+    @patch('api.endpoints.members.send_welcome_email')
+    def test_send_welcome_email_requires_member_email(self, mock_send):
+        with app.app_context():
+            m = db.session.query(Member).filter_by(username='joeuser').first()
+            m.email = None
+            db.session.commit()
+        resp = self._review({'status': 'active', 'send_welcome_email': True})
+        self.assertEqual(resp.status_code, 400)
+        mock_send.assert_not_called()
+        # Rejected up front: nothing else in the request was applied.
+        with app.app_context():
+            m = db.session.query(Member).filter_by(username='joeuser').first()
+            self.assertEqual(m.status, constants.STATUS_PENDING)
+        self.assertEqual(self._logs(), [])
+
+    @patch('api.endpoints.members.send_welcome_email')
+    def test_send_welcome_email_false_is_noop(self, mock_send):
+        resp = self._review({'send_welcome_email': False})
+        self.assertEqual(resp.status_code, 200)
+        body = json.loads(resp.data)
+        self.assertNotIn('welcome_email_sent', body)
+        mock_send.assert_not_called()
+        self.assertEqual(self._logs(), [])
+
     def test_no_change_writes_no_log(self):
         # target is already pending/guest with no orgs
         resp = self._review({'status': 'pending', 'role_id': Role.ROLE_GUEST,

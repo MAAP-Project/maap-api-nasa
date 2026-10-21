@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="width=device-width">
+    <title>{title}</title>
+</head>
+<body style="margin: 0px;font-family:Roboto,Helvetica,Arial,sans-serif;">
+{environment_info[template][header][html]}
+<div style="width:600px;padding:20px;">
+    <img src="{environment_info[urls][logo]}" />
+    <p>Hi {member_first_name},</p>
+    <p>Your account on the Multi-Mission Algorithm and Analysis Platform (MAAP) has been activated. Here is what you need to get started:</p>
+    <p><strong>Logging in:</strong></p>
+    <ul>
+        <li>MAAP Hub (JupyterHub): <a href="{hub_url}">{hub_url}</a></li>
+        <li>Log in using your Earthdata Login credentials</li>
+    </ul>
+    <p><strong>Resources:</strong></p>
+    <ul>
+        <li>MAAP Documentation: <a href="{docs_url}">{docs_url}</a></li>
+        <li>Slack: Please join our Slack via <a href="{slack_invite_url}">this link</a></li>
+        <li>Mailing List: Please subscribe to <a href="mailto:{mailing_list_email}">{mailing_list_email}</a> (announcements only)</li>
+    </ul>
+    <p>If you have any questions or encounter issues logging in, please reply to this email or reach out on Slack.</p>
+    <p>Best,<br /><br />MAAP Operations Team</p>
+</div>
+</body>
+</html>

@@ -151,6 +151,14 @@ MEMBER_EMAIL_NOTIFICATIONS_ENABLED = str2bool(os.getenv('MEMBER_EMAIL_NOTIFICATI
 # PORTAL PATHS
 PORTAL_ADMIN_DASHBOARD_PATH = os.getenv('PORTAL_ADMIN_DASHBOARD_PATH', '')
 
+# WELCOME EMAIL (admin-triggered from the Console: Admin > Users > "Send welcome email")
+# Blank MAAP_HUB_URL derives the Hub URL from the environment (https://hub[.<env>].maap-project.org).
+MAAP_HUB_URL = os.getenv('MAAP_HUB_URL', '')
+MAAP_DOCS_URL = os.getenv('MAAP_DOCS_URL', 'https://docs.maap-project.org/en/hub/')
+MAAP_SLACK_INVITE_URL = os.getenv('MAAP_SLACK_INVITE_URL',
+                                  'https://join.slack.com/t/esa-nasa-maap/shared_invite/zt-49i483gwk-tVgMd3Dg8FvaMFxDitP02g')
+MAAP_MAILING_LIST_EMAIL = os.getenv('MAAP_MAILING_LIST_EMAIL', 'nasa-maap-users@lists.nasa.gov')
+
 # ESA Interoperability
 ESA_ISS_HOST = os.getenv('ESA_ISS_HOST', "")
 ESA_EDL_SYS_ACCOUNT = os.getenv('ESA_EDL_SYS_ACCOUNT', "")
