@@ -1,5 +1,3 @@
-{environment_info[template][header][plain]}
-
 Hi {member_first_name},
 
 Your account on the Multi-Mission Algorithm and Analysis Platform (MAAP) has been activated. Here is what you need to get started:
@@ -18,5 +16,4 @@ Resources:
 If you have any questions or encounter issues logging in, please reply to this email or reach out on Slack.
 
 Best,
-
 MAAP Operations Team

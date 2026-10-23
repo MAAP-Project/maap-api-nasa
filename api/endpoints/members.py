@@ -21,7 +21,8 @@ from api.schemas.member_schema import MemberSchema
 from api.schemas.member_session_schema import MemberSessionSchema
 from api.utils.security_utils import validate_ssh_key_file, sanitize_filename, InvalidFileTypeError, FileSizeTooLargeError, EmptyFileError, ExternalServiceError
 from api.utils.email_util import send_user_status_update_active_user_email, \
-    send_user_status_update_suspended_user_email, send_user_status_change_email, send_welcome_email
+    send_user_status_update_suspended_user_email, send_user_status_change_email, \
+    send_welcome_email, build_welcome_email_draft, get_welcome_email_cc
 from api.utils.member_util import determine_initial_status, notify_new_member
 from api.utils.member_log_util import record_member_change, role_name, org_names_csv
 from api.models.organization_membership import OrganizationMembership
@@ -368,13 +369,7 @@ class MemberReview(Resource):
         in a single action, recording an audit entry (member_log) for each
         changed dimension. Any field omitted is left unchanged; a single
         (optional) comment is stored on every entry written this call.
-
-        "send_welcome_email": true additionally emails the member the
-        getting-started guide (Hub login, docs, Slack invite, mailing list)
-        once the other changes are committed. A successful send marks the
-        member invited_to_slack (the email carries the invite) and is audited;
-        a failed send is reported in the response (welcome_email_error), not
-        raised, so the committed changes still stand.
+        (The welcome email is a separate action: see /<key>/welcome-email.)
 
         Format of JSON to post:
         {
@@ -383,7 +378,6 @@ class MemberReview(Resource):
             "organization_ids": [1, 2],
             "invited_to_slack": true,
             "added_to_mailing_list": true,
-            "send_welcome_email": true,
             "comment": "Approved after review"
         }
         """
@@ -402,10 +396,6 @@ class MemberReview(Resource):
                                 code=status.HTTP_401_UNAUTHORIZED)
 
         comment = req_data.get("comment") or None
-
-        send_welcome = bool(req_data.get("send_welcome_email"))
-        if send_welcome and not member.email:
-            return err_response("Cannot send a welcome email: member has no email address on file.")
 
         # --- Status ---
         if req_data.get("status") is not None:
@@ -468,37 +458,96 @@ class MemberReview(Resource):
             app.logger.error(f"Failed to review member {member.id}: {e}")
             raise
 
-        # --- Welcome email (sent only after the changes above are committed).
-        #     Success flips invited_to_slack — the email carries the Slack
-        #     invite — and is audited; failure is reported, not raised.
-        welcome_email_error = None
-        if send_welcome:
-            try:
-                send_welcome_email(member, proxied_url(request))
-            except Exception as e:
-                app.logger.error(f"Failed to send welcome email to {member.email} ({member.username}): {e}")
-                welcome_email_error = str(e) or e.__class__.__name__
-            else:
-                record_member_change(member.id, admin.id, MemberLogChange.CHANGE_WELCOME_EMAIL,
-                                     None, "Sent to " + member.email, comment)
-                if not member.invited_to_slack:
-                    member.invited_to_slack = True
-                    record_member_change(member.id, admin.id, MemberLogChange.CHANGE_SLACK,
-                                         "No", "Yes", comment)
-                try:
-                    db.session.commit()
-                except Exception as e:
-                    db.session.rollback()
-                    app.logger.error(f"Failed to record welcome email for member {member.id}: {e}")
-                    raise
-
         member_schema = MemberSchema()
         result = json.loads(member_schema.dumps(member))
         result['organizations'] = get_member_organizations(member.id)
-        if send_welcome:
-            result['welcome_email_sent'] = welcome_email_error is None
-            result['welcome_email_error'] = welcome_email_error
         return result
+
+
+@ns.route('/<string:key>/welcome-email')
+class MemberWelcomeEmail(Resource):
+
+    @api.doc(security='ApiKeyAuth')
+    @login_required(role=Role.ROLE_ADMIN)
+    def get(self, key):
+        """
+        Admin: the default welcome email for a member — from, to, cc, and an
+        editable subject and plain-text body — for preview before POSTing it.
+        """
+        member = db.session.query(Member_db).filter_by(username=key).first()
+        if member is None:
+            return err_response(msg="No member found with username " + key,
+                                code=status.HTTP_404_NOT_FOUND)
+        if not member.email:
+            return err_response("Member has no email address on file.")
+        return build_welcome_email_draft(member, proxied_url(request))
+
+    @api.doc(security='ApiKeyAuth')
+    @login_required(role=Role.ROLE_ADMIN)
+    def post(self, key):
+        """
+        Admin: send the welcome email (getting-started guide: Hub login, docs,
+        Slack invite, mailing list) to a member, CC'ing support. The subject
+        and plain-text body — normally the GET draft, possibly edited — are
+        sent as-is (the HTML part is generated from the text). A successful
+        send marks the member invited_to_slack (the email carries the invite)
+        and records 'Welcome Email' in the member log. SMTP failure -> 502.
+
+        Format of JSON to post:
+        {
+            "subject": "Welcome to MAAP: your account has been activated",
+            "body": "Hi Joe, ...",
+            "comment": "optional audit note"
+        }
+        """
+        req_data = request.get_json(silent=True)
+        if not isinstance(req_data, dict):
+            return err_response("Valid JSON body object required.")
+
+        member = db.session.query(Member_db).filter_by(username=key).first()
+        if member is None:
+            return err_response(msg="No member found with username " + key,
+                                code=status.HTTP_404_NOT_FOUND)
+        if not member.email:
+            return err_response("Cannot send a welcome email: member has no email address on file.")
+
+        admin = get_authorized_user()
+        if admin is None:
+            return err_response(msg="Could not identify the acting admin.",
+                                code=status.HTTP_401_UNAUTHORIZED)
+
+        subject = (req_data.get("subject") or "").strip()
+        body = req_data.get("body") or ""
+        if not subject or not body.strip():
+            return err_response("Subject and body are required.")
+        comment = req_data.get("comment") or None
+
+        try:
+            send_welcome_email(member, proxied_url(request), subject=subject, body=body)
+        except Exception as e:
+            app.logger.error(f"Failed to send welcome email to {member.email} ({member.username}): {e}")
+            return err_response("The welcome email could not be sent: " + (str(e) or e.__class__.__name__),
+                                code=status.HTTP_502_BAD_GATEWAY)
+
+        record_member_change(member.id, admin.id, MemberLogChange.CHANGE_WELCOME_EMAIL,
+                             None, "Sent to " + member.email, comment)
+        if not member.invited_to_slack:
+            member.invited_to_slack = True
+            record_member_change(member.id, admin.id, MemberLogChange.CHANGE_SLACK,
+                                 "No", "Yes", comment)
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Failed to record welcome email for member {member.id}: {e}")
+            raise
+
+        return {
+            "sent": True,
+            "to": member.email,
+            "cc": get_welcome_email_cc(),
+            "invited_to_slack": True,
+        }
 
 
 @ns.route('/<string:key>/log')

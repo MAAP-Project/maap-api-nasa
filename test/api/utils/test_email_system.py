@@ -14,6 +14,8 @@ from api.utils.email_util import (
     send_welcome_to_maap_active_user_email, 
     send_welcome_to_maap_suspended_user_email,
     send_welcome_email,
+    build_welcome_email_draft,
+    text_to_html,
 )
 from api import settings
 
@@ -126,27 +128,84 @@ class TestEmailSystem(unittest.TestCase):
         # Verify email was sent
         mock_send.assert_called_once()
     
-    @patch('api.utils.email_util.Email')
-    def test_admin_welcome_email_content(self, mock_email):
-        """Admin-triggered 'Send welcome email': getting-started content, env-aware Hub URL."""
+    @patch('api.utils.email_util.smtplib.SMTP')
+    def test_email_utility_cc_recipients(self, mock_smtp):
+        """CC addresses get a Cc header and are delivered to."""
+        mock_server = MagicMock()
+        mock_smtp.return_value.__enter__.return_value = mock_server
         with app.app_context():
-            member = db.session.query(Member).get(self.test_member_id)
+            email = Email("from@example.com", ["to@example.com"], "s", "<p>h</p>", "t",
+                          cc=["cc@example.com", ""])
+            email.send()
+        self.assertEqual(email.email['Cc'], "cc@example.com")
+        self.assertEqual(email.email['To'], "to@example.com")
+        mock_server.send_message.assert_called_once_with(
+            email.email, "from@example.com", ["to@example.com", "cc@example.com"])
+
+    def test_admin_welcome_email_draft(self):
+        """The editable default: env-aware Hub URL, getting-started links, support CC."""
+        with app.app_context():
+            member = db.session.get(Member, self.test_member_id)
+            draft = build_welcome_email_draft(member, "http://uat.maap-project.org")
+        self.assertEqual(draft['to'], self.test_member_email)
+        self.assertEqual(draft['cc'], ['support@maap-project.org'])
+        self.assertEqual(draft['from'], settings.EMAIL_SUPPORT)
+        self.assertIn("activated", draft['subject'])
+        body = draft['body']
+        self.assertTrue(body.startswith("Hi Test,"))
+        self.assertIn("https://hub.uat.maap-project.org", body)
+        self.assertIn(settings.MAAP_DOCS_URL, body)
+        self.assertIn(settings.MAAP_SLACK_INVITE_URL, body)
+        self.assertIn(settings.MAAP_MAILING_LIST_EMAIL, body)
+        self.assertIn("MAAP Operations Team", body)
+        self.assertNotIn("{", body)
+        self.assertNotIn("ENVIRONMENT", body)  # env banner is added at send time, not editable
+
+    @patch('api.utils.email_util.Email')
+    def test_admin_welcome_email_default_send(self, mock_email):
+        """Sending with no edits sends the draft, CC'ing support, with the env banner."""
+        with app.app_context():
+            member = db.session.get(Member, self.test_member_id)
+            draft = build_welcome_email_draft(member, "http://uat.maap-project.org")
             send_welcome_email(member, "http://uat.maap-project.org")
 
         mock_email.assert_called_once()
         from_, to, subject, html, text = mock_email.call_args[0]
         self.assertEqual(from_, settings.EMAIL_SUPPORT)
         self.assertEqual(to, [self.test_member_email])
-        self.assertIn("activated", subject)
-        for body in (html, text):
-            self.assertIn("Hi Test,", body)
-            self.assertIn("https://hub.uat.maap-project.org", body)
-            self.assertIn(settings.MAAP_DOCS_URL, body)
-            self.assertIn(settings.MAAP_SLACK_INVITE_URL, body)
-            self.assertIn(settings.MAAP_MAILING_LIST_EMAIL, body)
-            self.assertIn("MAAP Operations Team", body)
-        self.assertIn("UAT ENVIRONMENT", text)
+        self.assertEqual(mock_email.call_args[1]['cc'], ['support@maap-project.org'])
+        self.assertEqual(subject, draft['subject'])
+        self.assertTrue(text.startswith("*** THIS EMAIL WAS SENT FROM THE MAAP UAT ENVIRONMENT ***"))
+        self.assertTrue(text.endswith(draft['body']))
+        self.assertIn("UAT ENVIRONMENT", html)
+        self.assertIn('<a href="https://hub.uat.maap-project.org">https://hub.uat.maap-project.org</a>', html)
+        self.assertIn('<a href="mailto:{0}">{0}</a>'.format(settings.MAAP_MAILING_LIST_EMAIL), html)
+        self.assertIn("<ul><li>", html)
+        self.assertIn("<p><strong>Logging in:</strong></p>", html)
         mock_email.return_value.send.assert_called_once()
+
+    @patch('api.utils.email_util.Email')
+    def test_admin_welcome_email_edited_send(self, mock_email):
+        """An edited subject/body is sent verbatim as text, and as generated HTML."""
+        edited = "Hello Test,\n\nSee https://example.org/docs.\n\n- one\n- two <3\n\nBye"
+        with app.app_context():
+            member = db.session.get(Member, self.test_member_id)
+            send_welcome_email(member, "https://api.maap-project.org", subject="  Hey there ", body=edited)
+        _, _, subject, html, text = mock_email.call_args[0]
+        self.assertEqual(subject, "Hey there")
+        self.assertEqual(text, edited)  # OPS: no env banner
+        self.assertNotIn("ENVIRONMENT", html)
+        self.assertIn("<title>Hey there</title>", html)
+        self.assertIn('<p>See <a href="https://example.org/docs">https://example.org/docs</a>.</p>', html)
+        self.assertIn("<ul><li>one</li><li>two &lt;3</li></ul>", html)
+        self.assertIn("<p>Bye</p>", html)
+
+    def test_text_to_html_blocks(self):
+        self.assertEqual(text_to_html("a\nb"), "<p>a<br />b</p>")
+        self.assertEqual(text_to_html("Heading:"), "<p><strong>Heading:</strong></p>")
+        self.assertEqual(text_to_html("<script>x</script>"), "<p>&lt;script&gt;x&lt;/script&gt;</p>")
+        self.assertEqual(text_to_html("mail me@x.org, ok"),
+                         '<p>mail <a href="mailto:me@x.org">me@x.org</a>, ok</p>')
 
     @patch('api.utils.email_util.Email.send')
     def test_welcome_email_for_suspended_users(self, mock_send):

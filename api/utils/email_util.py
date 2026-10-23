@@ -1,5 +1,7 @@
 import email.encoders
+import html
 import logging
+import re
 import smtplib
 import os
 
@@ -23,14 +25,17 @@ class EmailFormats(Enum):
 
 class Email(object):
 
-    def __init__(self, from_, to, subject, html_message, text_message):
+    def __init__(self, from_, to, subject, html_message, text_message, cc=None):
 
         self.from_ = from_
-        self.to = to
+        self.to = list(to)
+        self.cc = [addr for addr in (cc or []) if addr]
 
         self.email = MIMEMultipart('mixed')
         self.email['From'] = from_
-        self.email['To'] = ",".join(to)
+        self.email['To'] = ",".join(self.to)
+        if self.cc:
+            self.email['Cc'] = ",".join(self.cc)
         self.email['Subject'] = subject
 
         # Create Message Body
@@ -64,7 +69,7 @@ class Email(object):
                 raise e
 
             try:
-                smtp_server.send_message(self.email, self.from_, self.to)
+                smtp_server.send_message(self.email, self.from_, self.to + self.cc)
             except smtplib.SMTPException as e:
                 log.error("Unable to send email: ", e.strerror)
                 raise e
@@ -244,37 +249,105 @@ def _render_template(template_name, template_vars):
         return file.read().format(**template_vars)
 
 
-def send_welcome_email(member: Member, base_url):
-    """Admin-triggered "getting started" email (Console: Admin > Users >
-    "Send welcome email"): Hub login, documentation, Slack invite, mailing list.
-    Distinct from the registration-time welcome_to_maap_* notifications and
-    NOT gated by MEMBER_EMAIL_NOTIFICATIONS_ENABLED — an admin asked for it.
-    Raises on SMTP failure so the caller can report it."""
+# ---------------------------------------------------------------------------
+# Admin-triggered welcome email (Console: Admin > Users > "Preview & send
+# welcome email"). The admin previews and may edit the subject and plain-text
+# body; the HTML part is generated from that text so what was previewed is
+# what is sent. Distinct from the registration-time welcome_to_maap_*
+# notifications and NOT gated by MEMBER_EMAIL_NOTIFICATIONS_ENABLED.
+# ---------------------------------------------------------------------------
 
+WELCOME_EMAIL_SUBJECT = "Welcome to MAAP: your account has been activated"
+
+_LINK_RE = re.compile(r'(https?://[^\s<>"]+|[\w.+-]+@[\w-]+(?:\.[\w-]+)+)')
+_BULLET_RE = re.compile(r'^\s*[-*\u2022]\s+')
+
+
+def get_welcome_email_cc():
+    """CC list for the welcome email (settings.MAAP_WELCOME_EMAIL_CC, comma-delimited)."""
+    return [addr.strip() for addr in settings.MAAP_WELCOME_EMAIL_CC.split(",") if addr.strip()]
+
+
+def _linkify(escaped_text):
+    """Wrap bare URLs and email addresses in anchors. Input is already HTML-escaped."""
+    def repl(match):
+        target, trail = match.group(0), ''
+        while target and target[-1] in '.,;:!?)]':
+            trail, target = target[-1] + trail, target[:-1]
+        href = target if target.startswith('http') else 'mailto:' + target
+        return '<a href="{0}">{1}</a>{2}'.format(href, target, trail)
+    return _LINK_RE.sub(repl, escaped_text)
+
+
+def text_to_html(text):
+    """Plain text -> simple HTML: blank-line-separated blocks become paragraphs
+    (single newlines -> <br />), blocks of '- ' lines become lists, a lone
+    line ending in ':' becomes a bold lead-in, and URLs/emails become links.
+    Everything is HTML-escaped first."""
+    blocks = re.split(r'\n\s*\n', text.replace('\r\n', '\n').strip())
+    out = []
+    for block in blocks:
+        lines = [line.rstrip() for line in block.split('\n') if line.strip()]
+        if not lines:
+            continue
+        if all(_BULLET_RE.match(line) for line in lines):
+            items = ''.join('<li>{}</li>'.format(_linkify(html.escape(_BULLET_RE.sub('', line))))
+                            for line in lines)
+            out.append('<ul>{}</ul>'.format(items))
+        elif len(lines) == 1 and lines[0].endswith(':'):
+            out.append('<p><strong>{}</strong></p>'.format(_linkify(html.escape(lines[0]))))
+        else:
+            out.append('<p>{}</p>'.format('<br />'.join(_linkify(html.escape(line)) for line in lines)))
+    return '\n    '.join(out)
+
+
+def build_welcome_email_draft(member: Member, base_url):
+    """The default welcome email for a member, as the admin sees it before
+    sending: from/to/cc plus an editable subject and plain-text body."""
     environment_info = get_environment_info(base_url)
-    email_message_subj = "Welcome to MAAP: your account has been activated"
-
-    template_vars = {
-        'environment_info': environment_info,
+    body = _render_template("welcome_email_user_alert.txt", {
         'member_first_name': member.first_name or member.username,
         'hub_url': environment_info['urls']['hub'],
         'docs_url': settings.MAAP_DOCS_URL,
         'slack_invite_url': settings.MAAP_SLACK_INVITE_URL,
         'mailing_list_email': settings.MAAP_MAILING_LIST_EMAIL,
-        'support_email': settings.EMAIL_SUPPORT,
-        'title': email_message_subj,
+    })
+    return {
+        'from': settings.EMAIL_SUPPORT,
+        'to': member.email,
+        'cc': get_welcome_email_cc(),
+        'subject': WELCOME_EMAIL_SUBJECT,
+        'body': body.strip() + "\n",
     }
-    email_message_html = _render_template("welcome_email_user_alert.html", template_vars)
-    email_message_txt = _render_template("welcome_email_user_alert.txt", template_vars)
+
+
+def send_welcome_email(member: Member, base_url, subject=None, body=None):
+    """Send the welcome email to a member, CC'ing support. subject/body default
+    to build_welcome_email_draft(); pass the admin's edited versions to send
+    those instead. Raises on SMTP failure so the caller can report it."""
+    environment_info = get_environment_info(base_url)
+    draft = build_welcome_email_draft(member, base_url)
+    subject = (subject or '').strip() or draft['subject']
+    body = body if body and body.strip() else draft['body']
+
+    header_plain = environment_info['template']['header']['plain']
+    email_message_txt = (header_plain + "\n\n" if header_plain else "") + body
+    email_message_html = _render_template("welcome_email_user_alert.html", {
+        'environment_info': environment_info,
+        'title': subject,
+        'content': text_to_html(body),
+    })
 
     email_message = Email(
-        settings.EMAIL_SUPPORT,
+        draft['from'],
         [member.email],
-        email_message_subj,
+        subject,
         email_message_html,
-        email_message_txt
+        email_message_txt,
+        cc=draft['cc'],
     )
-    log.info("Sending 'Welcome' email for {} to {}".format(member.get_display_name(), member.email))
+    log.info("Sending 'Welcome' email for {} to {} (cc {})".format(
+        member.get_display_name(), member.email, ", ".join(draft['cc'])))
     email_message.send()
     log.info("Email Sent!")
 
