@@ -158,6 +158,8 @@ class TestEmailSystem(unittest.TestCase):
         self.assertIn(settings.MAAP_SLACK_INVITE_URL, body)
         self.assertIn(settings.MAAP_MAILING_LIST_EMAIL, body)
         self.assertIn("MAAP Operations Team", body)
+        self.assertIn("email us at support@maap-project.org", body)
+        self.assertNotIn("reply to this email", body)  # sender is a no-reply address
         self.assertNotIn("{", body)
         self.assertNotIn("ENVIRONMENT", body)  # env banner is added at send time, not editable
 

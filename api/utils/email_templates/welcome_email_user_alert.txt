@@ -13,7 +13,7 @@ Resources:
 - Slack: Please join our Slack via this link {slack_invite_url}
 - Mailing List: Please subscribe to {mailing_list_email} (announcements only)
 
-If you have any questions or encounter issues logging in, please reply to this email or reach out on Slack.
+If you have any questions or encounter issues logging in, please email us at {support_contact_email} or reach out on Slack.
 
 Best,
 MAAP Operations Team

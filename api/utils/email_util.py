@@ -311,6 +311,7 @@ def build_welcome_email_draft(member: Member, base_url):
         'docs_url': settings.MAAP_DOCS_URL,
         'slack_invite_url': settings.MAAP_SLACK_INVITE_URL,
         'mailing_list_email': settings.MAAP_MAILING_LIST_EMAIL,
+        'support_contact_email': settings.MAAP_SUPPORT_CONTACT_EMAIL,
     })
     return {
         'from': settings.EMAIL_SUPPORT,

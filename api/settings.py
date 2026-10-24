@@ -159,6 +159,7 @@ MAAP_SLACK_INVITE_URL = os.getenv('MAAP_SLACK_INVITE_URL',
                                   'https://join.slack.com/t/esa-nasa-maap/shared_invite/zt-49i483gwk-tVgMd3Dg8FvaMFxDitP02g')
 MAAP_MAILING_LIST_EMAIL = os.getenv('MAAP_MAILING_LIST_EMAIL', 'nasa-maap-users@lists.nasa.gov')
 MAAP_WELCOME_EMAIL_CC = os.getenv('MAAP_WELCOME_EMAIL_CC', 'support@maap-project.org')  # comma-delimited
+MAAP_SUPPORT_CONTACT_EMAIL = os.getenv('MAAP_SUPPORT_CONTACT_EMAIL', 'support@maap-project.org')  # named in the body
 
 # ESA Interoperability
 ESA_ISS_HOST = os.getenv('ESA_ISS_HOST', "")
