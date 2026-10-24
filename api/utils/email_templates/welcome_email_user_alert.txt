@@ -1,0 +1,19 @@
+Hi {member_first_name},
+
+Your account on the Multi-Mission Algorithm and Analysis Platform (MAAP) has been activated. Here is what you need to get started:
+
+Logging in:
+
+- MAAP Hub (JupyterHub): {hub_url}
+- Log in using your Earthdata Login credentials
+
+Resources:
+
+- MAAP Documentation: {docs_url}
+- Slack: Please join our Slack via this link {slack_invite_url}
+- Mailing List: Please subscribe to {mailing_list_email} (announcements only)
+
+If you have any questions or encounter issues logging in, please email us at {support_contact_email} or reach out on Slack.
+
+Best,
+MAAP Operations Team
