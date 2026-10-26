@@ -24,3 +24,4 @@ class Deployment(Base):
     ram_min = db.Column(db.Integer, nullable=True)
     cores_min = db.Column(db.Integer, nullable=True)
     base_command = db.Column(db.String(), nullable=True)
+    outputs = db.Column(db.String(), nullable=True)

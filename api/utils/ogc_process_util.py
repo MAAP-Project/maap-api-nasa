@@ -9,6 +9,9 @@ import re
 import urllib.parse
 from collections import namedtuple
 from datetime import datetime, timezone
+from urllib import parse
+from flask import jsonify
+import boto3
 
 import gitlab
 import requests
@@ -67,6 +70,61 @@ def generate_error(detail, error_status, error_type=None):
     }
     return response_body, error_status
 
+def get_presigned_s3_url_results(s3_path, file_path):
+    current_app.logger.debug("graceal in get_presigned_s3_url_results")
+    s3_client = boto3.client('s3', region_name=settings.AWS_REGION)
+    expiration = 60 * 60 * 12
+    bucket = s3_path.split("/")[0]
+    s3_path = s3_path.split("/", 1)[1] + file_path
+    decoded_s3_path = parse.unquote(s3_path)
+    current_app.logger.debug("graceal bucket and s3_path")
+    current_app.logger.debug(bucket)
+    current_app.logger.debug(s3_path)
+
+    # Extract AWS account ID from ARN (format: arn:aws:iam::ACCOUNT_ID:role/...)
+    if not settings.WORKSPACE_BUCKET_ARN or '::' not in settings.WORKSPACE_BUCKET_ARN:
+        return "Server configuration error: WORKSPACE_BUCKET_ARN not properly configured in API settings"
+    
+    account_id = settings.WORKSPACE_BUCKET_ARN.split('::')[1].split(':')[0]
+    if not account_id or account_id == '???':
+        return "Server configuration error: Unable to extract AWS account ID from WORKSPACE_BUCKET_ARN in API settings"
+    
+    # Verify that this key exists in the bucket before returning presigned s3 url
+    try:
+        head_object_params = {
+            'Bucket': bucket,
+            'Key': decoded_s3_path,
+            'ExpectedBucketOwner': account_id
+        }
+        s3_client.head_object(**head_object_params)
+    except Exception as e:
+        error_code = e.response['Error']['Code']
+
+        if error_code == "404":
+            return f"Error: The bucket '{bucket}' does not contain the requested file"
+        elif error_code == "403":
+            # If getting this error message, verify correct AWS account ID in settings.WORKSPACE_BUCKET_ARN
+            return f"Permission denied accessing the requested file in bucket '{bucket}'"
+        else:
+            # If getting a 400 error, should verify AWS account ID in API settings.WORKSPACE_BUCKET_ARN
+            print(f"AWS Security/Network Error: {e}")
+            return f"Error getting presigned url in bucket '{bucket}' for the requested file"
+
+    current_app.logger.debug("graceal about to get presigned s3 url")
+    url = s3_client.generate_presigned_url(
+        'get_object',
+        Params={
+            'Bucket': bucket,
+            'Key': parse.unquote(s3_path)
+        },
+        ExpiresIn=expiration
+    )
+
+    response = jsonify(url=url)
+    response.headers.add('Access-Control-Allow-Origin', '*')
+
+    return response
+    
 
 def trigger_gitlab_pipeline(cwl_raw_text, metadata_id, uuid):
     """Triggers the CI/CD pipeline in GitLab to deploy a process."""
@@ -105,7 +163,8 @@ def create_and_commit_deployment(metadata, pipeline, user, existing_process=None
         version=metadata.version if not existing_process else existing_process.version,
         ram_min = metadata.ram_min,
         cores_min = metadata.cores_min,
-        base_command = metadata.base_command
+        base_command = metadata.base_command,
+        outputs = metadata.outputs
     )
     db.session.add(deployment)
     try:
@@ -120,8 +179,31 @@ def create_and_commit_deployment(metadata, pipeline, user, existing_process=None
 CWL_METADATA = namedtuple("CWL_METADATA", [
     "id", "version", "title", "description", "keywords", "raw_text",
     "github_url", "git_commit_hash", "cwl_link", "ram_min", "cores_min",
-    "base_command", "author"
+    "base_command", "author", "outputs"
 ])
+
+def cwl_name(identifier):
+    """
+    Return the local name from a CWL identifier.
+ 
+    Examples:
+        '#main' -> 'main'
+        'file:///tmp/workflow.cwl#main/output_geotiff'
+            -> 'output_geotiff'
+        'output_geotiff' -> 'output_geotiff'
+    """
+    if not identifier:
+        return None
+ 
+    identifier = str(identifier)
+ 
+    # Remove the URI portion before the fragment, if present.
+    fragment = urllib.parse.urlparse(identifier).fragment
+    if fragment:
+        identifier = fragment
+ 
+    # Return the final path component.
+    return identifier.rstrip("/").split("/")[-1]
 
 def get_cwl_from_link(cwl_link):
     """
@@ -254,6 +336,18 @@ def get_cwl_metadata(cwl_text, cwl_link=None):
                         ram_min = req.ramMin if req.ramMin else ram_min
                         cores_min = req.coresMin if req.coresMin else cores_min
                         break  # Stop after finding the first ResourceRequirement
+            outputs=""
+            if command_line_tool.outputs:
+                for tool_output in command_line_tool.outputs:
+                    output_name = cwl_name(tool_output.id)
+                    output_binding = getattr(
+                        tool_output,
+                        "outputBinding",
+                        None
+                    )
+                    if output_binding:
+                        glob = getattr(output_binding, "glob", None)
+                    outputs = outputs+output_name+":"+glob+","
 
     return CWL_METADATA(
         id=cwl_id,
@@ -268,7 +362,8 @@ def get_cwl_metadata(cwl_text, cwl_link=None):
         ram_min=ram_min,
         cores_min=cores_min,
         base_command=base_command,
-        author=author
+        author=author,
+        outputs=outputs
     )
 
 def create_process_deployment(cwl_link, user_id, cwl_text = None, ignore_existing=False):

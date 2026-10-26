@@ -26,7 +26,7 @@ from api.utils.ogc_process_util import (
     create_process_deployment, get_cwl_metadata, get_cwl_from_link,
     trigger_gitlab_pipeline, create_and_commit_deployment, 
     generate_error, get_hysds_process_name, get_process_from_hysds_name, get_process_name_from_hysds_name, 
-    determineDatetimeInRange, parse_rfc3339_datetime, DEPLOYED_PROCESS_STATUS, INITIAL_JOB_STATUS, 
+    determineDatetimeInRange, parse_rfc3339_datetime, get_presigned_s3_url_results, DEPLOYED_PROCESS_STATUS, INITIAL_JOB_STATUS, 
     UNDEPLOYED_PROCESS_STATUS, HREF_LANG
 )
 
@@ -214,6 +214,7 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
                 existing_process.ram_min=deployment.ram_min,
                 existing_process.cores_min=deployment.cores_min,
                 existing_process.base_command=deployment.base_command
+                existing_process.outputs=deployment.outputs
             else:
                 process = Process_db(id=deployment.id,
                                 version=deployment.version,
@@ -229,7 +230,8 @@ def update_status_post_process_if_applicable(deployment, req_data=None, query_pi
                                 status=DEPLOYED_PROCESS_STATUS,
                                 ram_min=deployment.ram_min,
                                 cores_min=deployment.cores_min,
-                                base_command=deployment.base_command)
+                                base_command=deployment.base_command,
+                                outputs=deployment.outputs)
                 db.session.add(process)
                 try:
                     db.session.commit()
@@ -438,7 +440,14 @@ class Describe(Resource):
             param.get("name"): param for param in hysds_io_result.get("params", [])
         }
 
-        # TODO add outputs to response
+        # TODO add outputs to response- ONE day this should be from hysds_io not postgres
+        if existing_process.outputs:
+            response_body["outputs"] = {
+                key: value
+                for item in existing_process.outputs.split(",")
+                if item.strip()
+                for key, value in [item.split(":", 1)]
+            }   
         
         return response_body, status.HTTP_200_OK
     
@@ -712,6 +721,7 @@ class Result(Resource):
 
             job_info = response.get("job").get("job_info").get("metrics").get("products_staged")
             traceback = response.get("traceback")
+            last_s3_file_path = ""
             if job_info is not None:
                 for product in job_info:
                     prod = dict()
@@ -721,6 +731,8 @@ class Result(Resource):
                         prod["links"].append({"href": url})
                         if url.startswith("s3://"):
                             clickable_url += url.split(":80/")[1] + "/?region=us-east-1&tab=overview"
+                            # TODO Is this a good way to get this and should we use the last one
+                            last_s3_file_path = url.split(":80/")[1]
                     prod["links"].append({"href": clickable_url})
                     prod["id"] = product.get("id")
                     prod_list.append(prod)
@@ -730,6 +742,25 @@ class Result(Resource):
                 for prod_item in prod_list:
                     response_body["additionalProp"+str(count)] = prod_item
                     count += 1
+
+                # Add named outputs as keys in return JSON
+                try:
+                    if response["type"]:
+                        job_type = response["type"]
+                        existing_process = get_process_from_hysds_name(job_type)
+                        if existing_process.outputs:
+                            output_files = {
+                                key: value
+                                for item in existing_process.outputs.split(",")
+                                if item.strip()
+                                for key, value in [item.split(":", 1)]
+                            }
+                            for output_id, file_path in output_files.items():
+                                if last_s3_file_path:
+                                    presigned_s3_url = get_presigned_s3_url_results(last_s3_file_path, file_path)
+                                    response_body[output_id] = presigned_s3_url
+                except Exception as ex:
+                    print(ex)
                 return response_body, status.HTTP_200_OK 
         except Exception as ex:
             response_body["status"] = status.HTTP_500_INTERNAL_SERVER_ERROR
