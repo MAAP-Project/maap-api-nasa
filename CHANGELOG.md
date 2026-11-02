@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-- `POST /members/<key>/review` accepts `send_welcome_email` — emails the member the getting-started guide (Hub login, docs, Slack invite, mailing list), marks them invited to Slack, and audits it as `Welcome Email`. New settings: `MAAP_HUB_URL`, `MAAP_DOCS_URL`, `MAAP_SLACK_INVITE_URL`, `MAAP_MAILING_LIST_EMAIL`.
+- `GET/POST /members/<key>/welcome-email` — admin previews (GET: editable subject + plain-text body) and sends (POST) the getting-started welcome email (Hub login, docs, Slack invite, mailing list), CC support; a send marks the member invited to Slack and is audited as `Welcome Email`. `Email` gains `cc`. New settings: `MAAP_HUB_URL`, `MAAP_DOCS_URL`, `MAAP_SLACK_INVITE_URL`, `MAAP_MAILING_LIST_EMAIL`, `MAAP_WELCOME_EMAIL_CC`, `MAAP_SUPPORT_CONTACT_EMAIL`.
 
 ## [v5.0.1] - 2026-06-02
 - [pull/238](https://github.com/MAAP-Project/maap-api-nasa/pull/238) - Upgrade to Python 3.10
