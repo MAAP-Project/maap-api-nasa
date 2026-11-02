@@ -784,3 +784,145 @@ class TestUrsTokenRefresh(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+def _edl_jwt(uid):
+    """Build an unsigned JWT shaped like an EDL OAuth access token for ``uid``."""
+    import base64
+    import json as _json
+
+    def b64(d):
+        return base64.urlsafe_b64encode(_json.dumps(d).encode()).rstrip(b'=').decode()
+    header = {'typ': 'JWT', 'origin': 'Earthdata Login', 'alg': 'RS256'}
+    claims = {'type': 'OAuth', 'uid': uid, 'iss': 'https://urs.earthdata.nasa.gov', 'exp': 4102444800}
+    return f"{b64(header)}.{b64(claims)}.c2ln"
+
+
+@patch('api.settings.EDL_TOKEN_URL', EDL_TOKEN_URL_TEST)
+@patch('api.settings.KEYCLOAK_SERVER_URL', 'https://kc.test/')
+@patch('api.settings.KEYCLOAK_REALM', 'maap')
+@patch('api.settings.ESA_EDL_SYS_ACCOUNT', 'esa_system_account')
+class TestUrsTokenIdentityCheck(unittest.TestCase):
+    """The stored EDL token must belong to the member it is stored on."""
+
+    setUp = TestUrsTokenRefresh.setUp
+    tearDown = TestUrsTokenRefresh.tearDown
+    _create_member = TestUrsTokenRefresh._create_member
+
+    def test_edl_token_uid_reads_uid_claim(self):
+        from api.auth.cas_auth import edl_token_uid
+        assert edl_token_uid(_edl_jwt('someone')) == 'someone'
+        assert edl_token_uid('opaque-legacy-token') is None
+        assert edl_token_uid('a.b.c') is None
+        assert edl_token_uid(None) is None
+        assert edl_token_uid('') is None
+
+    @responses.activate
+    def test_mismatched_token_is_dropped_without_keycloak_token(self):
+        """Test: a valid-looking token for another EDL user is cleared, not used or refreshed"""
+        with app.app_context():
+            member = self._create_member(
+                urs_token=_edl_jwt('someone_else'),
+                urs_refresh_token='someone-elses-refresh-token',
+                urs_token_expiration=utcnow() + timedelta(hours=12)
+            )
+            responses.add(responses.POST, EDL_TOKEN_URL_TEST, json={'access_token': 'x'}, status=200)
+
+            refresh_urs_token(member)
+
+            assert member.urs_token is None
+            assert member.urs_refresh_token is None
+            assert member.urs_token_expiration is None
+            assert len(responses.calls) == 0
+            assert get_urs_token(member.id) is None
+
+    @responses.activate
+    def test_mismatched_expired_token_is_never_refreshed_directly(self):
+        """Test: refreshing someone else's expired token would mint another token for them"""
+        with app.app_context():
+            member = self._create_member(
+                urs_token=_edl_jwt('someone_else'),
+                urs_refresh_token='someone-elses-refresh-token',
+                urs_token_expiration=utcnow() - timedelta(hours=1)
+            )
+            responses.add(responses.POST, EDL_TOKEN_URL_TEST, json={'access_token': 'x'}, status=200)
+
+            refresh_urs_token(member)
+
+            assert member.urs_token is None
+            assert len(responses.calls) == 0
+
+    @responses.activate
+    def test_mismatched_token_is_replaced_from_broker(self):
+        """Test: with a live Keycloak token, the member's own EDL token is fetched from the broker"""
+        with app.app_context():
+            member = self._create_member(
+                urs_token=_edl_jwt('someone_else'),
+                urs_refresh_token='someone-elses-refresh-token',
+                urs_token_expiration=utcnow() + timedelta(hours=12)
+            )
+            responses.add(responses.POST, EDL_TOKEN_URL_TEST, json={'access_token': 'x'}, status=200)
+            responses.add(
+                responses.GET,
+                KC_BROKER_URL_TEST,
+                json={'access_token': _edl_jwt('tokenuser'),
+                      'refresh_token': 'own-refresh-token',
+                      'expires_in': 86400},
+                status=200
+            )
+
+            refresh_urs_token(member, 'jwt:kc-access-token')
+
+            assert member.urs_token == _edl_jwt('tokenuser')
+            assert member.urs_refresh_token == 'own-refresh-token'
+            assert len(responses.calls) == 1
+            assert responses.calls[0].request.url == KC_BROKER_URL_TEST
+
+    @responses.activate
+    def test_broker_token_for_wrong_user_is_dropped(self):
+        """Test: a broker token that still belongs to someone else is not kept"""
+        with app.app_context():
+            member = self._create_member(
+                urs_token=_edl_jwt('someone_else'),
+                urs_token_expiration=utcnow() + timedelta(hours=12)
+            )
+            responses.add(
+                responses.GET,
+                KC_BROKER_URL_TEST,
+                json={'access_token': _edl_jwt('yet_another_user'), 'expires_in': 86400},
+                status=200
+            )
+
+            refresh_urs_token(member, 'kc-access-token')
+
+            assert member.urs_token is None
+            assert member.urs_refresh_token is None
+
+    @responses.activate
+    def test_esa_system_account_token_is_allowed(self):
+        """Test: ESA users deliberately share the ESA system account's token"""
+        with app.app_context():
+            token = _edl_jwt('esa_system_account')
+            member = self._create_member(
+                urs_token=token,
+                urs_token_expiration=utcnow() + timedelta(hours=12)
+            )
+
+            refresh_urs_token(member)
+
+            assert member.urs_token == token
+            assert len(responses.calls) == 0
+
+    @responses.activate
+    def test_own_token_and_opaque_token_are_trusted(self):
+        """Test: the member's own token, and pre-JWT opaque tokens, are left alone"""
+        with app.app_context():
+            own = _edl_jwt('TokenUser')  # EDL uids are compared case-insensitively
+            member = self._create_member(urs_token=own, urs_token_expiration=utcnow() + timedelta(hours=12))
+            refresh_urs_token(member)
+            assert member.urs_token == own
+
+            member.urs_token = 'opaque-legacy-token'
+            db.session.commit()
+            refresh_urs_token(member)
+            assert member.urs_token == 'opaque-legacy-token'
+            assert len(responses.calls) == 0

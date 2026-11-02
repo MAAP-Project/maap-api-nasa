@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- Fix: a member's stored Earthdata Login (URS) token is now verified against the member's identity before every refresh. A token issued to a different EDL user (e.g. an admin backfill during the Keycloak migration) is never refreshed; it is replaced from the Keycloak broker when a live Keycloak token is present, otherwise dropped.
+- Fix: `GET /members/self/awsAccess/edcCredentials/<endpoint>` returns 401 (no EDL token on file, or the DAAC redirected to EDL login because the token was rejected) and 401/403 with EDL's own explanation when the DAAC denies access, instead of a generic 503.
+- Fix: application logging config no longer disables the module loggers created at import time; endpoint and auth error logs were silently dropped in production.
 
 ## [v5.0.1] - 2026-06-02
 - [pull/238](https://github.com/MAAP-Project/maap-api-nasa/pull/238) - Upgrade to Python 3.10

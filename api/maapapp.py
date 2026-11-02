@@ -30,7 +30,10 @@ app = Flask(__name__)
 CORS(app)
 app.secret_key = settings.CAS_SECRET_KEY
 logging_conf_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '../logging.conf'))
-logging.config.fileConfig(logging_conf_path)
+# disable_existing_loggers must be off: the endpoint/auth modules above are
+# imported (and create their module loggers) before this runs, and the
+# default of True silently disables every one of them in production.
+logging.config.fileConfig(logging_conf_path, disable_existing_loggers=False)
 log = logging.getLogger(__name__)
 
 blueprint = Blueprint('baseapi', __name__, url_prefix='/api')
