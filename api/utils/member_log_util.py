@@ -21,7 +21,8 @@ def seed_member_log_changes():
                         MemberLogChange.CHANGE_ROLE,
                         MemberLogChange.CHANGE_ORG,
                         MemberLogChange.CHANGE_SLACK,
-                        MemberLogChange.CHANGE_MAILING):
+                        MemberLogChange.CHANGE_MAILING,
+                        MemberLogChange.CHANGE_WELCOME_EMAIL):
         exists = db.session.query(MemberLogChange).filter_by(change_type=change_type).first()
         if exists is None:
             db.session.add(MemberLogChange(change_type=change_type))

@@ -13,7 +13,7 @@ from api.models.member_log_change import MemberLogChange
 from api.models.organization import Organization
 from api.models.organization_membership import OrganizationMembership
 from api.utils.member_log_util import seed_member_log_changes
-from api import constants
+from api import constants, settings
 
 
 class TestMemberReview(unittest.TestCase):
@@ -79,6 +79,14 @@ class TestMemberReview(unittest.TestCase):
                     headers={'proxy-ticket': 'test-ticket'},
                     data=json.dumps(payload),
                     content_type='application/json')
+
+    def _welcome(self, method, payload=None):
+        with app.app_context():
+            with patch('api.auth.security.validate_proxy', return_value=self._admin_session()):
+                kwargs = dict(headers={'proxy-ticket': 'test-ticket'})
+                if payload is not None:
+                    kwargs.update(data=json.dumps(payload), content_type='application/json')
+                return getattr(self.client, method)('/api/members/joeuser/welcome-email', **kwargs)
 
     def _logs(self):
         with app.app_context():
@@ -207,6 +215,87 @@ class TestMemberReview(unittest.TestCase):
         self.assertEqual(data[0]['change_type'], 'Role')
         self.assertEqual(data[0]['admin_username'], 'admin1')
         self.assertEqual(data[1]['change_type'], 'Status')
+
+    # --- welcome email: GET drafts it, POST sends the (possibly edited) draft ---
+    def test_welcome_email_draft(self):
+        resp = self._welcome('get')
+        self.assertEqual(resp.status_code, 200)
+        draft = json.loads(resp.data)
+        self.assertEqual(draft['to'], 'joe@example.org')
+        self.assertEqual(draft['cc'], ['support@maap-project.org'])
+        self.assertEqual(draft['from'], settings.EMAIL_SUPPORT)
+        self.assertIn('activated', draft['subject'])
+        self.assertTrue(draft['body'].startswith('Hi Joe,'))
+        self.assertIn('MAAP Hub (JupyterHub): https://hub.', draft['body'])
+        self.assertIn(settings.MAAP_SLACK_INVITE_URL, draft['body'])
+        self.assertNotIn('{', draft['body'])
+        self.assertEqual(self._logs(), [])
+
+    def test_welcome_email_draft_requires_member_email(self):
+        with app.app_context():
+            m = db.session.query(Member).filter_by(username='joeuser').first()
+            m.email = None
+            db.session.commit()
+        self.assertEqual(self._welcome('get').status_code, 400)
+
+    @patch('api.endpoints.members.send_welcome_email')
+    def test_welcome_email_send_uses_edits_flips_slack_and_logs(self, mock_send):
+        resp = self._welcome('post', {'subject': 'Hello Joe', 'body': 'Hi Joe,\n\nEdited body.',
+                                      'comment': 'welcome'})
+        self.assertEqual(resp.status_code, 200)
+        body = json.loads(resp.data)
+        self.assertTrue(body['sent'])
+        self.assertEqual(body['to'], 'joe@example.org')
+        self.assertEqual(body['cc'], ['support@maap-project.org'])
+        mock_send.assert_called_once()
+        self.assertEqual(mock_send.call_args[0][0].username, 'joeuser')
+        self.assertEqual(mock_send.call_args[1]['subject'], 'Hello Joe')
+        self.assertEqual(mock_send.call_args[1]['body'], 'Hi Joe,\n\nEdited body.')
+        with app.app_context():
+            m = db.session.query(Member).filter_by(username='joeuser').first()
+            self.assertTrue(m.invited_to_slack)
+        logs = self._logs()
+        self.assertEqual({l['type'] for l in logs}, {'Welcome Email', 'Slack Invite'})
+        welcome = next(l for l in logs if l['type'] == 'Welcome Email')
+        self.assertEqual(welcome['new'], 'Sent to joe@example.org')
+        self.assertEqual(welcome['comment'], 'welcome')
+        self.assertEqual(welcome['admin_id'], self.admin_id)
+
+    @patch('api.endpoints.members.send_welcome_email')
+    def test_welcome_email_send_already_invited_logs_email_only(self, mock_send):
+        self._review({'invited_to_slack': True})
+        resp = self._welcome('post', {'subject': 's', 'body': 'b'})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual([l['type'] for l in self._logs()], ['Slack Invite', 'Welcome Email'])
+
+    @patch('api.endpoints.members.send_welcome_email', side_effect=RuntimeError('smtp down'))
+    def test_welcome_email_send_failure_is_502_and_records_nothing(self, mock_send):
+        resp = self._welcome('post', {'subject': 's', 'body': 'b'})
+        self.assertEqual(resp.status_code, 502)
+        self.assertIn('smtp down', json.loads(resp.data)['message'])
+        with app.app_context():
+            m = db.session.query(Member).filter_by(username='joeuser').first()
+            self.assertFalse(m.invited_to_slack)
+        self.assertEqual(self._logs(), [])
+
+    @patch('api.endpoints.members.send_welcome_email')
+    def test_welcome_email_send_requires_subject_and_body(self, mock_send):
+        self.assertEqual(self._welcome('post', {'subject': '', 'body': 'b'}).status_code, 400)
+        self.assertEqual(self._welcome('post', {'subject': 's', 'body': '  '}).status_code, 400)
+        self.assertEqual(self._welcome('post', {}).status_code, 400)
+        mock_send.assert_not_called()
+        self.assertEqual(self._logs(), [])
+
+    @patch('api.endpoints.members.send_welcome_email')
+    def test_welcome_email_send_requires_admin(self, mock_send):
+        with app.app_context():
+            with patch('api.auth.security.validate_proxy', return_value=self._member_session()):
+                resp = self.client.post('/api/members/joeuser/welcome-email',
+                                        headers={'proxy-ticket': 'test-ticket'},
+                                        data=json.dumps({'subject': 's', 'body': 'b'}),
+                                        content_type='application/json')
+        self.assertIn(resp.status_code, (401, 403))
+        mock_send.assert_not_called()
 
 
 if __name__ == '__main__':

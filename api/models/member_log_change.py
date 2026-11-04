@@ -13,6 +13,7 @@ class MemberLogChange(Base):
     CHANGE_ORG = 'Org'
     CHANGE_SLACK = 'Slack Invite'
     CHANGE_MAILING = 'Mailing List'
+    CHANGE_WELCOME_EMAIL = 'Welcome Email'
 
     id = db.Column(db.Integer, primary_key=True)
     change_type = db.Column(db.String(), unique=True, nullable=False)
