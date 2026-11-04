@@ -5,7 +5,7 @@ from flask_restx import Resource, reqparse
 from flask import request, jsonify, Response, current_app as app
 from flask_api import status
 from sqlalchemy.exc import SQLAlchemyError
-from werkzeug.exceptions import BadRequest, RequestEntityTooLarge, Unauthorized, ServiceUnavailable
+from werkzeug.exceptions import BadRequest, RequestEntityTooLarge, Unauthorized, ServiceUnavailable, Forbidden
 from api.utils.organization import get_member_organizations
 from api.models.role import Role
 from api.restplus import api
@@ -19,7 +19,7 @@ from api.models.member_session import MemberSession as MemberSession_db
 from api.models.member_secret import MemberSecret as MemberSecret_db
 from api.schemas.member_schema import MemberSchema
 from api.schemas.member_session_schema import MemberSessionSchema
-from api.utils.security_utils import validate_ssh_key_file, sanitize_filename, InvalidFileTypeError, FileSizeTooLargeError, EmptyFileError, ExternalServiceError
+from api.utils.security_utils import validate_ssh_key_file, sanitize_filename, InvalidFileTypeError, FileSizeTooLargeError, EmptyFileError, ExternalServiceError, AuthenticationError
 from api.utils.email_util import send_user_status_update_active_user_email, \
     send_user_status_update_suspended_user_email, send_user_status_change_email, \
     send_welcome_email, build_welcome_email_draft, get_welcome_email_cc
@@ -1072,7 +1072,14 @@ def get_edc_credentials(endpoint_uri, user_id):
     credentials are valid to avoid unnecessary generation of new credentials and
     to minimize load on the endpoint, while also ensuring reasonable "freshness".
     """
+    endpoint = parse.unquote(endpoint_uri)
     urs_token = get_urs_token(user_id)
+
+    if not urs_token:
+        log.warning(f"No EDL token on file for member {user_id}; cannot request credentials from {endpoint}")
+        raise AuthenticationError(
+            "No Earthdata Login token is linked to this MAAP account. "
+            "Sign in to the MAAP ADE to link your Earthdata Login, then retry.")
 
     s = requests.Session()
 
@@ -1083,8 +1090,28 @@ def get_edc_credentials(endpoint_uri, user_id):
         }
     )
 
-    endpoint = parse.unquote(endpoint_uri)
     edl_response = s.get(endpoint, allow_redirects=False)
+
+    # The DAAC redirects to the EDL login page rather than returning 401 when
+    # the bearer token is missing, expired or revoked. Report that as an auth
+    # failure instead of letting the HTML body surface as a 503 below.
+    if 300 <= edl_response.status_code < 400:
+        log.warning(f"EDL credentials request for endpoint {endpoint} was redirected to "
+                    f"{edl_response.headers.get('Location')}: the stored Earthdata Login token was rejected")
+        raise AuthenticationError(
+            "Earthdata Login rejected the stored token. "
+            "Sign in to the MAAP ADE again to refresh your Earthdata Login, then retry.")
+
+    if edl_response.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN):
+        # Typically an unaccepted DAAC EULA or an application the user has not
+        # authorized. Pass EDL's explanation through with the matching status.
+        try:
+            detail = edl_response.json().get("error_description") or edl_response.text[:200]
+        except ValueError:
+            detail = edl_response.text[:200]
+        log.warning(f"EDL credentials request denied with status {edl_response.status_code} for endpoint {endpoint}: {detail}")
+        exc = AuthenticationError if edl_response.status_code == status.HTTP_401_UNAUTHORIZED else Forbidden
+        raise exc(f"Earthdata Login denied access to {endpoint}: {detail}")
 
     if not edl_response.ok:
         log.error(f"EDL credentials request failed with status {edl_response.status_code} for endpoint {endpoint}: {edl_response.text}")

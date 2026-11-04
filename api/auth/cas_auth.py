@@ -17,6 +17,7 @@ from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_v1_5
 from Crypto import Random
 from Crypto.Hash import SHA
+import base64
 from base64 import b64decode
 from api.utils.url_util import proxied_url
 from api.utils.member_util import create_member_from_identity
@@ -48,6 +49,50 @@ EDL_BROKER_ALIAS = "edl"
 
 # Refresh the stored EDL (URS) access token this long before it expires.
 EDL_TOKEN_REFRESH_BUFFER = timedelta(minutes=5)
+
+
+def edl_token_uid(token):
+    """Return the ``uid`` claim of an EDL (URS) JWT access token, read without
+    signature verification, or None when the token is missing, opaque (pre-JWT
+    EDL tokens) or carries no uid claim."""
+    if not token or not isinstance(token, str):
+        return None
+    try:
+        payload = token.split(".")[1]
+        claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+        uid = claims.get("uid")
+        return uid if isinstance(uid, str) and uid else None
+    except (IndexError, ValueError, TypeError, AttributeError):
+        return None
+
+
+def urs_token_belongs_to(member):
+    """True unless the member's stored EDL token verifiably belongs to a different
+    EDL identity. Opaque tokens cannot be checked and are trusted. ESA users
+    deliberately carry the shared ESA system account's token (see
+    start_member_session), so that identity is allowed for everyone."""
+    uid = edl_token_uid(member.urs_token)
+    if uid is None:
+        return True
+    if uid.lower() == (member.username or "").lower():
+        return True
+    if settings.ESA_EDL_SYS_ACCOUNT and uid.lower() == settings.ESA_EDL_SYS_ACCOUNT.lower():
+        return True
+    return False
+
+
+def _clear_urs_tokens(member):
+    """Drop the member's stored EDL token set. Returns True on success."""
+    member.urs_token = None
+    member.urs_refresh_token = None
+    member.urs_token_expiration = None
+    try:
+        db.session.commit()
+        return True
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception(f"Failed to clear URS token for {member.username}")
+        return False
 
 def validate(service, ticket):
     """
@@ -380,7 +425,23 @@ def refresh_urs_token(member, kc_access_token=None):
     EDL broker endpoint when a live Keycloak access token is available (i.e. at
     login), which also (re)bootstraps the stored refresh token. Failures are
     logged and leave the existing token in place — they must not break
-    authentication."""
+    authentication.
+
+    A stored token set that was issued to a different EDL identity (e.g. an
+    admin backfill during the Keycloak migration) is never refreshed, since
+    that would only mint another token for the wrong user. It is replaced from
+    the Keycloak broker when a live Keycloak token is available and dropped
+    otherwise, so callers fail closed instead of acting as someone else."""
+    if not urs_token_belongs_to(member):
+        current_app.logger.warning(
+            f"Stored EDL token for {member.username} belongs to EDL user "
+            f"{edl_token_uid(member.urs_token)}; discarding it.")
+        if kc_access_token and _refresh_edl_token_from_broker(member, kc_access_token) \
+                and urs_token_belongs_to(member):
+            return
+        _clear_urs_tokens(member)
+        return
+
     now = utcnow()
     if member.urs_token and member.urs_token_expiration is not None \
             and now < member.urs_token_expiration - EDL_TOKEN_REFRESH_BUFFER:
