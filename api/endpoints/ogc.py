@@ -21,7 +21,7 @@ from api.models.process import Process as Process_db
 from api.models.deployment import Deployment as Deployment_db
 from api.models.member import Member as Member_db
 
-from api.utils import job_queue
+from api.utils import job_queue, output_target
 from api.utils.ogc_process_util import (
     create_process_deployment, get_cwl_metadata, get_cwl_from_link,
     trigger_gitlab_pipeline, create_and_commit_deployment, 
@@ -627,6 +627,14 @@ class ExecuteJob(Resource):
             if job_queue.contains_time_limit(queue_obj):
                 job_time_limit = int(queue_obj.time_limit_minutes) * 60
             
+            # Output target: top-level request fields (like queue/tag), else inputs.
+            # Always stripped from params unless it passes the permission check
+            # (MAAP-Project/Community#1336).
+            output_target.apply_output_target(
+                params, user.id, user.username,
+                req_data.get("output_bucket", inputs.get("output_bucket")),
+                req_data.get("output_prefix", inputs.get("output_prefix")))
+
             response = hysds.mozart_submit_job(
                 job_type=job_type,
                 params=params, 
@@ -676,6 +684,8 @@ class ExecuteJob(Resource):
             else:
                 return generate_error(response.get("message"), status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+        except output_target.OutputTargetError as ex:
+            return generate_error(f"FailedJobSubmit: {ex}", ex.status_code)
         except ValueError as ex:
             log.error(traceback.format_exc())
             return generate_error(f"FailedJobSubmit: {ex}", status.HTTP_400_BAD_REQUEST)

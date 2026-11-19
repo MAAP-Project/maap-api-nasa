@@ -7,6 +7,7 @@ import api.settings as settings
 import time
 import copy
 import api.utils.ogc_translate as ogc
+from api.utils.output_target import OUTPUT_TARGET_PARAMS
 from flask_api import status
 
 import api.utils.job_queue
@@ -49,6 +50,27 @@ def remove_double_tag(mozart_response):
         pass
     return mozart_response
 
+def _org_bucket_product_path(urls):
+    """
+    For outputs published to an org bucket (not the workspace bucket), return the
+    workspace path <org mount>/<bucket>/<key>. Returns None for the workspace
+    bucket, or when no s3:// URL can be parsed, so the default mapping applies.
+    """
+    for url in urls or []:
+        if not isinstance(url, str) or not url.startswith("s3://"):
+            continue
+        # s3://<endpoint>:80/<bucket>/<key> (regional form) or s3://<bucket>/<key>
+        rest = url[len("s3://"):]
+        rest = rest.split(":80/", 1)[1] if ":80/" in rest else rest
+        bucket, _, key = rest.partition("/")
+        if not bucket or not key:
+            return None
+        if bucket == settings.WORKSPACE_BUCKET or not settings.WORKSPACE_BUCKET:
+            return None
+        return f"{settings.WORKSPACE_MOUNT_ORG_BUCKETS}/{bucket}/{key}"
+    return None
+
+
 def add_product_path(mozart_response):
     """
     Adds the product folder path as a key value pair into the mozart_response object 
@@ -61,6 +83,10 @@ def add_product_path(mozart_response):
             logging.info("Length of products_staged is more than 1. We are only looking at the first element for the product file path")
         # All urls should have the same file path within them 
         product_url = mozart_response["result"]["job"]["job_info"]["metrics"]["products_staged"][0]["urls"][0]
+        org_path = _org_bucket_product_path(mozart_response["result"]["job"]["job_info"]["metrics"]["products_staged"][0]["urls"])
+        if org_path is not None:
+            mozart_response["result"]["job"]["job_info"]["metrics"]["products_staged"][0]["product_folder_path"] = org_path
+            return mozart_response
         jobs_output_folder_names = [settings.WORKSPACE_MOUNT_TRIAGE, settings.AWS_TRIAGE_WORKSPACE_BUCKET_PATH, settings.WORKSPACE_MOUNT_SUCCESSFUL_JOBS]
         product_path = None
         for jobs_output_folder_name in jobs_output_folder_names:
@@ -204,6 +230,12 @@ def create_hysds_io(algorithm_description, inputs, verified=False, submission_ty
         params.append(verified_param)
         params.append(cmr_met_param)
 
+    # Output target (MAAP-Project/Community#1336). Optional with no default: when
+    # not submitted, the executor uses the default bucket + username.
+    for name in OUTPUT_TARGET_PARAMS:
+        if not any(p.get("name") == name for p in params):
+            params.append({"name": name, "from": "submitter", "type": "text", "optional": True})
+
     hysds_io["params"] = params
     return hysds_io
 
@@ -250,6 +282,12 @@ def create_job_spec(run_command, inputs, disk_usage, queue_name, verified=False)
         cmr_met_param["destination"] = "context"
         params.append(verified_param)
         params.append(cmr_met_param)
+    # Output target (MAAP-Project/Community#1336). Mozart drops params the job spec
+    # does not declare; "context" lands them in _context.json for the executor.
+    for name in OUTPUT_TARGET_PARAMS:
+        if not any(p.get("name") == name for p in params):
+            params.append({"name": name, "destination": "context"})
+
     job_spec["params"] = params
     return job_spec
 
