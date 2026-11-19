@@ -6,6 +6,7 @@ from api.restplus import api
 import api.utils.hysds_util as hysds
 import api.utils.ogc_translate as ogc
 import api.utils.job_queue as job_queue
+from api.utils import output_target
 import api.settings as settings
 try:
     import urllib.parse as urlparse
@@ -69,6 +70,11 @@ class Submit(Resource):
             job_time_limit = hysds_io.get("result").get("soft_time_limit", 86400)
             if job_queue.contains_time_limit(queue):
                 job_time_limit = int(queue.time_limit_minutes) * 60
+            # Output target is read from the job inputs, and always stripped from params
+            # unless it passes the permission check (MAAP-Project/Community#1336)
+            output_target.apply_output_target(params, user.id, user.username,
+                                              input_params.get("output_bucket"),
+                                              input_params.get("output_prefix"))
             response = hysds.mozart_submit_job(job_type=job_type, params=params, dedup=dedup, queue=queue.queue_name,
                                                identifier=identifier, job_time_limit=int(job_time_limit))
 
@@ -86,6 +92,9 @@ class Submit(Resource):
                 return Response(ogc.status_response(job_id=job_id, job_status=job_status), mimetype='text/xml')
             else:
                 raise Exception(response.get("message"))
+        except output_target.OutputTargetError as ex:
+            return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",
+                                              ex_message=str(ex)), ex.status_code)
         except ValueError as ex:
             logging.error(traceback.format_exc())
             return Response(ogc.get_exception(type="FailedJobSubmit", origin_process="Execute",
